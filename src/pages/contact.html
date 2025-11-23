@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contact - KS Mansion</title>
+    <link rel="stylesheet" href="/src/styles/main.css">
+    <link rel="stylesheet" href="/src/styles/pages.css">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar" id="navbar">
+        <div class="nav-container">
+            <div class="logo">
+                <a href="/">KS MANSION</a>
+            </div>
+            <ul class="nav-menu" id="nav-menu">
+                <li><a href="/">Home</a></li>
+                <li><a href="/src/pages/accommodations.html">Accommodations</a></li>
+                <li><a href="/src/pages/experiences.html">Experiences</a></li>
+                <li><a href="/src/pages/dining.html">Dining</a></li>
+                <li><a href="/src/pages/gallery.html">Gallery</a></li>
+                <li><a href="/src/pages/contact.html">Contact</a></li>
+                <li><a href="/src/pages/reservations.html" class="btn-reserve">Reserve</a></li>
+            </ul>
+            <div class="hamburger" id="hamburger">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Page Header -->
+    <section class="page-header">
+        <div class="page-header-content">
+            <h1>Contact Us</h1>
+            <p>We're here to assist you with any inquiries</p>
+        </div>
+    </section>
+
+    <!-- Contact Content -->
+    <section class="page-content">
+        <div class="container">
+            <div class="contact-container">
+                <!-- Contact Form -->
+                <div class="contact-form-section">
+                    <h2>Send Us a Message</h2>
+                    <form id="contactForm" class="contact-form">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="name">Name *</label>
+                                <input type="text" id="name" name="name" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="email">Email *</label>
+                                <input type="email" id="email" name="email" required>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="phone">Phone Number</label>
+                            <input type="tel" id="phone" name="phone">
+                        </div>
+                        <div class="form-group">
+                            <label for="subject">Subject *</label>
+                            <select id="subject" name="subject" required>
+                                <option value="">Select a subject</option>
+                                <option value="general">General Inquiry</option>
+                                <option value="reservation">Reservation Question</option>
+                                <option value="events">Special Events</option>
+                                <option value="dining">Dining Reservation</option>
+                                <option value="feedback">Feedback</option>
+                                <option value="other">Other</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="message">Message *</label>
+                            <textarea id="message" name="message" rows="6" required></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Send Message</button>
+                        <p class="form-note">* Required fields. We'll respond within 24 hours.</p>
+                    </form>
+                </div>
+
+                <!-- Contact Information -->
+                <div class="contact-info-section">
+                    <div class="info-card">
+                        <h3>Contact Information</h3>
+                        <div class="contact-detail">
+                            <h4>Address</h4>
+                            <p>123 Mansion Drive<br>
+                            Luxury District<br>
+                            State, ZIP 12345</p>
+                        </div>
+                        <div class="contact-detail">
+                            <h4>Phone</h4>
+                            <p>Main: +1 (555) 123-4567<br>
+                            Reservations: +1 (555) 123-4568<br>
+                            Concierge: +1 (555) 123-4569</p>
+                        </div>
+                        <div class="contact-detail">
+                            <h4>Email</h4>
+                            <p>info@ksmansion.com<br>
+                            reservations@ksmansion.com<br>
+                            concierge@ksmansion.com</p>
+                        </div>
+                    </div>
+
+                    <div class="info-card">
+                        <h3>Office Hours</h3>
+                        <div class="contact-detail">
+                            <p><strong>Reception:</strong> 24/7</p>
+                            <p><strong>Reservations:</strong><br>
+                            Monday - Friday: 9:00 AM - 8:00 PM<br>
+                            Saturday - Sunday: 10:00 AM - 6:00 PM</p>
+                            <p><strong>Concierge:</strong> 24/7</p>
+                        </div>
+                    </div>
+
+                    <div class="info-card">
+                        <h3>Quick Links</h3>
+                        <ul class="quick-links">
+                            <li><a href="/src/pages/reservations.html">Make a Reservation</a></li>
+                            <li><a href="/src/pages/accommodations.html">View Accommodations</a></li>
+                            <li><a href="/src/pages/experiences.html">Explore Experiences</a></li>
+                            <li><a href="/src/pages/gallery.html">Photo Gallery</a></li>
+                        </ul>
+                    </div>
+
+                    <div class="info-card">
+                        <h3>Follow Us</h3>
+                        <div class="social-links">
+                            <a href="#" class="social-link">Instagram</a>
+                            <a href="#" class="social-link">Facebook</a>
+                            <a href="#" class="social-link">Twitter</a>
+                            <a href="#" class="social-link">Pinterest</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Map Section -->
+            <div class="map-section">
+                <h2>Location</h2>
+                <div class="map-placeholder">
+                    <div class="map-content">
+                        <p>Map will be integrated here</p>
+                        <p>123 Mansion Drive, Luxury District</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Directions -->
+            <div class="directions-section">
+                <h2>Getting Here</h2>
+                <div class="directions-grid">
+                    <div class="direction-card">
+                        <h4>By Car</h4>
+                        <p>From downtown, take Main Street north for 5 miles. Turn right on Luxury Boulevard and continue for 2 miles. The mansion entrance is on the left.</p>
+                    </div>
+                    <div class="direction-card">
+                        <h4>By Air</h4>
+                        <p>International Airport is 30 minutes away. We offer private transfer services. Please contact our concierge to arrange pickup.</p>
+                    </div>
+                    <div class="direction-card">
+                        <h4>By Train</h4>
+                        <p>Central Station is 15 minutes from the mansion. Taxi and ride-sharing services are readily available at the station.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h4>KS Mansion</h4>
+                    <p>Luxury Retreat & Estate</p>
+                </div>
+                <div class="footer-section">
+                    <h4>Quick Links</h4>
+                    <ul>
+                        <li><a href="/src/pages/accommodations.html">Accommodations</a></li>
+                        <li><a href="/src/pages/experiences.html">Experiences</a></li>
+                        <li><a href="/src/pages/dining.html">Dining</a></li>
+                        <li><a href="/src/pages/gallery.html">Gallery</a></li>
+                    </ul>
+                </div>
+                <div class="footer-section">
+                    <h4>Contact</h4>
+                    <ul>
+                        <li><a href="/src/pages/contact.html">Get in Touch</a></li>
+                        <li><a href="/src/pages/reservations.html">Reservations</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2025 KS Mansion. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script type="module" src="/src/scripts/main.js"></script>
+    <script type="module" src="/src/scripts/contact.js"></script>
+</body>
+</html>

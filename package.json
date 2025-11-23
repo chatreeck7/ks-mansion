@@ -1,0 +1,23 @@
+{
+  "name": "ks-mansion",
+  "version": "1.0.0",
+  "description": "Luxury mansion reservation website",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "keywords": [
+    "mansion",
+    "reservation",
+    "luxury",
+    "hotel"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "vite": "^5.0.0"
+  },
+  "dependencies": {}
+}
