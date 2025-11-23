@@ -1,0 +1,44 @@
+---
+import MobileMenu from './react/MobileMenu';
+
+const currentPath = Astro.url.pathname;
+---
+
+<nav id="navbar" class="fixed top-0 left-0 w-full bg-white/95 shadow-md z-[1000] transition-all duration-300">
+  <div class="max-w-[1400px] mx-auto px-10 py-5 flex justify-between items-center">
+    <div class="logo">
+      <a href="/" class="text-2xl font-light tracking-[0.2em] text-primary no-underline">
+        KS MANSION
+      </a>
+    </div>
+
+    <!-- Desktop Navigation -->
+    <ul class="hidden md:flex list-none gap-8 items-center">
+      <li><a href="/" class="text-primary no-underline text-sm tracking-wide transition-colors hover:text-accent">Home</a></li>
+      <li><a href="/accommodations" class="text-primary no-underline text-sm tracking-wide transition-colors hover:text-accent">Accommodations</a></li>
+      <li><a href="/experiences" class="text-primary no-underline text-sm tracking-wide transition-colors hover:text-accent">Experiences</a></li>
+      <li><a href="/dining" class="text-primary no-underline text-sm tracking-wide transition-colors hover:text-accent">Dining</a></li>
+      <li><a href="/gallery" class="text-primary no-underline text-sm tracking-wide transition-colors hover:text-accent">Gallery</a></li>
+      <li><a href="/contact" class="text-primary no-underline text-sm tracking-wide transition-colors hover:text-accent">Contact</a></li>
+      <li><a href="/reservations" class="btn-reserve">Reserve</a></li>
+    </ul>
+
+    <!-- Mobile Menu Component -->
+    <MobileMenu client:load />
+  </div>
+</nav>
+
+<script>
+  // Navbar scroll effect
+  const navbar = document.getElementById('navbar');
+
+  window.addEventListener('scroll', () => {
+    if (window.pageYOffset > 100) {
+      navbar?.classList.add('py-2');
+      navbar?.classList.remove('py-5');
+    } else {
+      navbar?.classList.add('py-5');
+      navbar?.classList.remove('py-2');
+    }
+  });
+</script>

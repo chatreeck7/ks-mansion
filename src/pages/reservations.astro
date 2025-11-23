@@ -1,0 +1,65 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Navigation from '../components/Navigation.astro';
+import Footer from '../components/Footer.astro';
+import ReservationForm from '../components/react/ReservationForm';
+---
+
+<BaseLayout title="Reservations - KS Mansion" description="Book your luxury stay at KS Mansion">
+  <Navigation />
+
+  <!-- Page Header -->
+  <section class="page-header">
+    <div class="page-header-content">
+      <h1 class="text-4xl md:text-5xl font-light mb-4 tracking-wide">Make a Reservation</h1>
+      <p class="text-lg md:text-xl">Book your luxury stay at KS Mansion</p>
+    </div>
+  </section>
+
+  <!-- Reservation Form -->
+  <section class="py-20">
+    <div class="container-custom">
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-16">
+        <!-- Form Section -->
+        <div class="lg:col-span-2">
+          <h2 class="mb-8">Booking Details</h2>
+          <ReservationForm client:load />
+        </div>
+
+        <!-- Info Sidebar -->
+        <div class="space-y-6">
+          <div class="bg-bg-light p-8 rounded">
+            <h3 class="text-xl mb-5">Reservation Policies</h3>
+            <ul class="list-none space-y-3 text-text-light">
+              <li><strong class="text-primary">Check-in:</strong> 3:00 PM</li>
+              <li><strong class="text-primary">Check-out:</strong> 12:00 PM</li>
+              <li><strong class="text-primary">Cancellation:</strong> Free cancellation up to 48 hours before arrival</li>
+              <li><strong class="text-primary">Deposit:</strong> 50% deposit required to confirm booking</li>
+            </ul>
+          </div>
+
+          <div class="bg-bg-light p-8 rounded">
+            <h3 class="text-xl mb-5">Need Assistance?</h3>
+            <p class="mb-4">Our reservations team is available to help you plan your perfect stay.</p>
+            <p class="mb-2"><strong class="text-primary">Phone:</strong> +1 (555) 123-4567</p>
+            <p class="mb-6"><strong class="text-primary">Email:</strong> reservations@ksmansion.com</p>
+            <a href="/contact" class="btn btn-secondary btn-full">Contact Us</a>
+          </div>
+
+          <div class="bg-bg-light p-8 rounded">
+            <h3 class="text-xl mb-5">What's Included</h3>
+            <ul class="list-none space-y-2 text-text-light">
+              <li>Daily gourmet breakfast</li>
+              <li>Welcome champagne</li>
+              <li>Access to all facilities</li>
+              <li>Concierge service</li>
+              <li>WiFi throughout estate</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <Footer />
+</BaseLayout>

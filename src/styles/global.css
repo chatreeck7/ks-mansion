@@ -1,0 +1,97 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    @apply scroll-smooth;
+  }
+
+  body {
+    @apply font-sans text-text-dark overflow-x-hidden;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-light tracking-wide;
+  }
+
+  h1 {
+    @apply text-5xl md:text-6xl leading-tight;
+  }
+
+  h2 {
+    @apply text-3xl md:text-4xl mb-4;
+  }
+
+  h3 {
+    @apply text-xl md:text-2xl mb-2;
+  }
+
+  p {
+    @apply mb-4 text-text-light leading-relaxed;
+  }
+}
+
+@layer components {
+  /* Button Styles */
+  .btn {
+    @apply inline-block px-8 py-3 no-underline border-0 cursor-pointer transition-all duration-300 text-sm tracking-widest uppercase;
+  }
+
+  .btn-primary {
+    @apply bg-accent text-primary hover:bg-secondary hover:text-white;
+  }
+
+  .btn-secondary {
+    @apply bg-transparent text-primary border border-primary hover:bg-primary hover:text-white;
+  }
+
+  .btn-reserve {
+    @apply bg-accent text-primary px-5 py-2 rounded-sm;
+  }
+
+  .btn-full {
+    @apply w-full mt-2;
+  }
+
+  /* Container */
+  .container-custom {
+    @apply max-w-screen-xl mx-auto px-5;
+  }
+
+  /* Page Header */
+  .page-header {
+    @apply relative min-h-[400px] h-[50vh] flex items-center justify-center bg-gradient-to-br from-secondary to-primary mt-[70px];
+  }
+
+  .page-header-content {
+    @apply text-center text-white z-10;
+  }
+
+  /* Placeholder Images */
+  .placeholder-img {
+    @apply w-full h-full flex items-center justify-center text-white text-2xl font-light tracking-wider;
+  }
+
+  /* Animations */
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(30px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-fade-in-up {
+    animation: fadeInUp 1s ease;
+  }
+}
+
+@layer utilities {
+  .text-shadow {
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+  }
+}
