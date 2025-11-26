@@ -1,0 +1,98 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Navigation from '../components/Navigation.astro';
+import Footer from '../components/Footer.astro';
+
+const experiences = [
+  {
+    title: 'Spa & Wellness',
+    description: 'Rejuvenate your body and mind with our comprehensive wellness programs. Our spa features traditional and modern treatments, meditation gardens, and expert therapists.',
+    features: ['Signature massage treatments', 'Yoga and meditation sessions', 'Hydrotherapy facilities', 'Personalized wellness programs'],
+    gradient: 'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)',
+  },
+  {
+    title: 'Guided Estate Tours',
+    description: 'Explore the rich history and architecture of KS Mansion with our expert guides. Walk through centuries of heritage and discover hidden gems throughout the estate.',
+    features: ['Historical architecture tour', 'Garden and grounds exploration', 'Art collection viewing', 'Heritage storytelling sessions'],
+    gradient: 'linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%)',
+  },
+  {
+    title: 'Wine & Spirit Tasting',
+    description: 'Indulge in exclusive tastings from our carefully curated collection. Our sommelier guides you through rare vintages and premium spirits.',
+    features: ['Private cellar tours', 'Expert-led tastings', 'Food pairing sessions', 'Vintage collection access'],
+    gradient: 'linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%)',
+  },
+  {
+    title: 'Outdoor Adventures',
+    description: 'Experience nature at its finest with our outdoor activities. From leisurely walks to active pursuits, there\'s something for every guest.',
+    features: ['Guided nature walks', 'Tennis and croquet', 'Horseback riding', 'Cycling tours'],
+    gradient: 'linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%)',
+  },
+  {
+    title: 'Cultural Immersion',
+    description: 'Engage with local culture through authentic experiences. Our programs connect you with artisans, musicians, and cultural experts.',
+    features: ['Art workshops', 'Cooking classes', 'Music performances', 'Craft demonstrations'],
+    gradient: 'linear-gradient(135deg, #fa8bff 0%, #2bd2ff 100%)',
+  },
+  {
+    title: 'Private Events',
+    description: 'Host unforgettable celebrations in our elegant spaces. From intimate gatherings to grand celebrations, we create bespoke events.',
+    features: ['Weddings and ceremonies', 'Corporate retreats', 'Anniversary celebrations', 'Custom event planning'],
+    gradient: 'linear-gradient(135deg, #fbc2eb 0%, #a6c1ee 100%)',
+  },
+];
+---
+
+<BaseLayout title="Experiences - KS Mansion" description="Curated activities and unforgettable moments">
+  <Navigation />
+
+  <!-- Page Header -->
+  <section class="page-header">
+    <div class="page-header-content">
+      <h1 class="text-4xl md:text-5xl font-light mb-4 tracking-wide">Experiences</h1>
+      <p class="text-lg md:text-xl">Curated activities and unforgettable moments</p>
+    </div>
+  </section>
+
+  <!-- Experiences Content -->
+  <section class="py-20">
+    <div class="container-custom">
+      <div class="max-w-4xl mx-auto text-center mb-16">
+        <h2>Discover Exceptional Experiences</h2>
+        <p class="text-lg">At KS Mansion, we offer a carefully curated selection of experiences designed to create lasting memories. From wellness retreats to cultural immersions, each activity is crafted with attention to detail.</p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
+        {experiences.map((exp) => (
+          <div class="bg-white rounded overflow-hidden transition-all hover:-translate-y-2 hover:shadow-xl">
+            <div class="w-full h-[300px]">
+              <div class="placeholder-img" style={{ background: exp.gradient }}>
+                <span>{exp.title}</span>
+              </div>
+            </div>
+            <div class="p-8">
+              <h3 class="text-2xl text-primary mb-4">{exp.title}</h3>
+              <p class="mb-5 leading-relaxed">{exp.description}</p>
+              <ul class="list-none space-y-2">
+                {exp.features.map((feature) => (
+                  <li class="pl-6 relative text-text-light before:content-['•'] before:absolute before:left-0 before:text-accent before:text-2xl before:leading-[0.8]">
+                    {feature}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <!-- Call to Action -->
+      <div class="text-center mt-20 p-16 bg-bg-light rounded">
+        <h2 class="mb-5">Ready to Create Your Perfect Experience?</h2>
+        <p class="text-lg mb-8">Contact our concierge team to customize your stay with these exclusive experiences.</p>
+        <a href="/contact" class="btn btn-primary">Contact Concierge</a>
+      </div>
+    </div>
+  </section>
+
+  <Footer />
+</BaseLayout>

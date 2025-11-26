@@ -1,0 +1,128 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Navigation from '../components/Navigation.astro';
+import Footer from '../components/Footer.astro';
+
+const venues = [
+  {
+    name: 'The Grand Dining Room',
+    meta: 'Fine Dining | Dinner Service | Dress Code: Smart Elegant',
+    description: 'Our signature restaurant offers an elegant dining experience in a stunning historic setting. The menu features contemporary cuisine with locally-sourced ingredients, complemented by an extensive wine list.',
+    details: [
+      { label: 'Dinner', value: '6:00 PM - 10:00 PM' },
+      { label: 'Capacity', value: '40 guests' },
+      { label: 'Reservations', value: 'Required' },
+    ],
+    gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+  },
+  {
+    name: 'Garden Terrace',
+    meta: 'Al Fresco Dining | All Day | Casual Elegant',
+    description: 'Enjoy breakfast, lunch, or afternoon tea in our beautiful garden setting. The terrace offers lighter fare, fresh salads, and seasonal specialties in a relaxed atmosphere.',
+    details: [
+      { label: 'Breakfast', value: '7:00 AM - 11:00 AM' },
+      { label: 'Lunch', value: '12:00 PM - 3:00 PM' },
+      { label: 'Afternoon Tea', value: '3:00 PM - 5:00 PM' },
+    ],
+    gradient: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
+  },
+  {
+    name: 'The Wine Cellar',
+    meta: 'Private Dining | By Reservation | Intimate Setting',
+    description: 'An exclusive dining venue surrounded by our impressive wine collection. Perfect for intimate celebrations and special occasions, with a customized menu and wine pairings.',
+    details: [
+      { label: 'Capacity', value: 'Up to 12 guests' },
+      { label: 'Service', value: 'Private chef experience' },
+      { label: 'Booking', value: '48 hours advance notice' },
+    ],
+    gradient: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
+  },
+  {
+    name: 'In-Room Dining',
+    meta: '24-Hour Service | Complete Menu | Private Setting',
+    description: 'Experience the luxury of dining in the privacy of your room. Our 24-hour room service offers the full dining menu, along with special breakfast options and late-night selections.',
+    details: [
+      { label: 'Service', value: '24 hours' },
+      { label: 'Menu', value: 'Full selection available' },
+      { label: 'Setup', value: 'Elegant presentation' },
+    ],
+    gradient: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+  },
+];
+
+const specialOfferings = [
+  { title: "Chef's Table", description: 'An exclusive evening at the chef\'s table with a specially designed tasting menu and kitchen tour.' },
+  { title: 'Cooking Classes', description: 'Learn culinary secrets from our master chefs in hands-on cooking workshops.' },
+  { title: 'Wine Pairing Dinners', description: 'Multi-course dinners expertly paired with selections from our celebrated wine cellar.' },
+  { title: 'Private Picnics', description: 'Gourmet picnic baskets for romantic afternoons in our estate grounds.' },
+];
+---
+
+<BaseLayout title="Dining - KS Mansion" description="Exceptional culinary experiences">
+  <Navigation />
+
+  <!-- Page Header -->
+  <section class="page-header">
+    <div class="page-header-content">
+      <h1 class="text-4xl md:text-5xl font-light mb-4 tracking-wide">Dining</h1>
+      <p class="text-lg md:text-xl">Exceptional culinary experiences crafted with passion</p>
+    </div>
+  </section>
+
+  <!-- Dining Content -->
+  <section class="py-20">
+    <div class="container-custom">
+      <div class="max-w-4xl mx-auto text-center mb-16">
+        <h2>Culinary Excellence</h2>
+        <p class="text-lg">At KS Mansion, dining is an art form. Our talented chefs create exquisite dishes using the finest seasonal ingredients, combining traditional techniques with innovative approaches to deliver unforgettable gastronomic experiences.</p>
+      </div>
+
+      <!-- Dining Venues -->
+      <div class="space-y-16 mb-20">
+        {venues.map((venue, index) => (
+          <div class={`grid grid-cols-1 md:grid-cols-2 gap-10 items-center`}>
+            <div class={`w-full h-[400px] rounded overflow-hidden ${index % 2 === 1 ? 'md:order-2' : ''}`}>
+              <div class="placeholder-img" style={{ background: venue.gradient }}>
+                <span>{venue.name}</span>
+              </div>
+            </div>
+            <div class={index % 2 === 1 ? 'md:order-1' : ''}>
+              <h3 class="text-3xl text-primary mb-2">{venue.name}</h3>
+              <p class="text-accent font-medium text-sm uppercase tracking-widest mb-5">{venue.meta}</p>
+              <p class="mb-6 leading-relaxed">{venue.description}</p>
+              <div class="pt-6 border-t border-gray-200 space-y-2">
+                {venue.details.map((detail) => (
+                  <div class="text-text-light">
+                    <strong class="text-primary">{detail.label}:</strong> {detail.value}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <!-- Special Offerings -->
+      <div class="text-center mb-12">
+        <h2 class="mb-10">Special Culinary Experiences</h2>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-16">
+        {specialOfferings.map((offering) => (
+          <div class="bg-bg-light p-8 rounded transition-all hover:-translate-y-2 hover:border-accent border border-transparent">
+            <h4 class="text-primary mb-4 text-lg">{offering.title}</h4>
+            <p class="text-sm text-text-light">{offering.description}</p>
+          </div>
+        ))}
+      </div>
+
+      <!-- Dining CTA -->
+      <div class="text-center mt-20 p-16 bg-bg-light rounded">
+        <h2 class="mb-5">Reserve Your Table</h2>
+        <p class="text-lg mb-8">Book your dining experience or inquire about our special culinary events.</p>
+        <a href="/contact" class="btn btn-primary">Make a Dining Reservation</a>
+      </div>
+    </div>
+  </section>
+
+  <Footer />
+</BaseLayout>

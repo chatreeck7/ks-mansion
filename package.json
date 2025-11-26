@@ -1,0 +1,37 @@
+{
+  "name": "ks-mansion",
+  "version": "2.0.0",
+  "type": "module",
+  "description": "Modern luxury mansion reservation website built with Astro, React, TypeScript, and Tailwind CSS",
+  "scripts": {
+    "dev": "astro dev",
+    "start": "astro dev",
+    "build": "astro check && astro build",
+    "preview": "astro preview",
+    "astro": "astro"
+  },
+  "keywords": [
+    "astro",
+    "react",
+    "typescript",
+    "tailwindcss",
+    "mansion",
+    "reservation",
+    "luxury",
+    "hotel"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@astrojs/react": "^4.4.2",
+    "@astrojs/tailwind": "^6.0.2",
+    "@types/react": "^19.2.6",
+    "@types/react-dom": "^19.2.3",
+    "astro": "^5.16.0",
+    "framer-motion": "^12.23.24",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "tailwindcss": "^3.4.18",
+    "typescript": "^5.9.3"
+  }
+}

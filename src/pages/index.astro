@@ -1,0 +1,64 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Navigation from '../components/Navigation.astro';
+import Footer from '../components/Footer.astro';
+---
+
+<BaseLayout title="KS Mansion - Luxury Retreat">
+  <Navigation />
+
+  <!-- Hero Section -->
+  <section class="relative h-screen flex items-center justify-center bg-gradient-to-br from-purple-500 to-purple-800 bg-cover bg-center bg-fixed">
+    <div class="relative z-10 text-center text-white px-5 animate-fade-in-up">
+      <h1 class="text-5xl md:text-6xl font-light mb-5 tracking-[0.2em]">Welcome to KS Mansion</h1>
+      <p class="text-xl md:text-2xl mb-10 tracking-wider">An Exclusive Luxury Retreat</p>
+      <a href="/reservations" class="btn btn-primary">Book Your Stay</a>
+    </div>
+    <div class="absolute top-0 left-0 w-full h-full bg-black/30"></div>
+  </section>
+
+  <!-- Introduction Section -->
+  <section class="py-20 md:py-28 bg-white">
+    <div class="container-custom">
+      <div class="max-w-4xl mx-auto text-center">
+        <h2 class="text-primary mb-8">A Timeless Sanctuary</h2>
+        <p class="text-lg leading-relaxed mb-10">
+          Nestled in a serene location, KS Mansion offers an unparalleled experience of luxury and tranquility.
+          Our historic estate combines classic elegance with modern amenities, providing the perfect escape for discerning guests.
+        </p>
+        <a href="/accommodations" class="btn btn-secondary">Explore Accommodations</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features Grid -->
+  <section class="py-20 md:py-28 bg-bg-light">
+    <div class="container-custom">
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10">
+        {[
+          { icon: '🏰', title: 'Historic Estate', desc: 'A beautifully restored mansion with rich history and timeless architecture' },
+          { icon: '🌿', title: 'Private Gardens', desc: 'Expansive landscaped gardens offering peace and natural beauty' },
+          { icon: '🍽️', title: 'Gourmet Dining', desc: 'Exceptional culinary experiences crafted by our expert chefs' },
+          { icon: '💎', title: 'Luxury Amenities', desc: 'World-class facilities designed for your comfort and enjoyment' },
+        ].map((feature) => (
+          <div class="bg-white p-10 text-center transition-all hover:-translate-y-2 hover:shadow-xl rounded">
+            <div class="text-5xl mb-5">{feature.icon}</div>
+            <h3 class="text-primary mb-4">{feature.title}</h3>
+            <p class="text-text-light">{feature.desc}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- Call to Action -->
+  <section class="py-20 md:py-28 bg-gradient-to-br from-secondary to-primary text-center text-white">
+    <div class="container-custom">
+      <h2 class="text-white mb-5">Experience Luxury Redefined</h2>
+      <p class="text-xl mb-10 text-white/90">Book your exclusive stay at KS Mansion today</p>
+      <a href="/reservations" class="btn btn-primary">Make a Reservation</a>
+    </div>
+  </section>
+
+  <Footer />
+</BaseLayout>
