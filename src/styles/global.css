@@ -61,7 +61,7 @@
 
   /* Page Header */
   .page-header {
-    @apply relative min-h-[400px] h-[50vh] flex items-center justify-center bg-gradient-to-br from-secondary to-primary mt-[70px];
+    @apply relative min-h-[400px] h-[50vh] flex items-center justify-center bg-gradient-to-br from-secondary to-primary pt-[90px] md:pt-[100px];
   }
 
   .page-header-content {
