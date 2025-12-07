@@ -1,32 +1,104 @@
 ---
-import MobileMenu from './react/MobileMenu';
-
-const currentPath = Astro.url.pathname;
 ---
 
 <nav id="navbar" class="fixed top-0 left-0 w-full bg-white/95 shadow-md z-[1000] transition-all duration-300">
-  <div class="max-w-[1400px] mx-auto px-10 py-5 flex justify-between items-center">
+  <div class="max-w-[1400px] mx-auto px-4 md:px-10 py-5 flex justify-between items-center">
+    <!-- Left Side: Menu Dropdown -->
+    <div class="flex items-center flex-1">
+      <div class="menu-dropdown relative">
+        <button class="flex items-center gap-2 text-primary text-sm tracking-wide hover:text-accent transition-colors">
+          <span class="flex flex-col gap-1">
+            <span class="w-4 h-0.5 bg-current"></span>
+            <span class="w-4 h-0.5 bg-current"></span>
+            <span class="w-4 h-0.5 bg-current"></span>
+          </span>
+          <span class="hidden sm:inline">Menu</span>
+        </button>
+        <ul class="menu-dropdown-content absolute left-0 top-full mt-2 bg-white shadow-lg rounded-md py-2 min-w-[180px] opacity-0 invisible translate-y-2 transition-all duration-200 list-none">
+          <li><a href="/" class="block px-4 py-2 text-primary text-sm tracking-wide hover:bg-bg-light hover:text-accent transition-colors">Home</a></li>
+          <li><a href="/accommodations" class="block px-4 py-2 text-primary text-sm tracking-wide hover:bg-bg-light hover:text-accent transition-colors">Accommodations</a></li>
+          <li><a href="/gallery" class="block px-4 py-2 text-primary text-sm tracking-wide hover:bg-bg-light hover:text-accent transition-colors">Gallery</a></li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Center: Logo -->
     <div class="logo">
-      <a href="/" class="text-2xl font-light tracking-[0.2em] text-primary no-underline">
+      <a href="/" class="text-xl md:text-2xl font-light tracking-[0.15em] md:tracking-[0.2em] text-primary no-underline">
         KS MANSION
       </a>
     </div>
 
-    <!-- Desktop Navigation -->
-    <ul class="hidden md:flex list-none gap-8 items-center">
-      <li><a href="/" class="text-primary no-underline text-sm tracking-wide transition-colors hover:text-accent">Home</a></li>
-      <li><a href="/accommodations" class="text-primary no-underline text-sm tracking-wide transition-colors hover:text-accent">Accommodations</a></li>
-      <li><a href="/experiences" class="text-primary no-underline text-sm tracking-wide transition-colors hover:text-accent">Experiences</a></li>
-      <li><a href="/dining" class="text-primary no-underline text-sm tracking-wide transition-colors hover:text-accent">Dining</a></li>
-      <li><a href="/gallery" class="text-primary no-underline text-sm tracking-wide transition-colors hover:text-accent">Gallery</a></li>
-      <li><a href="/contact" class="text-primary no-underline text-sm tracking-wide transition-colors hover:text-accent">Contact</a></li>
-      <li><a href="/reservations" class="btn-reserve">Reserve</a></li>
-    </ul>
+    <!-- Right Side: Contact & Location, Language, Reserve -->
+    <div class="flex items-center gap-3 md:gap-6 flex-1 justify-end">
+      <!-- Contact & Location - Icon on tablet, text on desktop -->
+      <a href="/contact" class="text-primary no-underline transition-colors hover:text-accent" title="Contact & Location">
+        <!-- Icon for tablet/mobile -->
+        <svg class="w-5 h-5 lg:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
+        </svg>
+        <!-- Text for desktop -->
+        <span class="hidden lg:inline text-sm tracking-wide">Contact & Location</span>
+      </a>
 
-    <!-- Mobile Menu Component -->
-    <MobileMenu client:load />
+      <!-- Language Selector with Flag -->
+      <div class="language-selector relative">
+        <button class="flex items-center gap-1.5 text-primary text-sm tracking-wide hover:text-accent transition-colors">
+          <span class="fi fi-th fis rounded-sm"></span>
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+          </svg>
+        </button>
+        <ul class="language-dropdown absolute right-0 top-full mt-2 bg-white shadow-lg rounded-md py-1 min-w-[120px] opacity-0 invisible translate-y-2 transition-all duration-200 list-none z-50">
+          <li>
+            <button class="w-full px-4 py-2 text-left text-primary text-sm hover:bg-bg-light hover:text-accent transition-colors flex items-center gap-2 font-medium">
+              <span class="fi fi-th fis rounded-sm"></span>
+              ไทย
+            </button>
+          </li>
+          <li>
+            <button class="w-full px-4 py-2 text-left text-primary text-sm hover:bg-bg-light hover:text-accent transition-colors flex items-center gap-2">
+              <span class="fi fi-gb fis rounded-sm"></span>
+              English
+            </button>
+          </li>
+        </ul>
+      </div>
+
+      <!-- Reserve button - hidden on mobile, shown on md+ -->
+      <a href="/reservations" class="hidden md:inline-block btn-reserve text-sm px-6 py-3">Reserve</a>
+    </div>
   </div>
 </nav>
+
+<!-- Mobile Bottom Bar with Reserve Button -->
+<div class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 z-[1000] md:hidden">
+  <a href="/reservations" class="btn-reserve block text-center text-sm py-3 w-full">Reserve Now</a>
+</div>
+
+<style>
+  .menu-dropdown:hover .menu-dropdown-content,
+  .menu-dropdown:focus-within .menu-dropdown-content {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+  }
+
+  .language-selector:hover .language-dropdown,
+  .language-selector:focus-within .language-dropdown {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+  }
+
+  /* Flag icon sizing */
+  .fi {
+    width: 1.25em;
+    height: 1em;
+    background-size: cover;
+  }
+</style>
 
 <script>
   // Navbar scroll effect

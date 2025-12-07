@@ -28,10 +28,14 @@ export default function MobileMenu() {
       <ul className={`fixed ${isOpen ? 'left-0' : '-left-full'} top-[70px] flex flex-col bg-white w-full text-center transition-all duration-300 shadow-lg py-5 space-y-4 list-none`}>
         <li><a href="/" onClick={closeMenu} className="text-primary no-underline text-sm tracking-wide">Home</a></li>
         <li><a href="/accommodations" onClick={closeMenu} className="text-primary no-underline text-sm tracking-wide">Accommodations</a></li>
-        <li><a href="/experiences" onClick={closeMenu} className="text-primary no-underline text-sm tracking-wide">Experiences</a></li>
-        <li><a href="/dining" onClick={closeMenu} className="text-primary no-underline text-sm tracking-wide">Dining</a></li>
         <li><a href="/gallery" onClick={closeMenu} className="text-primary no-underline text-sm tracking-wide">Gallery</a></li>
         <li><a href="/contact" onClick={closeMenu} className="text-primary no-underline text-sm tracking-wide">Contact</a></li>
+        <li><a href="/location" onClick={closeMenu} className="text-primary no-underline text-sm tracking-wide">Location</a></li>
+        <li className="flex justify-center gap-4 py-2">
+          <button className="text-primary hover:text-accent transition-colors font-medium">TH</button>
+          <span className="text-gray-300">|</span>
+          <button className="text-text-light hover:text-accent transition-colors">EN</button>
+        </li>
         <li><a href="/reservations" onClick={closeMenu} className="btn-reserve">Reserve</a></li>
       </ul>
     </div>
