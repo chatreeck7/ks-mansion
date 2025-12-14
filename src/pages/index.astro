@@ -2,6 +2,7 @@
 import BaseLayout from "../layouts/BaseLayout.astro";
 import Navigation from "../components/Navigation.astro";
 import Footer from "../components/Footer.astro";
+const base = import.meta.env.BASE_URL;
 ---
 
 <BaseLayout title="KS Mansion - Luxury Retreat">
@@ -18,7 +19,8 @@ import Footer from "../components/Footer.astro";
       <p class="text-xl md:text-2xl mb-10 tracking-wider">
         An Exclusive Luxury Retreat
       </p>
-      <a href="/reservations" class="btn btn-primary">Book Your Stay</a>
+      <a href={`${base}/reservations`} class="btn btn-primary">Book Your Stay</a
+      >
     </div>
     <div class="absolute top-0 left-0 w-full h-full bg-black/30"></div>
   </section>
@@ -34,7 +36,7 @@ import Footer from "../components/Footer.astro";
           classic elegance with modern amenities, providing the perfect escape
           for discerning guests.
         </p>
-        <a href="/accommodations" class="btn btn-secondary"
+        <a href={`${base}/accommodations`} class="btn btn-secondary"
           >Explore Accommodations</a
         >
       </div>

@@ -1,17 +1,23 @@
 ---
-import BaseLayout from '../layouts/BaseLayout.astro';
-import Navigation from '../components/Navigation.astro';
-import Footer from '../components/Footer.astro';
-import GalleryFilter from '../components/react/GalleryFilter';
+import BaseLayout from "../layouts/BaseLayout.astro";
+import Navigation from "../components/Navigation.astro";
+import Footer from "../components/Footer.astro";
+import GalleryFilter from "../components/react/GalleryFilter";
+const base = import.meta.env.BASE_URL;
 ---
 
-<BaseLayout title="Gallery - KS Mansion" description="Explore the beauty of KS Mansion">
+<BaseLayout
+  title="Gallery - KS Mansion"
+  description="Explore the beauty of KS Mansion"
+>
   <Navigation />
 
   <!-- Page Header -->
   <section class="page-header">
     <div class="page-header-content">
-      <h1 class="text-4xl md:text-5xl font-light mb-4 tracking-wide">Gallery</h1>
+      <h1 class="text-4xl md:text-5xl font-light mb-4 tracking-wide">
+        Gallery
+      </h1>
       <p class="text-lg md:text-xl">Explore the beauty of KS Mansion</p>
     </div>
   </section>
@@ -21,7 +27,10 @@ import GalleryFilter from '../components/react/GalleryFilter';
     <div class="container-custom">
       <div class="max-w-4xl mx-auto text-center mb-12">
         <h2>A Visual Journey</h2>
-        <p class="text-lg">Discover the elegance, beauty, and attention to detail that makes KS Mansion a truly exceptional destination.</p>
+        <p class="text-lg">
+          Discover the elegance, beauty, and attention to detail that makes KS
+          Mansion a truly exceptional destination.
+        </p>
       </div>
 
       <!-- Gallery Filter Component -->
@@ -30,8 +39,12 @@ import GalleryFilter from '../components/react/GalleryFilter';
       <!-- Gallery CTA -->
       <div class="text-center mt-20 p-16 bg-bg-light rounded">
         <h2 class="mb-5">Experience It In Person</h2>
-        <p class="text-lg mb-8">See the beauty of KS Mansion firsthand. Book your stay today.</p>
-        <a href="/reservations" class="btn btn-primary">Book Your Stay</a>
+        <p class="text-lg mb-8">
+          See the beauty of KS Mansion firsthand. Book your stay today.
+        </p>
+        <a href={`${base}/reservations`} class="btn btn-primary"
+          >Book Your Stay</a
+        >
       </div>
     </div>
   </section>

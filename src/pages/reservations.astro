@@ -3,6 +3,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import Navigation from '../components/Navigation.astro';
 import Footer from '../components/Footer.astro';
 import ReservationForm from '../components/react/ReservationForm';
+const base = import.meta.env.BASE_URL;
 ---
 
 <BaseLayout title="Reservations - KS Mansion" description="Book your luxury stay at KS Mansion">
@@ -43,7 +44,7 @@ import ReservationForm from '../components/react/ReservationForm';
             <p class="mb-4">Our reservations team is available to help you plan your perfect stay.</p>
             <p class="mb-2"><strong class="text-primary">Phone:</strong> +1 (555) 123-4567</p>
             <p class="mb-6"><strong class="text-primary">Email:</strong> reservations@ksmansion.com</p>
-            <a href="/contact" class="btn btn-secondary btn-full">Contact Us</a>
+            <a href={`${base}contact`} class="btn btn-secondary btn-full">Contact Us</a>
           </div>
 
           <div class="bg-bg-light p-8 rounded">

@@ -2,6 +2,7 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Navigation from '../components/Navigation.astro';
 import Footer from '../components/Footer.astro';
+const base = import.meta.env.BASE_URL;
 
 const experiences = [
   {
@@ -89,7 +90,7 @@ const experiences = [
       <div class="text-center mt-20 p-16 bg-bg-light rounded">
         <h2 class="mb-5">Ready to Create Your Perfect Experience?</h2>
         <p class="text-lg mb-8">Contact our concierge team to customize your stay with these exclusive experiences.</p>
-        <a href="/contact" class="btn btn-primary">Contact Concierge</a>
+        <a href={`${base}contact`} class="btn btn-primary">Contact Concierge</a>
       </div>
     </div>
   </section>

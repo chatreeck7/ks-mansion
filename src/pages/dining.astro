@@ -2,6 +2,7 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Navigation from '../components/Navigation.astro';
 import Footer from '../components/Footer.astro';
+const base = import.meta.env.BASE_URL;
 
 const venues = [
   {
@@ -119,7 +120,7 @@ const specialOfferings = [
       <div class="text-center mt-20 p-16 bg-bg-light rounded">
         <h2 class="mb-5">Reserve Your Table</h2>
         <p class="text-lg mb-8">Book your dining experience or inquire about our special culinary events.</p>
-        <a href="/contact" class="btn btn-primary">Make a Dining Reservation</a>
+        <a href={`${base}contact`} class="btn btn-primary">Make a Dining Reservation</a>
       </div>
     </div>
   </section>

@@ -1,48 +1,80 @@
 ---
-import BaseLayout from '../layouts/BaseLayout.astro';
-import Navigation from '../components/Navigation.astro';
-import Footer from '../components/Footer.astro';
+import BaseLayout from "../layouts/BaseLayout.astro";
+import Navigation from "../components/Navigation.astro";
+import Footer from "../components/Footer.astro";
+const base = import.meta.env.BASE_URL;
 
 const accommodations = [
   {
-    name: 'Deluxe Suite',
-    size: '45 m² | King Bed | Garden View',
-    description: 'Elegantly appointed suite featuring classic furnishings, modern amenities, and stunning views of our private gardens.',
-    amenities: ['Private balcony', 'Luxury bathroom with soaking tub', 'Walk-in closet', 'Work desk and seating area'],
-    gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    name: "Deluxe Suite",
+    size: "45 m² | King Bed | Garden View",
+    description:
+      "Elegantly appointed suite featuring classic furnishings, modern amenities, and stunning views of our private gardens.",
+    amenities: [
+      "Private balcony",
+      "Luxury bathroom with soaking tub",
+      "Walk-in closet",
+      "Work desk and seating area",
+    ],
+    gradient: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
   },
   {
-    name: 'Master Suite',
-    size: '65 m² | King Bed | Estate View',
-    description: 'Our most spacious accommodation featuring a separate living area, premium furnishings, and panoramic estate views.',
-    amenities: ['Separate living room', 'Marble bathroom with rain shower', 'Private terrace', 'Mini bar and coffee station'],
-    gradient: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+    name: "Master Suite",
+    size: "65 m² | King Bed | Estate View",
+    description:
+      "Our most spacious accommodation featuring a separate living area, premium furnishings, and panoramic estate views.",
+    amenities: [
+      "Separate living room",
+      "Marble bathroom with rain shower",
+      "Private terrace",
+      "Mini bar and coffee station",
+    ],
+    gradient: "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
   },
   {
-    name: 'Garden Room',
-    size: '35 m² | Queen Bed | Garden Access',
-    description: 'Charming room with direct access to our beautifully landscaped gardens, perfect for nature lovers.',
-    amenities: ['Direct garden access', 'Rainfall shower', 'Cozy reading nook', 'Organic bath amenities'],
-    gradient: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+    name: "Garden Room",
+    size: "35 m² | Queen Bed | Garden Access",
+    description:
+      "Charming room with direct access to our beautifully landscaped gardens, perfect for nature lovers.",
+    amenities: [
+      "Direct garden access",
+      "Rainfall shower",
+      "Cozy reading nook",
+      "Organic bath amenities",
+    ],
+    gradient: "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)",
   },
   {
-    name: 'Presidential Suite',
-    size: '90 m² | King Bed | 360° Views',
-    description: 'The pinnacle of luxury with expansive living spaces, premium furnishings, and unparalleled views from every window.',
-    amenities: ['Dining area for 6 guests', 'Master bathroom with spa tub', 'Wraparound terrace', 'Private butler service'],
-    gradient: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
+    name: "Presidential Suite",
+    size: "90 m² | King Bed | 360° Views",
+    description:
+      "The pinnacle of luxury with expansive living spaces, premium furnishings, and unparalleled views from every window.",
+    amenities: [
+      "Dining area for 6 guests",
+      "Master bathroom with spa tub",
+      "Wraparound terrace",
+      "Private butler service",
+    ],
+    gradient: "linear-gradient(135deg, #fa709a 0%, #fee140 100%)",
   },
 ];
 ---
 
-<BaseLayout title="Accommodations - KS Mansion" description="Luxurious rooms and suites at KS Mansion">
+<BaseLayout
+  title="Accommodations - KS Mansion"
+  description="Luxurious rooms and suites at KS Mansion"
+>
   <Navigation />
 
   <!-- Page Header -->
   <section class="page-header">
     <div class="page-header-content">
-      <h1 class="text-4xl md:text-5xl font-light mb-4 tracking-wide">Accommodations</h1>
-      <p class="text-lg md:text-xl">Luxurious rooms and suites designed for your ultimate comfort</p>
+      <h1 class="text-4xl md:text-5xl font-light mb-4 tracking-wide">
+        Accommodations
+      </h1>
+      <p class="text-lg md:text-xl">
+        Luxurious rooms and suites designed for your ultimate comfort
+      </p>
     </div>
   </section>
 
@@ -50,47 +82,60 @@ const accommodations = [
   <section class="py-20">
     <div class="container-custom">
       <div class="space-y-16">
-        {accommodations.map((room, index) => (
-          <div class={`grid grid-cols-1 md:grid-cols-2 gap-10 items-center ${index % 2 === 1 ? 'md:flex-row-reverse' : ''}`}>
-            <div class={`w-full h-[400px] rounded overflow-hidden ${index % 2 === 1 ? 'md:order-2' : ''}`}>
-              <div class="placeholder-img" style={{ background: room.gradient }}>
-                <span>{room.name}</span>
+        {
+          accommodations.map((room, index) => (
+            <div
+              class={`grid grid-cols-1 md:grid-cols-2 gap-10 items-center ${index % 2 === 1 ? "md:flex-row-reverse" : ""}`}
+            >
+              <div
+                class={`w-full h-[400px] rounded overflow-hidden ${index % 2 === 1 ? "md:order-2" : ""}`}
+              >
+                <div
+                  class="placeholder-img"
+                  style={{ background: room.gradient }}
+                >
+                  <span>{room.name}</span>
+                </div>
+              </div>
+              <div class={index % 2 === 1 ? "md:order-1" : ""}>
+                <h3 class="text-3xl text-primary mb-2">{room.name}</h3>
+                <p class="text-accent font-medium mb-5">{room.size}</p>
+                <p class="mb-5 leading-relaxed">{room.description}</p>
+                <ul class="list-none mb-6 space-y-2">
+                  {room.amenities.map((amenity) => (
+                    <li class="pl-6 relative before:content-['✓'] before:absolute before:left-0 before:text-accent">
+                      {amenity}
+                    </li>
+                  ))}
+                </ul>
+                <a href={`${base}/reservations`} class="btn btn-secondary">
+                  Reserve Now
+                </a>
               </div>
             </div>
-            <div class={index % 2 === 1 ? 'md:order-1' : ''}>
-              <h3 class="text-3xl text-primary mb-2">{room.name}</h3>
-              <p class="text-accent font-medium mb-5">{room.size}</p>
-              <p class="mb-5 leading-relaxed">{room.description}</p>
-              <ul class="list-none mb-6 space-y-2">
-                {room.amenities.map((amenity) => (
-                  <li class="pl-6 relative before:content-['✓'] before:absolute before:left-0 before:text-accent">
-                    {amenity}
-                  </li>
-                ))}
-              </ul>
-              <a href="/reservations" class="btn btn-secondary">Reserve Now</a>
-            </div>
-          </div>
-        ))}
+          ))
+        }
       </div>
 
       <!-- Amenities Overview -->
       <div class="mt-20 text-center">
         <h2 class="mb-10">All Rooms Include</h2>
         <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-8">
-          {[
-            { icon: '📶', label: 'High-speed WiFi' },
-            { icon: '❄️', label: 'Climate Control' },
-            { icon: '📺', label: 'Smart TV' },
-            { icon: '☕', label: 'Coffee & Tea' },
-            { icon: '🛁', label: 'Luxury Toiletries' },
-            { icon: '🔒', label: 'Safe Deposit Box' },
-          ].map((amenity) => (
-            <div class="text-center">
-              <span class="text-4xl block mb-3">{amenity.icon}</span>
-              <p class="text-sm">{amenity.label}</p>
-            </div>
-          ))}
+          {
+            [
+              { icon: "📶", label: "High-speed WiFi" },
+              { icon: "❄️", label: "Climate Control" },
+              { icon: "📺", label: "Smart TV" },
+              { icon: "☕", label: "Coffee & Tea" },
+              { icon: "🛁", label: "Luxury Toiletries" },
+              { icon: "🔒", label: "Safe Deposit Box" },
+            ].map((amenity) => (
+              <div class="text-center">
+                <span class="text-4xl block mb-3">{amenity.icon}</span>
+                <p class="text-sm">{amenity.label}</p>
+              </div>
+            ))
+          }
         </div>
       </div>
     </div>
