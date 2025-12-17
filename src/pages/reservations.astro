@@ -2,61 +2,134 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Navigation from '../components/Navigation.astro';
 import Footer from '../components/Footer.astro';
-import ReservationForm from '../components/react/ReservationForm';
+import RoomStatus from '../components/react/RoomStatus';
+import { siLine } from 'simple-icons';
 const base = import.meta.env.BASE_URL;
 ---
 
-<BaseLayout title="Reservations - KS Mansion" description="Book your luxury stay at KS Mansion">
+<BaseLayout title="Room Status - KS Mansion" description="View room availability at KS Mansion">
   <Navigation />
 
   <!-- Page Header -->
   <section class="page-header">
     <div class="page-header-content">
-      <h1 class="text-4xl md:text-5xl font-light mb-4 tracking-wide">Make a Reservation</h1>
-      <p class="text-lg md:text-xl">Book your luxury stay at KS Mansion</p>
+      <h1 class="text-4xl md:text-5xl font-light mb-4 tracking-wide">Room Status</h1>
+      <p class="text-lg md:text-xl">View our current room availability</p>
     </div>
   </section>
 
-  <!-- Reservation Form -->
-  <section class="py-20">
+  <!-- LINE OA Booking Banner -->
+  <section class="bg-[#06C755] text-white py-6">
     <div class="container-custom">
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-16">
-        <!-- Form Section -->
-        <div class="lg:col-span-2">
-          <h2 class="mb-8">Booking Details</h2>
-          <ReservationForm client:load />
+      <div class="flex flex-col md:flex-row items-center justify-between gap-4">
+        <div class="flex items-center gap-4">
+          <div class="bg-white rounded-xl p-3">
+            <svg class="w-8 h-8 text-[#06C755]" fill="currentColor" viewBox="0 0 24 24">
+              <path d={siLine.path}></path>
+            </svg>
+          </div>
+          <div>
+            <h3 class="text-xl font-medium">Book via LINE Official Account</h3>
+            <p class="text-white/90 text-sm">Chat with us directly to make your reservation</p>
+          </div>
+        </div>
+        <a
+          href="https://line.me/R/ti/p/@ksmansion"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="bg-white text-[#06C755] px-8 py-3 rounded-full font-medium hover:bg-green-50 transition-colors flex items-center gap-2 whitespace-nowrap"
+        >
+          <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+            <path d={siLine.path}></path>
+          </svg>
+          Add Friend @ksmansion
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Room Status Section -->
+  <section class="py-12 md:py-20">
+    <div class="container-custom">
+      <RoomStatus client:load baseUrl={base} />
+
+      <!-- Booking Instructions -->
+      <div class="mt-16 bg-gradient-to-br from-primary to-secondary rounded-2xl p-8 md:p-12 text-white text-center">
+        <div class="max-w-2xl mx-auto">
+          <svg class="w-16 h-16 mx-auto mb-6 text-white/80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
+          </svg>
+          <h2 class="text-2xl md:text-3xl font-light mb-4">How to Book</h2>
+          <p class="text-white/90 mb-8 leading-relaxed">
+            To make a reservation, please contact us through our LINE Official Account.
+            Our team will assist you with room selection, special requests, and complete the booking process.
+          </p>
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+            <div class="bg-white/10 rounded-xl p-6">
+              <div class="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                <span class="text-lg font-medium">1</span>
+              </div>
+              <p class="text-sm">Add our LINE Official Account</p>
+            </div>
+            <div class="bg-white/10 rounded-xl p-6">
+              <div class="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                <span class="text-lg font-medium">2</span>
+              </div>
+              <p class="text-sm">Send your booking request</p>
+            </div>
+            <div class="bg-white/10 rounded-xl p-6">
+              <div class="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                <span class="text-lg font-medium">3</span>
+              </div>
+              <p class="text-sm">Receive confirmation</p>
+            </div>
+          </div>
+
+          <a
+            href="https://line.me/R/ti/p/@ksmansion"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="inline-flex items-center gap-3 bg-[#06C755] text-white px-10 py-4 rounded-full font-medium hover:bg-[#05b34d] transition-colors text-lg"
+          >
+            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+              <path d={siLine.path}></path>
+            </svg>
+            Chat with us on LINE
+          </a>
+
+          <p class="mt-6 text-white/70 text-sm">LINE ID: @ksmansion</p>
+        </div>
+      </div>
+
+      <!-- Additional Info -->
+      <div class="mt-12 grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div class="bg-bg-light p-8 rounded-xl">
+          <h3 class="text-lg font-medium text-primary mb-4">Check-in / Check-out</h3>
+          <ul class="space-y-2 text-text-light text-sm">
+            <li><strong class="text-primary">Check-in:</strong> 3:00 PM</li>
+            <li><strong class="text-primary">Check-out:</strong> 12:00 PM</li>
+            <li>Early check-in and late check-out available upon request</li>
+          </ul>
         </div>
 
-        <!-- Info Sidebar -->
-        <div class="space-y-6">
-          <div class="bg-bg-light p-8 rounded">
-            <h3 class="text-xl mb-5">Reservation Policies</h3>
-            <ul class="list-none space-y-3 text-text-light">
-              <li><strong class="text-primary">Check-in:</strong> 3:00 PM</li>
-              <li><strong class="text-primary">Check-out:</strong> 12:00 PM</li>
-              <li><strong class="text-primary">Cancellation:</strong> Free cancellation up to 48 hours before arrival</li>
-              <li><strong class="text-primary">Deposit:</strong> 50% deposit required to confirm booking</li>
-            </ul>
-          </div>
+        <div class="bg-bg-light p-8 rounded-xl">
+          <h3 class="text-lg font-medium text-primary mb-4">What's Included</h3>
+          <ul class="space-y-2 text-text-light text-sm">
+            <li>Daily housekeeping</li>
+            <li>Free parking</li>
+            <li>Access to common areas</li>
+            <li>24/7 support via LINE</li>
+          </ul>
+        </div>
 
-          <div class="bg-bg-light p-8 rounded">
-            <h3 class="text-xl mb-5">Need Assistance?</h3>
-            <p class="mb-4">Our reservations team is available to help you plan your perfect stay.</p>
-            <p class="mb-2"><strong class="text-primary">Phone:</strong> +1 (555) 123-4567</p>
-            <p class="mb-6"><strong class="text-primary">Email:</strong> reservations@ksmansion.com</p>
-            <a href={`${base}contact`} class="btn btn-secondary btn-full">Contact Us</a>
-          </div>
-
-          <div class="bg-bg-light p-8 rounded">
-            <h3 class="text-xl mb-5">What's Included</h3>
-            <ul class="list-none space-y-2 text-text-light">
-              <li>Daily gourmet breakfast</li>
-              <li>Welcome champagne</li>
-              <li>Access to all facilities</li>
-              <li>Concierge service</li>
-              <li>WiFi throughout estate</li>
-            </ul>
-          </div>
+        <div class="bg-bg-light p-8 rounded-xl">
+          <h3 class="text-lg font-medium text-primary mb-4">Cancellation Policy</h3>
+          <ul class="space-y-2 text-text-light text-sm">
+            <li>Free cancellation up to 48 hours before arrival</li>
+            <li>50% charge for late cancellation</li>
+            <li>Contact us for flexible options</li>
+          </ul>
         </div>
       </div>
     </div>
