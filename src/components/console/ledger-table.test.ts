@@ -63,7 +63,7 @@ describe('LedgerTable', () => {
   it('aligns figures with tabular numerals', async () => {
     const container = await AstroContainer.create();
     const html = await container.renderToString(LedgerTable, { props: { columns, groups } });
-    expect(html).toContain('tabular-nums');
+    expect(html).toMatch(/<td[^>]*tabular-nums[^>]*>\s*2,600/);
   });
 
   it('links a row that has an href', async () => {
@@ -76,7 +76,7 @@ describe('LedgerTable', () => {
     const container = await AstroContainer.create();
     const html = await container.renderToString(LedgerTable, { props: { columns, groups } });
     expect(html).toContain('ร้านซักผ้า');
-    expect(html).not.toContain('href="/console/rooms/laundry"');
+    expect(html).not.toMatch(/<a[^>]*>\s*ร้านซักผ้า\s*<\/a>/);
   });
 
   it('scrolls horizontally rather than breaking the page', async () => {
@@ -100,5 +100,32 @@ describe('LedgerTable', () => {
         },
       })
     ).rejects.toThrow(/no cell for column "rate"/);
+  });
+
+  it('fails loudly when href is set but the first column is not a text cell', async () => {
+    const container = await AstroContainer.create();
+    await expect(
+      container.renderToString(LedgerTable, {
+        props: {
+          columns,
+          groups: [
+            {
+              label: 'ชั้น 1',
+              rows: [
+                {
+                  id: 'y',
+                  href: '/console/rooms/y',
+                  cells: {
+                    room: { kind: 'figure', value: 1 },
+                    rate: { kind: 'figure', value: 1 },
+                    status: { kind: 'pill', tone: 'info', label: 'x' },
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      })
+    ).rejects.toThrow(/sets href but its first column \("room"\) is a figure cell/);
   });
 });
