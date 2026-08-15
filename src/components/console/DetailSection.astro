@@ -1,0 +1,13 @@
+---
+// src/components/console/DetailSection.astro
+interface Props {
+  heading: string;
+}
+
+const { heading } = Astro.props;
+---
+
+<section class="border-b border-console-rule/10 px-4 py-3 last:border-b-0">
+  <h2 class="mb-2 font-figure text-xs font-semibold tracking-normal text-console-rule">{heading}</h2>
+  <slot />
+</section>
