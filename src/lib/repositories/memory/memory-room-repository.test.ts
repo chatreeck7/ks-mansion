@@ -43,4 +43,22 @@ describe('createMemoryRoomRepository', () => {
     ]);
     expect(await repo.listRooms()).toHaveLength(1);
   });
+
+  it('hands callers their own copy so mutations cannot reach the seed', async () => {
+    const repo = createMemoryRoomRepository();
+    const room = await repo.getRoom('101');
+    room!.label = 'MUTATED';
+    expect((await repo.getRoom('101'))?.label).toBe('101');
+
+    const list = await repo.listRooms();
+    list[0]!.label = 'MUTATED';
+    expect((await repo.listRooms())[0]?.label).toBe('101');
+  });
+
+  it('generates the double-digit ids at the padding boundary', async () => {
+    const repo = createMemoryRoomRepository();
+    expect((await repo.getRoom('210'))?.label).toBe('210');
+    expect((await repo.getRoom('310'))?.label).toBe('310');
+    expect(await repo.getRoom('2010')).toBeNull();
+  });
 });
