@@ -1,5 +1,5 @@
 import type { LedgerColumn, LedgerGroup, LedgerRow } from '@/lib/models/ledger';
-import { isLettable, rentRateOf, type Room } from '@/lib/models/room';
+import { isLettable, type Room } from '@/lib/models/room';
 import { consolePath } from './paths';
 
 export const ROOM_COLUMNS: LedgerColumn[] = [
@@ -14,7 +14,9 @@ function toRow(room: Room): LedgerRow {
     href: consolePath(`console/rooms/${room.id}`),
     cells: {
       room: { kind: 'text', value: room.label },
-      rate: { kind: 'figure', value: rentRateOf(room) },
+      rate: isLettable(room)
+        ? { kind: 'figure', value: room.rentRate }
+        : { kind: 'text', value: 'ไม่คิดค่าเช่า', muted: true },
       status: isLettable(room)
         ? { kind: 'pill', tone: 'info', label: 'ว่าง' }
         : { kind: 'pill', tone: 'mute', label: 'ส่วนกลาง' },

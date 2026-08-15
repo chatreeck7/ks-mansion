@@ -28,9 +28,9 @@ describe('toRoomGroups', () => {
     expect(row.cells.status).toEqual({ kind: 'pill', tone: 'info', label: 'ว่าง' });
   });
 
-  it('gives common spaces no rent and a muted pill', () => {
+  it('gives common spaces an explicit no-rent label and a muted pill', () => {
     const commonRow = toRoomGroups(rooms).at(-1)!.rows[0];
-    expect(commonRow.cells.rate).toEqual({ kind: 'figure', value: null });
+    expect(commonRow.cells.rate).toEqual({ kind: 'text', value: 'ไม่คิดค่าเช่า', muted: true });
     expect(commonRow.cells.status).toEqual({ kind: 'pill', tone: 'mute', label: 'ส่วนกลาง' });
   });
 
