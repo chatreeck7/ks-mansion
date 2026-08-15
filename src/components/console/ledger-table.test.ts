@@ -84,4 +84,21 @@ describe('LedgerTable', () => {
     const html = await container.renderToString(LedgerTable, { props: { columns, groups } });
     expect(html).toContain('overflow-x-auto');
   });
+
+  it('fails loudly when a row is missing a cell for a column', async () => {
+    const container = await AstroContainer.create();
+    await expect(
+      container.renderToString(LedgerTable, {
+        props: {
+          columns,
+          groups: [
+            {
+              label: 'ชั้น 1',
+              rows: [{ id: 'x', cells: { room: { kind: 'text', value: 'x' } } }],
+            },
+          ],
+        },
+      })
+    ).rejects.toThrow(/no cell for column "rate"/);
+  });
 });

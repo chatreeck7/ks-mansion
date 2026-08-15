@@ -43,17 +43,24 @@ const { columns, groups } = Astro.props;
             <tr class="border-b border-console-rule/10 last:border-b-0">
               {columns.map((column, index) => {
                 const cell = row.cells[column.key];
+                if (!cell) {
+                  throw new Error(
+                    `LedgerTable: row "${row.id}" has no cell for column "${column.key}". ` +
+                      `Every row must supply a cell for every column — use ` +
+                      `{ kind: 'figure', value: null } to render an em dash for a genuinely absent value.`
+                  );
+                }
                 return (
                   <td
                     class:list={[
                       'px-3 py-2',
                       column.align === 'right' && 'text-right',
-                      cell?.kind === 'figure' && 'font-figure tabular-nums',
+                      cell.kind === 'figure' && 'font-figure tabular-nums',
                     ]}
                   >
-                    {cell?.kind === 'figure' && formatFigure(cell.value)}
-                    {cell?.kind === 'pill' && <StatusPill tone={cell.tone} label={cell.label} />}
-                    {cell?.kind === 'text' && (
+                    {cell.kind === 'figure' && formatFigure(cell.value)}
+                    {cell.kind === 'pill' && <StatusPill tone={cell.tone} label={cell.label} />}
+                    {cell.kind === 'text' && (
                       index === 0 && row.href ? (
                         <a
                           href={row.href}
