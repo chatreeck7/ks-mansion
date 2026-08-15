@@ -1,0 +1,76 @@
+---
+import type { LedgerColumn, LedgerGroup } from '@/lib/models/ledger';
+import { formatFigure } from '@/lib/format/thai';
+import StatusPill from './StatusPill.astro';
+
+interface Props {
+  columns: LedgerColumn[];
+  groups: LedgerGroup[];
+}
+
+const { columns, groups } = Astro.props;
+---
+
+<div class="overflow-x-auto">
+  <table class="w-full border-collapse bg-console-card text-sm">
+    <thead>
+      <tr>
+        {columns.map((column) => (
+          <th
+            scope="col"
+            class:list={[
+              'border-b border-console-rule/25 px-3 py-2 font-figure text-xs font-semibold text-console-ink-faint',
+              column.align === 'right' ? 'text-right' : 'text-left',
+            ]}
+          >
+            {column.header}
+          </th>
+        ))}
+      </tr>
+    </thead>
+    {groups.map((group) => (
+      <tbody>
+        <tr>
+          <th
+            scope="colgroup"
+            colspan={columns.length}
+            class="border-b border-console-rule/25 bg-console-sunk px-3 py-1.5 text-left font-figure text-xs font-semibold text-console-rule"
+          >
+            {group.label}
+          </th>
+        </tr>
+        {group.rows.map((row) => (
+            <tr class="border-b border-console-rule/10 last:border-b-0">
+              {columns.map((column, index) => {
+                const cell = row.cells[column.key];
+                return (
+                  <td
+                    class:list={[
+                      'px-3 py-2',
+                      column.align === 'right' && 'text-right',
+                      cell?.kind === 'figure' && 'font-figure tabular-nums',
+                    ]}
+                  >
+                    {cell?.kind === 'figure' && formatFigure(cell.value)}
+                    {cell?.kind === 'pill' && <StatusPill tone={cell.tone} label={cell.label} />}
+                    {cell?.kind === 'text' && (
+                      index === 0 && row.href ? (
+                        <a
+                          href={row.href}
+                          class="font-figure font-semibold text-console-ink underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
+                        >
+                          {cell.value}
+                        </a>
+                      ) : (
+                        <span class={cell.muted ? 'text-console-ink-faint' : ''}>{cell.value}</span>
+                      )
+                    )}
+                </td>
+              );
+            })}
+          </tr>
+        ))}
+      </tbody>
+    ))}
+  </table>
+</div>
