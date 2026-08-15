@@ -24,6 +24,20 @@ describe('DetailSheet', () => {
     expect(html).toContain('border-accent');
   });
 
+  it('does not inherit the marketing base-layer margin on the meta line', async () => {
+    const container = await AstroContainer.create();
+    const html = await container.renderToString(DetailSheet, {
+      props: { title: '203', meta: 'ชั้น 2' },
+    });
+    expect(html).toMatch(/<p[^>]*\bmb-0\b[^>]*>/);
+  });
+
+  it('renders no meta element when meta is omitted', async () => {
+    const container = await AstroContainer.create();
+    const html = await container.renderToString(DetailSheet, { props: { title: '203' } });
+    expect(html).not.toContain('<p');
+  });
+
   it('renders slotted content', async () => {
     const container = await AstroContainer.create();
     const html = await container.renderToString(DetailSheet, {
