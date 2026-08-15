@@ -3,7 +3,9 @@ import type { Room } from '@/lib/models/room';
 import { toRoomGroups } from './room-ledger';
 
 const rooms: Room[] = [
+  { id: '103', label: '103', floor: 1, kind: 'lettable', rentRate: 2600, hasMeter: true },
   { id: '101', label: '101', floor: 1, kind: 'lettable', rentRate: 2600, hasMeter: true },
+  { id: '102', label: '102', floor: 1, kind: 'lettable', rentRate: 2600, hasMeter: true },
   { id: '201', label: '201', floor: 2, kind: 'lettable', rentRate: 2800, hasMeter: true },
   { id: 'laundry', label: 'ร้านซักผ้า', floor: 1, kind: 'common', hasMeter: true },
   { id: 'undercroft', label: 'ห้องใต้ถุน', floor: 0, kind: 'common', hasMeter: false },
@@ -41,7 +43,15 @@ describe('toRoomGroups', () => {
   });
 
   it('omits an empty floor group entirely', () => {
-    const groups = toRoomGroups([rooms[0], rooms[2], rooms[3]]);
+    // 101 (floor 1, lettable) + the two common spaces, deliberately excluding
+    // the floor-2 room — no lettable unit remains on floor 2, so its group
+    // must not appear.
+    const groups = toRoomGroups([rooms[1], rooms[4], rooms[5]]);
     expect(groups.map((g) => g.label)).toEqual(['ชั้น 1', 'พื้นที่ส่วนกลาง']);
+  });
+
+  it('sorts rooms within a floor into walking order', () => {
+    const groups = toRoomGroups(rooms);
+    expect(groups[0].rows.map((row) => row.id)).toEqual(['101', '102', '103']);
   });
 });
