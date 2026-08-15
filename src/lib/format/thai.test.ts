@@ -20,6 +20,23 @@ describe('formatThaiDate', () => {
   it('handles December, the last month index', () => {
     expect(formatThaiDate(new Date(2026, 11, 31))).toBe('31 ธ.ค. 2569');
   });
+
+  it.each([
+    [0, 'ม.ค.'],
+    [1, 'ก.พ.'],
+    [2, 'มี.ค.'],
+    [3, 'เม.ย.'],
+    [4, 'พ.ค.'],
+    [5, 'มิ.ย.'],
+    [6, 'ก.ค.'],
+    [7, 'ส.ค.'],
+    [8, 'ก.ย.'],
+    [9, 'ต.ค.'],
+    [10, 'พ.ย.'],
+    [11, 'ธ.ค.'],
+  ])('renders month index %i as %s', (monthIndex, abbreviation) => {
+    expect(formatThaiDate(new Date(2026, monthIndex, 15))).toBe(`15 ${abbreviation} 2569`);
+  });
 });
 
 describe('formatBaht', () => {

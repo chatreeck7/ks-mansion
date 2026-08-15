@@ -36,6 +36,12 @@ describe('toRoomGroups', () => {
     expect(commonRow.cells.status).toEqual({ kind: 'pill', tone: 'mute', label: 'ส่วนกลาง' });
   });
 
+  it('gives a common-space row a room cell and a link to its detail page, same as a lettable row', () => {
+    const commonRow = toRoomGroups(rooms).at(-1)!.rows[0];
+    expect(commonRow.cells.room).toEqual({ kind: 'text', value: 'ร้านซักผ้า' });
+    expect(commonRow.href?.endsWith('/console/rooms/laundry')).toBe(true);
+  });
+
   it('links every row to its detail page', () => {
     const href = toRoomGroups(rooms)[0].rows[0].href!;
     expect(href.endsWith('/console/rooms/101')).toBe(true);

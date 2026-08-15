@@ -48,6 +48,12 @@ describe('LedgerTable', () => {
     expect(html).toContain('ชั้น 1');
   });
 
+  it('marks the group header cell as a rowgroup, not a column, header', async () => {
+    const container = await AstroContainer.create();
+    const html = await container.renderToString(LedgerTable, { props: { columns, groups } });
+    expect(html).toMatch(/<th[^>]*scope="rowgroup"[^>]*>\s*ชั้น 1/);
+  });
+
   it('renders an em dash for a null figure', async () => {
     const container = await AstroContainer.create();
     const html = await container.renderToString(LedgerTable, { props: { columns, groups } });

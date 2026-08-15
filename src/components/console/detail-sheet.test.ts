@@ -46,6 +46,12 @@ describe('DetailSheet', () => {
     });
     expect(html).toContain('สัญญา');
   });
+
+  it('overrides the marketing letter-spacing on the title, which degrades Thai', async () => {
+    const container = await AstroContainer.create();
+    const html = await container.renderToString(DetailSheet, { props: { title: '203' } });
+    expect(html).toMatch(/<h1[^>]*\btracking-normal\b[^>]*>/);
+  });
 });
 
 describe('DetailSection', () => {
@@ -57,5 +63,13 @@ describe('DetailSection', () => {
     });
     expect(html).toContain('มิเตอร์ไฟ');
     expect(html).toContain('4,182');
+  });
+
+  it('overrides the marketing letter-spacing on the heading, which degrades Thai', async () => {
+    const container = await AstroContainer.create();
+    const html = await container.renderToString(DetailSection, {
+      props: { heading: 'มิเตอร์ไฟ' },
+    });
+    expect(html).toMatch(/<h2[^>]*\btracking-normal\b[^>]*>/);
   });
 });

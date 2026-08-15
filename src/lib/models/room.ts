@@ -1,6 +1,3 @@
-/** Whether a room can be rented to a tenant. */
-export type RoomKind = 'lettable' | 'common';
-
 interface RoomBase {
   /** Stable identifier used in URLs. */
   id: string;
@@ -27,9 +24,4 @@ export type Room = LettableRoom | CommonRoom;
 
 export function isLettable(room: Room): room is LettableRoom {
   return room.kind === 'lettable';
-}
-
-/** Rent rate, or null for common spaces. Never throws — callers render '—'. */
-export function rentRateOf(room: Room): number | null {
-  return isLettable(room) ? room.rentRate : null;
 }

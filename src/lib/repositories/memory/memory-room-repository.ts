@@ -1,5 +1,4 @@
 import type { Room } from '@/lib/models/room';
-import { isLettable } from '@/lib/models/room';
 import type { RoomRepository } from '../room-repository';
 
 /** Fixture rates. Real values arrive with KS-17. */
@@ -16,13 +15,9 @@ function unit(label: string, floor: number): Room {
   };
 }
 
-/**
- * Hand callers their own copy so mutations cannot reach the seed.
- * Branching preserves the discriminated union: spreading `Room` directly
- * widens `kind` and makes `rentRate` optional, breaking the union.
- */
+/** Hand callers their own copy so mutations cannot reach the seed. */
 function copyRoom(room: Room): Room {
-  return isLettable(room) ? { ...room } : { ...room };
+  return { ...room };
 }
 
 /**

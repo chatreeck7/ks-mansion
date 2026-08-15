@@ -1,4 +1,5 @@
 ---
+// src/components/console/StatusPill.astro
 import type { PillTone } from '@/lib/models/pill-tone';
 
 interface Props {
@@ -17,6 +18,6 @@ const TONE_CLASS: Record<PillTone, string> = {
 };
 ---
 
-<span class={`inline-block px-1.5 py-0.5 text-xs font-figure ${TONE_CLASS[tone]}`}>
+<span class:list={['inline-block px-1.5 py-0.5 text-xs font-figure', TONE_CLASS[tone]]}>
   {label}
 </span>
