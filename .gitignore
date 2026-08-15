@@ -7,3 +7,4 @@ dist/
 .vite/
 .astro/
 .claude/worktrees/
+.superpowers/
