@@ -1,0 +1,46 @@
+---
+// src/pages/console/rooms/[room].astro
+import ConsoleFrame from '@/components/console/ConsoleFrame.astro';
+import DetailSheet from '@/components/console/DetailSheet.astro';
+import DetailSection from '@/components/console/DetailSection.astro';
+import { formatFigure } from '@/lib/format/thai';
+import { isLettable, type Room } from '@/lib/models/room';
+import { consolePath } from '@/lib/console/paths';
+import { getRoomRepository } from '@/lib/repositories';
+
+export async function getStaticPaths() {
+  const rooms = await getRoomRepository().listRooms();
+  return rooms.map((room) => ({ params: { room: room.id }, props: { room } }));
+}
+
+interface Props {
+  room: Room;
+}
+
+const { room } = Astro.props;
+
+const meta = isLettable(room)
+  ? `ชั้น ${room.floor} · ค่าเช่า ${formatFigure(room.rentRate)} ต่อเดือน`
+  : 'พื้นที่ส่วนกลาง · ไม่คิดค่าเช่า';
+---
+
+<ConsoleFrame title={`ห้อง ${room.label}`} activeSection="rooms">
+  <DetailSheet title={room.label} meta={meta}>
+    <DetailSection heading="ข้อมูลห้อง">
+      <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+        <dt class="text-console-ink-faint">ประเภท</dt>
+        <dd>{isLettable(room) ? 'ห้องให้เช่า' : 'พื้นที่ส่วนกลาง'}</dd>
+        <dt class="text-console-ink-faint">มิเตอร์ไฟ</dt>
+        <dd>{room.hasMeter ? 'มี' : 'ไม่มี'}</dd>
+      </dl>
+    </DetailSection>
+  </DetailSheet>
+
+  <p class="mt-4 mb-0 leading-none text-console-ink-soft">
+    <a
+      href={consolePath('console/rooms')}
+      class="text-sm underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
+      >← กลับไปรายการห้อง</a
+    >
+  </p>
+</ConsoleFrame>
