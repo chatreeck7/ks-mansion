@@ -1,0 +1,57 @@
+---
+// src/components/console/ConsoleNav.astro
+import { CONSOLE_SECTIONS } from '@/lib/console-sections';
+
+interface Props {
+  activeSection: string;
+}
+
+const { activeSection } = Astro.props;
+---
+
+<nav
+  data-console-rail
+  aria-label="ส่วนต่างๆ"
+  class="hidden w-36 shrink-0 flex-col border-r border-console-rule/25 md:flex"
+>
+  <p
+    class="mb-0 border-b border-console-rule/25 px-3 py-3 text-sm font-semibold leading-none tracking-[0.18em] text-console-ink"
+  >
+    KS
+  </p>
+  {CONSOLE_SECTIONS.map((section) => (
+    <a
+      href={section.href}
+      aria-current={section.id === activeSection ? 'page' : undefined}
+      class:list={[
+        'border-l-[3px] px-3 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule',
+        section.id === activeSection
+          ? 'border-accent bg-console-sunk font-semibold text-console-ink'
+          : 'border-transparent text-console-ink-soft hover:text-console-ink',
+      ]}
+    >
+      {section.label}
+    </a>
+  ))}
+</nav>
+
+<nav
+  data-console-tabbar
+  aria-label="ส่วนต่างๆ"
+  class="fixed inset-x-0 bottom-0 z-50 flex border-t border-console-rule/25 bg-console-card md:hidden"
+>
+  {CONSOLE_SECTIONS.map((section) => (
+    <a
+      href={section.href}
+      aria-current={section.id === activeSection ? 'page' : undefined}
+      class:list={[
+        'flex-1 border-t-2 py-3 text-center text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule',
+        section.id === activeSection
+          ? 'border-accent font-semibold text-console-ink'
+          : 'border-transparent text-console-ink-soft',
+      ]}
+    >
+      {section.label}
+    </a>
+  ))}
+</nav>
