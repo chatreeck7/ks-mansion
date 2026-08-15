@@ -136,7 +136,7 @@ The lettable-versus-common distinction from KS-1, expressed so the compiler enfo
 - Create: `src/lib/models/room.test.ts`
 
 **Interfaces:**
-- Produces: `Room`, `LettableRoom`, `CommonRoom`, `RoomKind`, `isLettable(room)`, `rentRateOf(room)`, `floorOf(room)`.
+- Produces: `Room`, `LettableRoom`, `CommonRoom`, `RoomKind`, `isLettable(room)`, `rentRateOf(room)`.
 
 - [ ] **Step 1: Write the failing test**
 
