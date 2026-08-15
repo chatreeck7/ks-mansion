@@ -1,0 +1,14 @@
+---
+// src/pages/console/rooms/index.astro
+import ConsoleFrame from '@/components/console/ConsoleFrame.astro';
+import LedgerTable from '@/components/console/LedgerTable.astro';
+import { ROOM_COLUMNS, toRoomGroups } from '@/lib/console/room-ledger';
+import { getRoomRepository } from '@/lib/repositories';
+
+const rooms = await getRoomRepository().listRooms();
+const groups = toRoomGroups(rooms);
+---
+
+<ConsoleFrame title="ห้อง" activeSection="rooms">
+  <LedgerTable columns={ROOM_COLUMNS} groups={groups} />
+</ConsoleFrame>
