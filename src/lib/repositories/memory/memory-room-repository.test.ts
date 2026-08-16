@@ -8,16 +8,31 @@ describe('SEED_ROOMS', () => {
     expect(SEED_ROOMS.filter(isUnit)).toHaveLength(25);
   });
 
-  it('gives every residential unit a positive rent rate', () => {
+  it('gives every residential unit either a positive rent rate or an unconfirmed null', () => {
     for (const room of SEED_ROOMS.filter(isUnit)) {
-      expect(room.rentRate).toBeGreaterThan(0);
+      expect(room.rentRate === null || room.rentRate > 0).toBe(true);
     }
   });
 
-  it('includes the laundry as a metered common space', () => {
+  it('carries the real per-room rent from the collection form, not a flat per-floor placeholder', () => {
+    const byId = new Map(SEED_ROOMS.map((room) => [room.id, room]));
+    expect(byId.get('101')?.rentRate).toBe(2636);
+    expect(byId.get('102')?.rentRate).toBe(4563);
+    expect(byId.get('310')?.rentRate).toBeNull();
+  });
+
+  it('includes the laundry as a metered common space that does carry a real rent', () => {
     const laundry = SEED_ROOMS.find((r) => r.id === 'laundry');
     expect(laundry?.kind).toBe('common');
     expect(laundry?.hasMeter).toBe(true);
+    expect(laundry?.rentRate).toBe(3192);
+  });
+
+  it('leaves the undercroft with no confirmed rent', () => {
+    const undercroft = SEED_ROOMS.find((r) => r.id === 'undercroft');
+    expect(undercroft?.kind).toBe('common');
+    expect(undercroft?.hasMeter).toBe(false);
+    expect(undercroft?.rentRate).toBeNull();
   });
 });
 
