@@ -6,3 +6,5 @@ dist/
 .env.local
 .vite/
 .astro/
+.claude/worktrees/
+.superpowers/

@@ -677,6 +677,36 @@ Target metrics:
 
 ---
 
+## 🏢 Admin Console (Family Project)
+
+A separate track from the public marketing site: an admin console at `/console`
+for KS Mansion property operations (billing, tenant CRM, maintenance, docs).
+Tracked in Notion — "KS Mansion Admin Console — Family Project" — which is the
+source of truth for scope and sequencing, not this file's older Phase 2/3 notes.
+
+**Datastore: Google Sheets**, not Postgres. Chosen for zero hosting cost and so
+admins can edit data directly without the console being finished. Superseded
+the earlier plan of Postgres + Stripe + Sanity/Contentful for this track —
+those remain relevant only if the public site itself grows its own backend.
+
+**Hard rule — repository interface boundary:** all features talk to a
+repository interface, never the Sheets API directly. No Sheets-specific types,
+row/column indices, or client calls outside `src/lib/repositories/` (or
+equivalent). This is what keeps a future backend swap (e.g. to Postgres if a
+template/resale version needs multi-tenant isolation) a scoped refactor
+instead of a rewrite. Enforce this in code review even when it's slower.
+
+**Out of scope for the console:** online payment gateway (payments reconciled
+externally via LINE OA — console only records confirmed amounts),
+multi-property abstraction, debtor/legal collections.
+
+**Sequencing:** Phase 0 (Foundation) → Phase 1 (Core Ops) → Phase 2 (Property
+Ops) → Phase 3 (Insight & Site). Do not start a task in the next phase until
+every Phase 0 task is Done — see the Notion Build Tasks database for current
+status.
+
+---
+
 **Maintained By**: Development Team
 **Project Start**: November 2025
 **Last Major Update**: November 23, 2025

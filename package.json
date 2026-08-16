@@ -8,7 +8,9 @@
     "start": "astro dev",
     "build": "astro check && astro build",
     "preview": "astro preview",
-    "astro": "astro"
+    "astro": "astro",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "keywords": [
     "astro",
@@ -35,5 +37,9 @@
     "simple-icons": "^16.1.0",
     "tailwindcss": "^3.4.18",
     "typescript": "^5.9.3"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.10",
+    "vitest": "^4.1.10"
   }
 }
