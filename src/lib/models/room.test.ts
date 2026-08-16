@@ -1,30 +1,26 @@
 import { describe, expect, it } from 'vitest';
-import { isLettable, type Room } from './room';
+import { isUnit, type Room } from './room';
 
 const unit: Room = {
-  id: '101', label: '101', floor: 1, kind: 'lettable', rentRate: 2800, hasMeter: true,
+  id: '101', label: '101', floor: 1, kind: 'unit', rentRate: 2800, hasMeter: true,
 };
 const laundry: Room = {
-  id: 'laundry', label: 'ร้านซักผ้า', floor: 1, kind: 'common', hasMeter: true,
+  id: 'laundry', label: 'ร้านซักผ้า', floor: 1, kind: 'common', rentRate: null, hasMeter: true,
 };
 
-describe('isLettable', () => {
-  it('is true for a rentable unit', () => {
-    expect(isLettable(unit)).toBe(true);
+describe('isUnit', () => {
+  it('is true for a residential unit', () => {
+    expect(isUnit(unit)).toBe(true);
   });
 
   it('is false for a common space', () => {
-    expect(isLettable(laundry)).toBe(false);
+    expect(isUnit(laundry)).toBe(false);
   });
 });
 
-describe('the lettable/common union', () => {
-  it('makes reading a rent rate off a common space a compile error', () => {
-    // @ts-expect-error CommonRoom deliberately has no rentRate field. If this
-    // union is ever widened (e.g. to `rentRate?: number`), the access below
-    // becomes legal, this directive becomes unused, and `astro check` fails —
-    // which is exactly the regression guard we want.
-    const rate = laundry.rentRate;
-    expect(rate).toBeUndefined();
+describe('rentRate', () => {
+  it('may be recorded on a common space — a laundry or undercroft can be rented out', () => {
+    const rentedLaundry: Room = { ...laundry, rentRate: 4000 };
+    expect(rentedLaundry.rentRate).toBe(4000);
   });
 });

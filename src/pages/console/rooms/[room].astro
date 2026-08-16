@@ -4,7 +4,7 @@ import ConsoleFrame from '@/components/console/ConsoleFrame.astro';
 import DetailSheet from '@/components/console/DetailSheet.astro';
 import DetailSection from '@/components/console/DetailSection.astro';
 import { formatFigure } from '@/lib/format/thai';
-import { isLettable, type Room } from '@/lib/models/room';
+import { isUnit, type Room } from '@/lib/models/room';
 import { consolePath } from '@/lib/console/paths';
 import { getRoomRepository } from '@/lib/repositories';
 
@@ -19,9 +19,9 @@ interface Props {
 
 const { room } = Astro.props;
 
-const meta = isLettable(room)
-  ? `ชั้น ${room.floor} · ค่าเช่า ${formatFigure(room.rentRate)} ต่อเดือน`
-  : 'พื้นที่ส่วนกลาง · ไม่คิดค่าเช่า';
+const location = isUnit(room) ? `ชั้น ${room.floor}` : 'พื้นที่ส่วนกลาง';
+const rentClause = room.rentRate !== null ? ` · ค่าเช่า ${formatFigure(room.rentRate)} ต่อเดือน` : '';
+const meta = `${location}${rentClause}`;
 ---
 
 <ConsoleFrame title={`ห้อง ${room.label}`} activeSection="rooms">
@@ -29,7 +29,7 @@ const meta = isLettable(room)
     <DetailSection heading="ข้อมูลห้อง">
       <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
         <dt class="text-console-ink-faint">ประเภท</dt>
-        <dd>{isLettable(room) ? 'ห้องให้เช่า' : 'พื้นที่ส่วนกลาง'}</dd>
+        <dd>{isUnit(room) ? 'ห้องให้เช่า' : 'พื้นที่ส่วนกลาง'}</dd>
         <dt class="text-console-ink-faint">มิเตอร์ไฟ</dt>
         <dd>{room.hasMeter ? 'มี' : 'ไม่มี'}</dd>
       </dl>

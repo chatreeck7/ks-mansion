@@ -9,7 +9,7 @@ function unit(label: string, floor: number): Room {
     id: label,
     label,
     floor,
-    kind: 'lettable',
+    kind: 'unit',
     rentRate: RATE_BY_FLOOR[floor] ?? 2600,
     hasMeter: true,
   };
@@ -28,8 +28,8 @@ export const SEED_ROOMS: Room[] = [
   ...Array.from({ length: 5 }, (_, i) => unit(`10${i + 1}`, 1)),
   ...Array.from({ length: 10 }, (_, i) => unit(`2${String(i + 1).padStart(2, '0')}`, 2)),
   ...Array.from({ length: 10 }, (_, i) => unit(`3${String(i + 1).padStart(2, '0')}`, 3)),
-  { id: 'laundry', label: 'ร้านซักผ้า', floor: 1, kind: 'common', hasMeter: true },
-  { id: 'undercroft', label: 'ห้องใต้ถุน', floor: 0, kind: 'common', hasMeter: false },
+  { id: 'laundry', label: 'ร้านซักผ้า', floor: 1, kind: 'common', rentRate: null, hasMeter: true },
+  { id: 'undercroft', label: 'ห้องใต้ถุน', floor: 0, kind: 'common', rentRate: null, hasMeter: false },
 ];
 
 export function createMemoryRoomRepository(rooms: Room[] = SEED_ROOMS): RoomRepository {

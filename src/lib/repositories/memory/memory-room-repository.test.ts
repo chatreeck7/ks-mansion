@@ -1,15 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { isLettable } from '@/lib/models/room';
+import { isUnit } from '@/lib/models/room';
 import { createMemoryRoomRepository, SEED_ROOMS } from './memory-room-repository';
 
 describe('SEED_ROOMS', () => {
   it('holds the full registry: 5 + 10 + 10 units and 2 common spaces', () => {
     expect(SEED_ROOMS).toHaveLength(27);
-    expect(SEED_ROOMS.filter(isLettable)).toHaveLength(25);
+    expect(SEED_ROOMS.filter(isUnit)).toHaveLength(25);
   });
 
-  it('gives every lettable unit a positive rent rate', () => {
-    for (const room of SEED_ROOMS.filter(isLettable)) {
+  it('gives every residential unit a positive rent rate', () => {
+    for (const room of SEED_ROOMS.filter(isUnit)) {
       expect(room.rentRate).toBeGreaterThan(0);
     }
   });
@@ -39,7 +39,7 @@ describe('createMemoryRoomRepository', () => {
 
   it('accepts an explicit room list for tests', async () => {
     const repo = createMemoryRoomRepository([
-      { id: '101', label: '101', floor: 1, kind: 'lettable', rentRate: 100, hasMeter: true },
+      { id: '101', label: '101', floor: 1, kind: 'unit', rentRate: 100, hasMeter: true },
     ]);
     expect(await repo.listRooms()).toHaveLength(1);
   });
