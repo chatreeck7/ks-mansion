@@ -1,6 +1,9 @@
 # 0001: Google Sheets over Postgres for the admin console
 
-**Status**: Decided (see Notion — KS Mansion Admin Console — Family Project)
+**Status**: Decided and verified (KS-52 spike, 2026-08-17 — see
+[data-layer.md](../data-layer.md) for quota/latency/write-safety evidence and
+the fallback trigger). Originally recorded as intent; see Notion — KS Mansion
+Admin Console — Family Project for task history.
 
 **Decision**: The `/console` admin app uses Google Sheets as its datastore,
 accessed server-side through a repository interface, instead of Postgres.
