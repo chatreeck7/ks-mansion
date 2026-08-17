@@ -106,14 +106,17 @@ with room count.
 ## 4. Write safety
 
 No transactions in the Sheets API. Per
-[the batchUpdate guide](https://developers.google.com/workspace/sheets/api/guides/batchupdate):
-all sub-requests in one `batchUpdate` call are applied **atomically** — if any
-sub-request is invalid, the whole call fails and nothing is applied. But that
-atomicity is scoped to a single API call; it does **not** guard against
-concurrent edits from elsewhere (an admin with the sheet open, or two console
-requests racing). Google's own docs say explicitly: *"it is not guaranteed
-that the spreadsheet will reflect exactly your changes... your changes may be
-altered with respect to collaborator changes."*
+[the batchUpdate guide](https://developers.google.com/workspace/sheets/api/guides/batchupdate),
+changes are grouped so that if one sub-request is unsuccessful, none of the
+other (potentially dependent) changes are written — atomic within a single
+call. But that atomicity is scoped to a single API call; it does **not**
+guard against concurrent edits from elsewhere (an admin with the sheet open,
+or two console requests racing). The
+[REST reference for `batchUpdate`](https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/batchUpdate)
+says explicitly: *"it is not guaranteed that the spreadsheet will reflect
+exactly your changes after this completes, however it is guaranteed that the
+updates in the request will be applied together atomically... Your changes
+may be altered with respect to collaborator changes."*
 
 There is no compare-and-swap / optimistic-locking primitive exposed by the
 API for this. Practical implication for write code: **use one `batchUpdate`
