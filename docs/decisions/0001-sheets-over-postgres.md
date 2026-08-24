@@ -12,7 +12,9 @@ accessed server-side through a repository interface, instead of Postgres.
 edit the data directly in Sheets without the console being finished.
 
 **Consequence**: All feature code must go through `src/lib/repositories/` —
-see `.claude/skills/sheets-backed-feature/SKILL.md`. This keeps a future swap
+see `.claude/skills/sheets-backed-feature/SKILL.md`. Sheet tabs themselves
+follow the conventions in [sheet-schema.md](../sheet-schema.md) (stable IDs,
+header-as-contract, append-only history). This keeps a future swap
 to Postgres (e.g. if a template/resale version needs multi-tenant isolation)
 a scoped refactor instead of a rewrite. This decision applies only to the
 admin console track — the public marketing site's original Postgres/Stripe/
