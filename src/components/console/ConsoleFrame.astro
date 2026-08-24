@@ -1,0 +1,21 @@
+---
+// src/components/console/ConsoleFrame.astro
+import ConsoleLayout from '@/layouts/ConsoleLayout.astro';
+import ConsoleNav from './ConsoleNav.astro';
+
+interface Props {
+  title: string;
+  activeSection: string;
+}
+
+const { title, activeSection } = Astro.props;
+---
+
+<ConsoleLayout title={title}>
+  <div class="flex min-h-screen">
+    <ConsoleNav activeSection={activeSection} />
+    <main class="min-w-0 flex-1 px-4 py-4 pb-20 md:pb-4">
+      <slot />
+    </main>
+  </div>
+</ConsoleLayout>

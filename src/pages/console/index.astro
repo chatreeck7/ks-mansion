@@ -1,0 +1,21 @@
+---
+// src/pages/console/index.astro
+// A meta refresh because the site is static. This becomes a real 302 via
+// `Astro.redirect` once KS-57 switches to SSR.
+import { consolePath } from '@/lib/console/paths';
+
+const target = consolePath('console/rooms');
+---
+
+<!DOCTYPE html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta http-equiv="refresh" content={`0; url=${target}`} />
+    <title>ห้อง</title>
+  </head>
+  <body>
+    <a href={target}>ไปที่รายการห้อง</a>
+  </body>
+</html>
