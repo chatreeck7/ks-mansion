@@ -142,6 +142,12 @@ room_number, kind, status, price, detail, type, hasMeter
 
 - No `id` column — add one (rule 3), seeded from current `room_number`
   values, kept alongside `room_number` rather than replacing it.
+- No `floor` column — surfaced while building `SheetsRoomRepository` (KS-54):
+  the `Room` model needs `floor`, and it isn't derivable in general (units
+  parse from `room_number`'s leading digit, but the two common spaces don't
+  follow that pattern and a future common space might not either). Add an
+  explicit `floor` column rather than inferring it in the adapter — keeps
+  the rule-2 promise that the header is the source of truth, not code.
 - `status` and `type` are already present in the sheet but are **not** part
   of the console's `Room` model yet (occupancy tracking is KS-8, AC/FAN type
   is unmodeled) — don't treat their presence as a signal the model should
@@ -151,3 +157,14 @@ room_number, kind, status, price, detail, type, hasMeter
   genuinely empty (`null`), not a guessed value (per KS-1/KS-7's "don't
   invent data" ruling), which is also why validate-on-read must distinguish
   "this cell is legitimately blank" from "this row's columns shifted."
+- `label` (the display name) comes from `detail` when populated, falling
+  back to `room_number` — matches the real sheet's shape today, where units
+  carry no `detail` (their `room_number` already is the label) and the two
+  common spaces carry their Thai name in `detail` (`room_number` there is
+  the English slug `laundry`/`undercroft`, not a display label).
+
+**Target header**, once KS-2 migrates `KS_Mansion_DB`:
+
+```
+id, room_number, kind, status, price, detail, type, floor, hasMeter
+```
