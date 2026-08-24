@@ -5,6 +5,11 @@
  * with row count. A real implementation (KS-2) wraps the Sheets API v4
  * client behind this; tests use an in-memory fake — see
  * `sheets-room-repository.test.ts`.
+ *
+ * Contract: `rows[0]` must be the sheet's actual row 1 (the header), with no
+ * skipped title rows or range offset — `SheetRowError` messages compute the
+ * sheet row an admin would see as `index + 2`, which only holds if this
+ * invariant does.
  */
 export interface SheetsClient {
   getTabValues(tabName: string): Promise<string[][]>;

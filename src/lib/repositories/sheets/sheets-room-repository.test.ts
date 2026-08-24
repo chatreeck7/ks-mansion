@@ -2,12 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { createSheetsRoomRepository } from './sheets-room-repository';
 import type { SheetsClient } from './sheets-client';
 
-const HEADER = ['id', 'room_number', 'kind', 'status', 'price', 'detail', 'type', 'floor', 'hasMeter'];
+const HEADER = ['id', 'room_number', 'kind', 'status', 'price', 'detail', 'type', 'floor', 'hasMeter'] as const;
 
 function fakeClient(rows: string[][]): SheetsClient {
   return {
     async getTabValues() {
-      return [HEADER, ...rows];
+      return [[...HEADER], ...rows];
     },
   };
 }
@@ -24,8 +24,8 @@ function unitRow(overrides: Partial<Record<(typeof HEADER)[number], string>> = {
     floor: '1',
     hasMeter: 'TRUE',
   };
-  const merged: Record<string, string | undefined> = { ...defaults, ...overrides };
-  return HEADER.map((column) => merged[column] ?? '');
+  const merged = { ...defaults, ...overrides };
+  return HEADER.map((column) => merged[column]);
 }
 
 describe('createSheetsRoomRepository', () => {
@@ -55,6 +55,11 @@ describe('createSheetsRoomRepository', () => {
     expect((await repo.listRooms())[0]?.rentRate).toBeNull();
   });
 
+  it('accepts hasMeter case-insensitively', async () => {
+    const repo = createSheetsRoomRepository(fakeClient([unitRow({ hasMeter: 'false' })]));
+    expect((await repo.listRooms())[0]?.hasMeter).toBe(false);
+  });
+
   it('labels a common space from "detail" when room_number is a slug, not a display name', async () => {
     const repo = createSheetsRoomRepository(
       fakeClient([
@@ -72,8 +77,16 @@ describe('createSheetsRoomRepository', () => {
     expect(room).toMatchObject({ id: 'laundry', label: 'ร้านซักผ้า', kind: 'common' });
   });
 
-  it('skips blank trailing rows', async () => {
+  it('skips a fully blank trailing row', async () => {
     const repo = createSheetsRoomRepository(fakeClient([unitRow(), ['', '', '', '', '', '', '', '', '']]));
+    expect(await repo.listRooms()).toHaveLength(1);
+  });
+
+  it('skips a row with only a note in a non-required column, not just fully blank rows', async () => {
+    // An admin's section-divider row: every required column blank, a note
+    // sitting in "detail" — must not be mistaken for a corrupt data row.
+    const noteRow = ['', '', '', '', '', '-- vacant units below --', '', '', ''];
+    const repo = createSheetsRoomRepository(fakeClient([unitRow(), noteRow]));
     expect(await repo.listRooms()).toHaveLength(1);
   });
 
@@ -87,6 +100,13 @@ describe('createSheetsRoomRepository', () => {
     expect(await repo.getRoom('999')).toBeNull();
   });
 
+  it('finds a valid room by id even when an unrelated row elsewhere is corrupted', async () => {
+    const repo = createSheetsRoomRepository(
+      fakeClient([unitRow({ id: '101', room_number: '101' }), unitRow({ id: '206', room_number: '206', price: 'AC' })]),
+    );
+    expect((await repo.getRoom('101'))?.label).toBe('101');
+  });
+
   describe('validation — catching the corruption KS-53 documented', () => {
     it('throws when the header is missing a required column', async () => {
       const client: SheetsClient = {
@@ -95,6 +115,20 @@ describe('createSheetsRoomRepository', () => {
         },
       };
       await expect(createSheetsRoomRepository(client).listRooms()).rejects.toThrow(/missing required column "id"/);
+    });
+
+    it('throws when the header has a duplicate column name', async () => {
+      const client: SheetsClient = {
+        async getTabValues() {
+          return [
+            ['id', 'room_number', 'kind', 'price', 'floor', 'hasMeter', 'price'],
+            ['101', '101', 'unit', '2636', '1', 'true', '9999'],
+          ];
+        },
+      };
+      await expect(createSheetsRoomRepository(client).listRooms()).rejects.toThrow(
+        /duplicate column header "price"/,
+      );
     });
 
     it('throws instead of silently reading a shifted non-numeric value as price', async () => {
@@ -109,6 +143,21 @@ describe('createSheetsRoomRepository', () => {
       await expect(repo.listRooms()).rejects.toThrow(/"floor" is not a number/);
     });
 
+    it('throws when floor is outside the model\'s 0-3 range', async () => {
+      const repo = createSheetsRoomRepository(fakeClient([unitRow({ floor: '-1' })]));
+      await expect(repo.listRooms()).rejects.toThrow(/"floor" must be an integer from 0 to 3/);
+    });
+
+    it('throws when floor is not an integer', async () => {
+      const repo = createSheetsRoomRepository(fakeClient([unitRow({ floor: '1.5' })]));
+      await expect(repo.listRooms()).rejects.toThrow(/"floor" must be an integer from 0 to 3/);
+    });
+
+    it('throws instead of silently defaulting hasMeter to false on a corrupted value', async () => {
+      const repo = createSheetsRoomRepository(fakeClient([unitRow({ hasMeter: 'AC' })]));
+      await expect(repo.listRooms()).rejects.toThrow(/"hasMeter" must be "true" or "false", got "AC"/);
+    });
+
     it('throws when kind is neither unit nor common', async () => {
       const repo = createSheetsRoomRepository(fakeClient([unitRow({ kind: 'maybe' })]));
       await expect(repo.listRooms()).rejects.toThrow(/"kind" must be "unit" or "common"/);
@@ -119,11 +168,11 @@ describe('createSheetsRoomRepository', () => {
       await expect(repo.listRooms()).rejects.toThrow(/missing "id"/);
     });
 
-    it('throws on a duplicate id — the exact shape of the paste-duplication incident', async () => {
+    it('throws on a duplicate id and names both rows — the exact shape of the paste-duplication incident', async () => {
       const repo = createSheetsRoomRepository(
         fakeClient([unitRow({ id: '101' }), unitRow({ id: '101', room_number: '102' })]),
       );
-      await expect(repo.listRooms()).rejects.toThrow(/duplicate id "101"/);
+      await expect(repo.listRooms()).rejects.toThrow(/row 3: duplicate id "101", already used on row 2/);
     });
   });
 });

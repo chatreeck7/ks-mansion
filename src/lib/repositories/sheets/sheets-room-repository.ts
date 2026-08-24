@@ -8,66 +8,81 @@ const TAB_NAME = 'rooms';
 const REQUIRED_COLUMNS = ['id', 'room_number', 'kind', 'price', 'floor', 'hasMeter'] as const;
 
 export class SheetRowError extends Error {
-  constructor(tabName: string, rowNumber: number, reason: string) {
-    super(`Sheets tab "${tabName}", row ${rowNumber}: ${reason}`);
+  constructor(rowNumber: number, reason: string) {
+    super(`Sheets tab "${TAB_NAME}", row ${rowNumber}: ${reason}`);
     this.name = 'SheetRowError';
   }
 }
 
+/** Throws on a duplicate column name — a silent index collision is exactly the kind of corruption this module exists to catch. */
 function indexHeader(header: string[]): Record<string, number> {
   const index: Record<string, number> = {};
   header.forEach((name, i) => {
     const trimmed = name.trim();
-    if (trimmed) index[trimmed] = i;
+    if (!trimmed) return;
+    if (trimmed in index) {
+      throw new Error(`Sheets tab "${TAB_NAME}" has a duplicate column header "${trimmed}"`);
+    }
+    index[trimmed] = i;
   });
   return index;
 }
 
-function parseNullableNumber(raw: string): number | null | typeof NOT_A_NUMBER {
-  if (raw === '') return null;
+/** A row with content only in non-required columns (an admin's note, a section divider) is not data. */
+function isBlankRow(row: string[], columnIndex: Record<string, number>): boolean {
+  return REQUIRED_COLUMNS.every((column) => (row[columnIndex[column]] ?? '').trim() === '');
+}
+
+function parseNumber(raw: string, rowNumber: number, column: string): number {
   const value = Number(raw);
-  return Number.isFinite(value) ? value : NOT_A_NUMBER;
+  if (raw.trim() === '' || !Number.isFinite(value)) {
+    throw new SheetRowError(rowNumber, `"${column}" is not a number: "${raw}"`);
+  }
+  return value;
 }
-const NOT_A_NUMBER = Symbol('not-a-number');
 
-function parseKind(raw: string, tabName: string, rowNumber: number): SpaceKind {
+function parseNullableNumber(raw: string, rowNumber: number, column: string): number | null {
+  if (raw === '') return null;
+  return parseNumber(raw, rowNumber, column);
+}
+
+function parseKind(raw: string, rowNumber: number): SpaceKind {
   if (raw === 'unit' || raw === 'common') return raw;
-  throw new SheetRowError(tabName, rowNumber, `"kind" must be "unit" or "common", got "${raw}"`);
+  throw new SheetRowError(rowNumber, `"kind" must be "unit" or "common", got "${raw}"`);
 }
 
-function parseBoolean(raw: string): boolean {
-  return raw.trim().toLowerCase() === 'true';
+function parseBoolean(raw: string, rowNumber: number, column: string): boolean {
+  const normalized = raw.toLowerCase();
+  if (normalized === 'true') return true;
+  if (normalized === 'false') return false;
+  throw new SheetRowError(rowNumber, `"${column}" must be "true" or "false", got "${raw}"`);
 }
 
 /**
  * Parses one data row into a Room, per the target header contract in
  * docs/sheet-schema.md. Fails loud on the exact corruption that motivated
- * that doc — a row with a non-numeric value in a numeric column, or a
- * missing required cell — rather than silently misreading it.
+ * that doc — a row with a non-numeric value in a numeric column, an
+ * unrecognized value in an enum-like column, or a missing required cell —
+ * rather than silently misreading it.
  */
 function parseRoom(row: string[], columnIndex: Record<string, number>, rowNumber: number): Room {
   const cell = (name: string) => (row[columnIndex[name]] ?? '').trim();
 
   const id = cell('id');
-  if (!id) throw new SheetRowError(TAB_NAME, rowNumber, 'missing "id"');
+  if (!id) throw new SheetRowError(rowNumber, 'missing "id"');
 
   const roomNumber = cell('room_number');
-  if (!roomNumber) throw new SheetRowError(TAB_NAME, rowNumber, 'missing "room_number"');
+  if (!roomNumber) throw new SheetRowError(rowNumber, 'missing "room_number"');
 
-  const kind = parseKind(cell('kind'), TAB_NAME, rowNumber);
+  const kind = parseKind(cell('kind'), rowNumber);
+  const rentRate = parseNullableNumber(cell('price'), rowNumber, 'price');
 
-  const rentRate = parseNullableNumber(cell('price'));
-  if (rentRate === NOT_A_NUMBER) {
-    throw new SheetRowError(TAB_NAME, rowNumber, `"price" is not a number: "${cell('price')}"`);
+  const floor = parseNumber(cell('floor'), rowNumber, 'floor');
+  if (!Number.isInteger(floor) || floor < 0 || floor > 3) {
+    throw new SheetRowError(rowNumber, `"floor" must be an integer from 0 to 3, got "${cell('floor')}"`);
   }
 
-  const floorRaw = cell('floor');
-  const floor = Number(floorRaw);
-  if (floorRaw === '' || !Number.isFinite(floor)) {
-    throw new SheetRowError(TAB_NAME, rowNumber, `"floor" is not a number: "${floorRaw}"`);
-  }
-
-  const hasMeter = parseBoolean(cell('hasMeter'));
+  const hasMeter = parseBoolean(cell('hasMeter'), rowNumber, 'hasMeter');
 
   const detail = cell('detail');
   const label = detail || roomNumber;
@@ -75,14 +90,26 @@ function parseRoom(row: string[], columnIndex: Record<string, number>, rowNumber
   return { id, label, floor, kind, rentRate, hasMeter };
 }
 
-function assertNoDuplicateIds(rooms: Room[]): void {
-  const seen = new Set<string>();
-  for (const room of rooms) {
-    if (seen.has(room.id)) {
-      throw new Error(`Sheets tab "${TAB_NAME}" has duplicate id "${room.id}"`);
-    }
-    seen.add(room.id);
+interface Tab {
+  columnIndex: Record<string, number>;
+  dataRows: string[][];
+}
+
+async function readTab(client: SheetsClient): Promise<Tab> {
+  const rows = await client.getTabValues(TAB_NAME);
+  if (rows.length === 0) {
+    throw new Error(`Sheets tab "${TAB_NAME}" has no header row`);
   }
+
+  const [header, ...dataRows] = rows;
+  const columnIndex = indexHeader(header!);
+  for (const column of REQUIRED_COLUMNS) {
+    if (!(column in columnIndex)) {
+      throw new Error(`Sheets tab "${TAB_NAME}" is missing required column "${column}"`);
+    }
+  }
+
+  return { columnIndex, dataRows };
 }
 
 /**
@@ -90,36 +117,45 @@ function assertNoDuplicateIds(rooms: Room[]): void {
  * name (never position), a stable id column separate from room_number,
  * validated on read. Not yet wired into the composition root — see
  * src/lib/repositories/index.ts.
+ *
+ * `getRoom` deliberately does not go through `listRooms` — it parses only
+ * the one row it needs, so a lookup for a valid room never fails because of
+ * an unrelated malformed row elsewhere in the tab. That also means it skips
+ * `listRooms`'s whole-tab duplicate-id check; duplicate ids are a
+ * tab-integrity concern `listRooms` is responsible for surfacing, not a
+ * per-lookup one.
  */
 export function createSheetsRoomRepository(client: SheetsClient): RoomRepository {
-  async function listRooms(): Promise<Room[]> {
-    const rows = await client.getTabValues(TAB_NAME);
-    if (rows.length === 0) {
-      throw new Error(`Sheets tab "${TAB_NAME}" has no header row`);
-    }
-
-    const [header, ...dataRows] = rows;
-    const columnIndex = indexHeader(header!);
-    for (const column of REQUIRED_COLUMNS) {
-      if (!(column in columnIndex)) {
-        throw new Error(`Sheets tab "${TAB_NAME}" is missing required column "${column}"`);
-      }
-    }
-
-    const rooms = dataRows
-      .map((row, i) => ({ row, rowNumber: i + 2 })) // +2: 1-indexed, plus the header row
-      .filter(({ row }) => row.some((cell) => cell.trim() !== ''))
-      .map(({ row, rowNumber }) => parseRoom(row, columnIndex, rowNumber));
-
-    assertNoDuplicateIds(rooms);
-    return rooms;
-  }
-
   return {
-    listRooms,
-    async getRoom(id: string) {
-      const rooms = await listRooms();
-      return rooms.find((room) => room.id === id) ?? null;
+    async listRooms(): Promise<Room[]> {
+      const { columnIndex, dataRows } = await readTab(client);
+
+      const rooms: Room[] = [];
+      const rowNumberById = new Map<string, number>();
+      dataRows.forEach((row, i) => {
+        const rowNumber = i + 2; // +2: 1-indexed, plus the header row
+        if (isBlankRow(row, columnIndex)) return;
+
+        const room = parseRoom(row, columnIndex, rowNumber);
+        const previousRow = rowNumberById.get(room.id);
+        if (previousRow !== undefined) {
+          throw new SheetRowError(rowNumber, `duplicate id "${room.id}", already used on row ${previousRow}`);
+        }
+        rowNumberById.set(room.id, rowNumber);
+        rooms.push(room);
+      });
+
+      return rooms;
+    },
+
+    async getRoom(id: string): Promise<Room | null> {
+      const { columnIndex, dataRows } = await readTab(client);
+
+      const match = dataRows
+        .map((row, i) => ({ row, rowNumber: i + 2 }))
+        .find(({ row }) => !isBlankRow(row, columnIndex) && (row[columnIndex['id']!] ?? '').trim() === id);
+
+      return match ? parseRoom(match.row, columnIndex, match.rowNumber) : null;
     },
   };
 }
