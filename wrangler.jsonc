@@ -1,0 +1,20 @@
+{
+  // Cloudflare Pages config for the KS Mansion site + /console admin app.
+  // See docs/hosting.md for what still has to be done in the Cloudflare
+  // dashboard (project creation, secrets, the SESSION KV namespace).
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "ks-mansion",
+  "compatibility_date": "2026-08-24",
+
+  // `googleapis` (KS-2) needs Node built-ins that Workers only exposes behind
+  // this flag. Set now so the Sheets client isn't blocked on a config change.
+  "compatibility_flags": ["nodejs_compat"],
+
+  "pages_build_output_dir": "./dist"
+
+  // Sessions: the Astro Cloudflare adapter looks for a KV binding named
+  // SESSION. Nothing uses sessions yet, so no binding is declared here —
+  // adding one with a placeholder id would only break `wrangler` commands.
+  // KS-4 (admin auth) should create the namespace and add:
+  //   "kv_namespaces": [{ "binding": "SESSION", "id": "<real-id>" }]
+}

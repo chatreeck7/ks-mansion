@@ -1,21 +1,11 @@
 ---
 // src/pages/console/index.astro
-// A meta refresh because the site is static. This becomes a real 302 via
-// `Astro.redirect` once KS-57 switches to SSR.
+// `astro check` reports `consolePath` as unused here (ts 6133). It is a false
+// positive — TypeScript's analysis stops at the top-level `return`. Verified
+// at runtime: this serves a 302 to /console/rooms. Do not "fix" it by moving
+// the call into the template as `{Astro.redirect(...)}` — that renders the
+// Response into the body and serves a 200 instead of redirecting.
 import { consolePath } from '@/lib/console/paths';
 
-const target = consolePath('console/rooms');
+return Astro.redirect(consolePath('console/rooms'), 302);
 ---
-
-<!DOCTYPE html>
-<html lang="th">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="robots" content="noindex, nofollow" />
-    <meta http-equiv="refresh" content={`0; url=${target}`} />
-    <title>ห้อง</title>
-  </head>
-  <body>
-    <a href={target}>ไปที่รายการห้อง</a>
-  </body>
-</html>
