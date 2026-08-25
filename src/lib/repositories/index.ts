@@ -1,7 +1,7 @@
 import type { RoomRepository } from './room-repository';
 import { createMemoryRoomRepository } from './memory/memory-room-repository';
 import { createSheetsRoomRepository } from './sheets/sheets-room-repository';
-import { createGoogleSheetsClient } from './sheets/google-sheets-client';
+import { getSheetsClient } from './sheets/client-cache';
 
 /**
  * Composition root for repositories. Pages and view-models import from here,
@@ -20,7 +20,8 @@ export function getRoomRepository(env?: Record<string, unknown>): RoomRepository
 
   if (!credentialsJson || !spreadsheetId) return createMemoryRoomRepository();
 
-  return createSheetsRoomRepository(
-    createGoogleSheetsClient({ credentialsJson, spreadsheetId }),
-  );
+  // The client is reused across requests so its access-token cache actually
+  // hits; the repository itself is cheap and stateless, so a new one per
+  // request is fine and keeps reads un-cached (see KS-55 / docs/data-layer.md).
+  return createSheetsRoomRepository(getSheetsClient(credentialsJson, spreadsheetId));
 }
