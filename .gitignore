@@ -4,6 +4,10 @@ dist/
 *.log
 .env
 .env.local
+# Local Cloudflare bindings/secrets for `astro dev` — never commit.
+.dev.vars
+.dev.vars.*
+.wrangler/
 .vite/
 .astro/
 .claude/worktrees/

@@ -33,6 +33,16 @@ const { activeSection } = Astro.props;
       {section.label}
     </a>
   ))}
+
+  <!-- POST, not a link: a GET logout would fire from any <img> or prefetch. -->
+  <form method="POST" action="/console/logout" class="mt-auto border-t border-console-rule/25">
+    <button
+      type="submit"
+      class="w-full px-3 py-2 text-left text-sm text-console-ink-faint hover:text-console-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
+    >
+      ออกจากระบบ
+    </button>
+  </form>
 </nav>
 
 <nav
