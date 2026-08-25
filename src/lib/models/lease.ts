@@ -1,3 +1,4 @@
+import type { Archivable } from './archivable';
 import { formatThaiDate } from '@/lib/format/thai';
 
 /**
@@ -6,7 +7,7 @@ import { formatThaiDate } from '@/lib/format/thai';
  * Foreign keys are ids, never a room number or tenant name — those are
  * display labels and can change (docs/sheet-schema.md rule 4).
  */
-export interface Lease {
+export interface Lease extends Archivable {
   id: string;
   roomId: string;
   tenantId: string;

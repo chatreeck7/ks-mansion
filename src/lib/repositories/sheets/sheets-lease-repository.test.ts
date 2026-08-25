@@ -1,15 +1,15 @@
 import { describe, expect, it } from 'vitest';
+import { createFakeSheets } from '@/lib/test-support/fake-sheets';
 import { createSheetsLeaseRepository } from './sheets-lease-repository';
-import type { SheetsClient } from './sheets-client';
 
 const HEADER = [
   'id', 'room_id', 'tenant_id', 'start_date', 'end_date', 'signed_date',
   'rent_rate', 'deposit', 'advance_rent', 'occupant_count',
-  'end_reason', 'previous_lease_id',
+  'end_reason', 'previous_lease_id', 'archived',
 ];
 
-function client(rows: string[][]): SheetsClient {
-  return { async getTabValues() { return [HEADER, ...rows]; } };
+function client(rows: string[][]) {
+  return createFakeSheets({ leases: [HEADER, ...rows] });
 }
 
 function row(overrides: Partial<Record<string, string>> = {}): string[] {
@@ -26,6 +26,7 @@ function row(overrides: Partial<Record<string, string>> = {}): string[] {
     occupant_count: '2',
     end_reason: '',
     previous_lease_id: '',
+    archived: 'FALSE',
   };
   const merged: Record<string, string | undefined> = { ...defaults, ...overrides };
   return HEADER.map((c) => merged[c] ?? '');
@@ -35,6 +36,7 @@ describe('createSheetsLeaseRepository', () => {
   it('parses a well-formed row, Thai dates included', async () => {
     const [lease] = await createSheetsLeaseRepository(client([row()])).listLeases();
     expect(lease).toEqual({
+      archived: false,
       id: 'l-001',
       roomId: '101',
       tenantId: 't-001',

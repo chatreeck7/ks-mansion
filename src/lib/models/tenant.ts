@@ -1,3 +1,5 @@
+import type { Archivable } from './archivable';
+
 /**
  * A tenant profile.
  *
@@ -9,7 +11,7 @@
  *
  * Guarantor / emergency contact (AC-2.7) is still KS-9.
  */
-export interface Tenant {
+export interface Tenant extends Archivable {
   /** Stable identifier used in URLs. Never derived from a name. */
   id: string;
   /** As written on the lease contract. */

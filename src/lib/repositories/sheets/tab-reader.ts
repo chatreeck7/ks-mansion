@@ -19,6 +19,14 @@ export class SheetRowError extends Error {
 
 export interface Tab {
   tabName: string;
+  /**
+   * The header row as it stands in the sheet, in sheet order. Writes need it
+   * to build a row of the right width in the right order — a write that
+   * assumed the contract's own column order would land every value in the
+   * wrong cell the moment an admin reorders a column, which is the exact
+   * corruption reading-by-name exists to prevent.
+   */
+  header: string[];
   columnIndex: Record<string, number>;
   dataRows: string[][];
   /**
@@ -92,11 +100,46 @@ export async function readTab(
 
   return {
     tabName,
+    header: header!,
     columnIndex,
     dataRows,
     isBlankRow: (row) =>
       identity.every((column) => (row[columnIndex[column]] ?? '').trim() === ''),
   };
+}
+
+/**
+ * The sheet row number an admin would see for a data row: 1-indexed, plus the
+ * header. Every caller was computing `i + 2` inline; a write that gets this
+ * wrong by one overwrites its neighbour, so it is worth having in one place.
+ */
+export function sheetRowNumber(dataRowIndex: number): number {
+  return dataRowIndex + 2;
+}
+
+/** A located row, with the sheet row number needed to write it back. */
+export interface FoundRow {
+  row: string[];
+  rowNumber: number;
+}
+
+/**
+ * Finds the one row whose `column` holds `value`, skipping blanks.
+ *
+ * Writes must re-find their row by id immediately before writing rather than
+ * remembering a row number from an earlier read: there is no compare-and-swap
+ * in the Sheets API, and an admin inserting a row between the two shifts
+ * every number below it. Re-finding narrows that window to the round trip
+ * instead of the length of a user's session.
+ */
+export function findRow(tab: Tab, column: string, value: string): FoundRow | null {
+  for (const [i, row] of tab.dataRows.entries()) {
+    if (tab.isBlankRow(row)) continue;
+    if (cellValue(tab, row, column) === value) {
+      return { row, rowNumber: sheetRowNumber(i) };
+    }
+  }
+  return null;
 }
 
 /** A trimmed cell, or '' when the column is absent from this row. */
@@ -164,6 +207,10 @@ export function booleanCell(tab: Tab, row: string[], rowNumber: number, column: 
  * has surveyed — rather than where a blank is an admin's oversight. Reaching
  * for it to make a stubborn column stop failing is how "nobody filled this
  * in" quietly becomes "false".
+ *
+ * A caller that genuinely wants a default says so at its own call site with
+ * `?? false`, which keeps that decision visible where the reasoning for it
+ * lives rather than buried in an argument here.
  */
 export function nullableBooleanCell(
   tab: Tab,

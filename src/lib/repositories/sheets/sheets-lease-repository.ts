@@ -1,17 +1,21 @@
+import { ARCHIVED_COLUMN } from '@/lib/models/archivable';
 import type { Lease, LeaseEndReason } from '@/lib/models/lease';
-import type { LeaseRepository } from '../lease-repository';
-import type { SheetsClient } from './sheets-client';
+import type { LeaseDraft, LeaseRepository } from '../lease-repository';
+import { formatThaiDate } from '@/lib/format/thai';
 import { parseThaiDate } from '@/lib/format/thai-parse';
+import { createSheetsCrud, type EntitySpec } from './sheets-crud';
+import type { SheetsClient } from './sheets-client';
 import {
   cellValue,
   numberCell,
+  nullableBooleanCell,
   optionalEnumCell,
-  readTab,
   requireCell,
   SheetRowError,
   type Tab,
   type TabContract,
 } from './tab-reader';
+import type { RowValues } from './tab-writer';
 
 const TAB_NAME = 'leases';
 
@@ -36,6 +40,7 @@ const CONTRACT: TabContract = {
     'occupant_count',
     'end_reason',
     'previous_lease_id',
+    ARCHIVED_COLUMN,
   ],
   identity: ['id', 'room_id', 'tenant_id', 'start_date'],
 };
@@ -52,9 +57,9 @@ const CONTRACT: TabContract = {
  * silent, which is precisely the wrong trade for a field that drives billing
  * and deposit settlement.
  *
- * The column must be formatted as **plain text** in Sheets. Left as an
- * automatic or Date-formatted column, Sheets will try to interpret these as
- * CE dates and rewrite them. See docs/admin-collaboration.md.
+ * The column must be formatted as **plain text** in Sheets, and the write
+ * path sends `valueInputOption=RAW` so Sheets never reinterprets what the
+ * console puts there. See docs/admin-collaboration.md.
  */
 function parseDate(raw: string, rowNumber: number, column: string): Date {
   const date = parseThaiDate(raw);
@@ -146,42 +151,67 @@ function parseLease(tab: Tab, row: string[], rowNumber: number): Lease {
     occupantCount: parseOccupantCount(tab, row, rowNumber),
     endReason,
     previousLeaseId,
+    archived: nullableBooleanCell(tab, row, rowNumber, ARCHIVED_COLUMN) ?? false,
   };
 }
 
-export function createSheetsLeaseRepository(client: SheetsClient): LeaseRepository {
-  async function listLeases(): Promise<Lease[]> {
-    const tab = await readTab(client, TAB_NAME, CONTRACT);
+/**
+ * The inverse of `parseLease`.
+ *
+ * Dates go out through `formatThaiDate`, the same function the console
+ * displays them with — so what is written is what an admin would have typed,
+ * in พ.ศ., and reads back through `parseThaiDate` unchanged. Writing an ISO
+ * date here would be silently accepted by the sheet and then rejected by
+ * every subsequent read.
+ */
+function toRowValues(fields: Partial<LeaseDraft>): RowValues {
+  const values: RowValues = {};
 
-    const leases: Lease[] = [];
-    const rowNumberById = new Map<string, number>();
-    tab.dataRows.forEach((row, i) => {
-      const rowNumber = i + 2; // +2: 1-indexed, plus the header row
-      if (tab.isBlankRow(row)) return;
-
-      const lease = parseLease(tab, row, rowNumber);
-      const previousRow = rowNumberById.get(lease.id);
-      if (previousRow !== undefined) {
-        throw new SheetRowError(
-          TAB_NAME,
-          rowNumber,
-          `duplicate id "${lease.id}", already used on row ${previousRow}`,
-        );
-      }
-      rowNumberById.set(lease.id, rowNumber);
-      leases.push(lease);
-    });
-
-    return leases;
+  if (fields.roomId !== undefined) values['room_id'] = fields.roomId;
+  if (fields.tenantId !== undefined) values['tenant_id'] = fields.tenantId;
+  if (fields.startDate !== undefined) values['start_date'] = formatThaiDate(fields.startDate);
+  if (fields.endDate !== undefined) {
+    values['end_date'] = fields.endDate ? formatThaiDate(fields.endDate) : '';
+  }
+  if (fields.signedDate !== undefined) {
+    values['signed_date'] = fields.signedDate ? formatThaiDate(fields.signedDate) : '';
+  }
+  if (fields.rentRate !== undefined) values['rent_rate'] = fields.rentRate;
+  if (fields.deposit !== undefined) values['deposit'] = fields.deposit;
+  if (fields.advanceRent !== undefined) values['advance_rent'] = fields.advanceRent;
+  if (fields.occupantCount !== undefined) values['occupant_count'] = fields.occupantCount;
+  if (fields.endReason !== undefined) values['end_reason'] = fields.endReason ?? '';
+  if (fields.previousLeaseId !== undefined) {
+    values['previous_lease_id'] = fields.previousLeaseId ?? '';
   }
 
+  return values;
+}
+
+const SPEC: EntitySpec<Lease, LeaseDraft> = {
+  tabName: TAB_NAME,
+  contract: CONTRACT,
+  label: 'lease',
+  parse: parseLease,
+  toRowValues,
+  idPrefix: 'l-',
+};
+
+export function createSheetsLeaseRepository(client: SheetsClient): LeaseRepository {
+  const crud = createSheetsCrud(client, SPEC);
+
   return {
-    listLeases,
+    listLeases: crud.list,
+    getLease: crud.get,
+    createLease: crud.create,
+    updateLease: crud.update,
+    archiveLease: crud.archive,
+
     async listLeasesForRoom(roomId: string) {
-      return (await listLeases()).filter((lease) => lease.roomId === roomId);
+      return (await crud.list()).filter((lease) => lease.roomId === roomId);
     },
     async listLeasesForTenant(tenantId: string) {
-      return (await listLeases()).filter((lease) => lease.tenantId === tenantId);
+      return (await crud.list()).filter((lease) => lease.tenantId === tenantId);
     },
   };
 }

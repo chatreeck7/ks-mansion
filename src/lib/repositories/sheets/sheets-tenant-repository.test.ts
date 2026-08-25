@@ -1,16 +1,16 @@
 import { describe, expect, it } from 'vitest';
+import { createFakeSheets } from '@/lib/test-support/fake-sheets';
 import { createSheetsTenantRepository } from './sheets-tenant-repository';
-import type { SheetsClient } from './sheets-client';
 
 const HEADER = [
   'id', 'full_name', 'nickname', 'id_card_last4', 'phone',
   'occupation', 'evaluation_grade', 'note',
   'address_house_no', 'address_road', 'address_subdistrict',
-  'address_district', 'address_province', 'address_postcode',
+  'address_district', 'address_province', 'address_postcode', 'archived',
 ];
 
-function client(rows: string[][]): SheetsClient {
-  return { async getTabValues() { return [HEADER, ...rows]; } };
+function client(rows: string[][]) {
+  return createFakeSheets({ tenants: [HEADER, ...rows] });
 }
 
 function row(overrides: Partial<Record<string, string>> = {}): string[] {
@@ -29,6 +29,7 @@ function row(overrides: Partial<Record<string, string>> = {}): string[] {
     address_district: 'เมือง',
     address_province: 'ขอนแก่น',
     address_postcode: '40000',
+    archived: 'FALSE',
   };
   const merged: Record<string, string | undefined> = { ...defaults, ...overrides };
   return HEADER.map((c) => merged[c] ?? '');
@@ -38,6 +39,7 @@ describe('createSheetsTenantRepository', () => {
   it('parses a well-formed row', async () => {
     const [tenant] = await createSheetsTenantRepository(client([row()])).listTenants();
     expect(tenant).toEqual({
+      archived: false,
       id: 't-001',
       fullName: 'สมชาย ใจดี',
       nickname: 'ชาย',
@@ -149,9 +151,7 @@ describe('createSheetsTenantRepository', () => {
     });
 
     it('throws when the header is missing a contracted column', async () => {
-      const bare: SheetsClient = {
-        async getTabValues() { return [['id', 'full_name'], ['t-1', 'สมชาย']]; },
-      };
+      const bare = createFakeSheets({ tenants: [['id', 'full_name'], ['t-1', 'สมชาย']] });
       await expect(createSheetsTenantRepository(bare).listTenants()).rejects.toThrow(
         /missing required column "nickname"/,
       );
@@ -161,12 +161,8 @@ describe('createSheetsTenantRepository', () => {
     // *presence* is the only thing that can be checked. A typo'd header would
     // otherwise read as empty for every tenant, forever, without a word.
     it('throws when an optional-valued column is missing from the header', async () => {
-      const noOccupation: SheetsClient = {
-        async getTabValues() {
-          const header = HEADER.filter((c) => c !== 'occupation');
-          return [header, header.map(() => 'x')];
-        },
-      };
+      const header = HEADER.filter((c) => c !== 'occupation');
+      const noOccupation = createFakeSheets({ tenants: [header, header.map(() => 'x')] });
       await expect(createSheetsTenantRepository(noOccupation).listTenants()).rejects.toThrow(
         /missing required column "occupation"/,
       );

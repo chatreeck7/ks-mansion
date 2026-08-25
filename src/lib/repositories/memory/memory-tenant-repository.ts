@@ -1,5 +1,6 @@
 import type { Tenant } from '@/lib/models/tenant';
-import type { TenantRepository } from '../tenant-repository';
+import type { TenantDraft, TenantRepository } from '../tenant-repository';
+import { createMemoryStore } from './memory-store';
 
 /**
  * Fallback for local dev and tests, used when Sheets credentials are absent.
@@ -31,6 +32,7 @@ export const SEED_TENANTS: Tenant[] = [
     occupation: 'พนักงานบริษัท',
     evaluationGrade: 'A',
     note: '',
+    archived: false,
   },
   {
     id: 't-002',
@@ -49,6 +51,7 @@ export const SEED_TENANTS: Tenant[] = [
     occupation: 'ค้าขาย',
     evaluationGrade: null,
     note: '(เลี้ยงแมว)',
+    archived: false,
   },
   {
     id: 't-003',
@@ -67,25 +70,39 @@ export const SEED_TENANTS: Tenant[] = [
     occupation: '',
     evaluationGrade: 'C',
     note: '',
+    archived: false,
   },
 ];
 
-/** Hand callers their own copy so mutations cannot reach the seed. */
+/** Hand callers their own copy so mutations cannot reach the store. */
 function copy(tenant: Tenant): Tenant {
   return { ...tenant, address: { ...tenant.address } };
 }
 
-export function createMemoryTenantRepository(
-  tenants: Tenant[] = SEED_TENANTS,
-): TenantRepository {
-  const byId = new Map(tenants.map((t) => [t.id, t]));
+/**
+ * The mutable store local dev writes into, seeded once.
+ *
+ * Separate from `SEED_TENANTS` so the seed itself stays pristine — tests
+ * assert against it, and a dev session that creates a tenant should not
+ * change what those tests see. Writes persist for the life of the process,
+ * which is what makes a create-then-view flow work locally without
+ * credentials; they are gone on restart, which is what makes it a fixture
+ * rather than a database.
+ */
+const store: Tenant[] = SEED_TENANTS.map(copy);
+
+export function createMemoryTenantRepository(tenants: Tenant[] = store): TenantRepository {
+  const crud = createMemoryStore<Tenant, TenantDraft>(tenants, {
+    label: 'tenant',
+    idPrefix: 't-',
+    copy,
+  });
+
   return {
-    async listTenants() {
-      return tenants.map(copy);
-    },
-    async getTenant(id: string) {
-      const tenant = byId.get(id);
-      return tenant ? copy(tenant) : null;
-    },
+    listTenants: crud.list,
+    getTenant: crud.get,
+    createTenant: crud.create,
+    updateTenant: crud.update,
+    archiveTenant: crud.archive,
   };
 }

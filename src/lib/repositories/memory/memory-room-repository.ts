@@ -1,5 +1,6 @@
 import type { Room, RoomStatus } from '@/lib/models/room';
-import type { RoomRepository } from '../room-repository';
+import type { RoomEdit, RoomRepository } from '../room-repository';
+import { createMemoryStore } from './memory-store';
 
 /**
  * Real per-room **rent**, reconciled against ใบแจ้งค่าห้องพัก and the current
@@ -42,6 +43,7 @@ function unit(label: string, floor: number): Room {
     rentRate: RENT_RATE[label] ?? null,
     hasMeter: true,
     appliances: { tv: null, fridge: null, aircon: !FAN_ONLY.has(label) },
+    archived: false,
   };
 }
 
@@ -72,6 +74,7 @@ export const SEED_ROOMS: Room[] = [
     rentRate: 1800,
     hasMeter: true,
     appliances: { tv: null, fridge: null, aircon: false },
+    archived: false,
   },
   {
     id: 'undercroft',
@@ -82,18 +85,20 @@ export const SEED_ROOMS: Room[] = [
     rentRate: null,
     hasMeter: false,
     appliances: { tv: null, fridge: null, aircon: false },
+    archived: false,
   },
 ];
 
-export function createMemoryRoomRepository(rooms: Room[] = SEED_ROOMS): RoomRepository {
-  const byId = new Map(rooms.map((room) => [room.id, room]));
+/** The mutable store local dev writes into — see memory-tenant-repository. */
+const store: Room[] = SEED_ROOMS.map(copyRoom);
+
+export function createMemoryRoomRepository(rooms: Room[] = store): RoomRepository {
+  const crud = createMemoryStore<Room, RoomEdit>(rooms, { label: 'room', copy: copyRoom });
+
   return {
-    async listRooms() {
-      return rooms.map(copyRoom);
-    },
-    async getRoom(id: string) {
-      const room = byId.get(id);
-      return room ? copyRoom(room) : null;
-    },
+    listRooms: crud.list,
+    getRoom: crud.get,
+    updateRoom: crud.update,
+    archiveRoom: crud.archive,
   };
 }

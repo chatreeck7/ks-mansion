@@ -1,3 +1,4 @@
+import type { Archivable } from './archivable';
 import type { PillTone } from './pill-tone';
 
 /** What kind of space this is — not whether it earns rent. */
@@ -36,7 +37,7 @@ export interface RoomAppliances {
   aircon: boolean | null;
 }
 
-export interface Room {
+export interface Room extends Archivable {
   /** Stable identifier used in URLs. */
   id: string;
   /** What the admin calls it: '101', 'ร้านซักผ้า'. */

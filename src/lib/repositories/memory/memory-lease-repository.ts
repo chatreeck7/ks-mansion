@@ -1,5 +1,6 @@
 import type { Lease } from '@/lib/models/lease';
-import type { LeaseRepository } from '../lease-repository';
+import type { LeaseDraft, LeaseRepository } from '../lease-repository';
+import { createMemoryStore } from './memory-store';
 
 /**
  * Fallback for local dev and tests. Fictional, and keyed to the fictional
@@ -28,6 +29,7 @@ export const SEED_LEASES: Lease[] = [
     occupantCount: 2,
     endReason: null,
     previousLeaseId: null,
+    archived: false,
   },
   {
     id: 'l-002',
@@ -42,6 +44,7 @@ export const SEED_LEASES: Lease[] = [
     occupantCount: 1,
     endReason: 'normal',
     previousLeaseId: null,
+    archived: false,
   },
   {
     id: 'l-003',
@@ -56,6 +59,7 @@ export const SEED_LEASES: Lease[] = [
     occupantCount: 1,
     endReason: 'absconded',
     previousLeaseId: null,
+    archived: false,
   },
   {
     // t-002 moved 102 → 105 rather than leaving; one tenancy, two rooms.
@@ -71,6 +75,7 @@ export const SEED_LEASES: Lease[] = [
     occupantCount: 1,
     endReason: null,
     previousLeaseId: 'l-002',
+    archived: false,
   },
 ];
 
@@ -78,16 +83,28 @@ function copy(lease: Lease): Lease {
   return { ...lease };
 }
 
-export function createMemoryLeaseRepository(leases: Lease[] = SEED_LEASES): LeaseRepository {
+/** The mutable store local dev writes into — see memory-tenant-repository. */
+const store: Lease[] = SEED_LEASES.map(copy);
+
+export function createMemoryLeaseRepository(leases: Lease[] = store): LeaseRepository {
+  const crud = createMemoryStore<Lease, LeaseDraft>(leases, {
+    label: 'lease',
+    idPrefix: 'l-',
+    copy,
+  });
+
   return {
-    async listLeases() {
-      return leases.map(copy);
-    },
+    listLeases: crud.list,
+    getLease: crud.get,
+    createLease: crud.create,
+    updateLease: crud.update,
+    archiveLease: crud.archive,
+
     async listLeasesForRoom(roomId: string) {
-      return leases.filter((l) => l.roomId === roomId).map(copy);
+      return (await crud.list()).filter((l) => l.roomId === roomId);
     },
     async listLeasesForTenant(tenantId: string) {
-      return leases.filter((l) => l.tenantId === tenantId).map(copy);
+      return (await crud.list()).filter((l) => l.tenantId === tenantId);
     },
   };
 }

@@ -1,20 +1,16 @@
 import { describe, expect, it } from 'vitest';
+import { createFakeSheets } from '@/lib/test-support/fake-sheets';
 import { createSheetsRoomRepository } from './sheets-room-repository';
-import type { SheetsClient } from './sheets-client';
 
 const HEADER = [
   'id', 'room_number', 'kind', 'status', 'rent_rate', 'detail', 'type', 'floor', 'hasMeter',
-  'has_tv', 'has_fridge', 'has_aircon',
+  'has_tv', 'has_fridge', 'has_aircon', 'archived',
 ] as const;
 
 const BLANK_ROW = HEADER.map(() => '');
 
-function fakeClient(rows: string[][]): SheetsClient {
-  return {
-    async getTabValues() {
-      return [[...HEADER], ...rows];
-    },
-  };
+function fakeClient(rows: string[][]) {
+  return createFakeSheets({ rooms: [[...HEADER], ...rows] });
 }
 
 function unitRow(overrides: Partial<Record<(typeof HEADER)[number], string>> = {}): string[] {
@@ -31,12 +27,14 @@ function unitRow(overrides: Partial<Record<(typeof HEADER)[number], string>> = {
     has_tv: 'FALSE',
     has_fridge: 'FALSE',
     has_aircon: 'TRUE',
+    archived: 'FALSE',
   };
   const merged = { ...defaults, ...overrides };
   return HEADER.map((column) => merged[column]);
 }
 
 const ROOM_101 = {
+  archived: false,
   id: '101',
   label: '101',
   floor: 1,
@@ -56,16 +54,12 @@ describe('createSheetsRoomRepository', () => {
   it('reads columns by header name, not position', async () => {
     const shuffledHeader = [
       'has_aircon', 'hasMeter', 'floor', 'rent_rate', 'status', 'kind', 'room_number', 'id',
-      'has_tv', 'has_fridge',
+      'has_tv', 'has_fridge', 'archived', 'detail',
     ];
-    const client: SheetsClient = {
-      async getTabValues() {
-        return [
+    const client = createFakeSheets({ rooms: [
           shuffledHeader,
-          ['TRUE', 'TRUE', '2', '2300', 'occupied', 'unit', '201', '201', 'FALSE', 'FALSE'],
-        ];
-      },
-    };
+          ['TRUE', 'TRUE', '2', '2300', 'occupied', 'unit', '201', '201', 'FALSE', 'FALSE', 'FALSE', ''],
+        ] });
     expect(await createSheetsRoomRepository(client).listRooms()).toEqual([
       { ...ROOM_101, id: '201', label: '201', floor: 2, rentRate: 2300 },
     ]);
@@ -189,23 +183,17 @@ describe('createSheetsRoomRepository', () => {
 
   describe('validation — catching the corruption KS-53 documented', () => {
     it('throws when the header is missing a required column', async () => {
-      const client: SheetsClient = {
-        async getTabValues() {
-          return [['room_number', 'kind'], ['101', 'unit']];
-        },
-      };
+      const client = createFakeSheets({ rooms: [['room_number', 'kind'], ['101', 'unit']] });
       await expect(createSheetsRoomRepository(client).listRooms()).rejects.toThrow(/missing required column "id"/);
     });
 
     it('throws when the header has a duplicate column name', async () => {
-      const client: SheetsClient = {
-        async getTabValues() {
-          return [
-            [...HEADER, 'rent_rate'],
-            [...unitRow(), '9999'],
-          ];
-        },
-      };
+      const client = createFakeSheets({
+        rooms: [
+          [...HEADER, 'rent_rate'],
+          [...unitRow(), '9999'],
+        ],
+      });
       await expect(createSheetsRoomRepository(client).listRooms()).rejects.toThrow(
         /duplicate column header "rent_rate"/,
       );

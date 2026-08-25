@@ -161,10 +161,10 @@ forever, silently. Both lists close both holes.
 ### `rooms`
 
 ```
-id, room_number, kind, status, rent_rate, detail, type, floor, hasMeter, has_tv, has_fridge, has_aircon
+id, room_number, kind, status, rent_rate, detail, type, floor, hasMeter, has_tv, has_fridge, has_aircon, archived
 ```
 
-Identity: all of the above except `detail` and `type`.
+Identity: all of the above except `detail`, `type` and `archived`.
 
 - **`rent_rate` is rent, not a month's bill.** It was called `price` and was
   populated from the `ค่าห้องฯ` column of แบบฟอร์มเก็บเงินค่าห้อง, which is a
@@ -207,7 +207,7 @@ Identity: all of the above except `detail` and `type`.
 
 ```
 id, full_name, nickname, id_card_last4, phone, occupation, evaluation_grade, note,
-address_house_no, address_road, address_subdistrict, address_district, address_province, address_postcode
+address_house_no, address_road, address_subdistrict, address_district, address_province, address_postcode, archived
 ```
 
 Identity: `id`, `full_name`.
@@ -231,7 +231,7 @@ Identity: `id`, `full_name`.
 
 ```
 id, room_id, tenant_id, start_date, end_date, signed_date,
-rent_rate, deposit, advance_rent, occupant_count, end_reason, previous_lease_id
+rent_rate, deposit, advance_rent, occupant_count, end_reason, previous_lease_id, archived
 ```
 
 Identity: `id`, `room_id`, `tenant_id`, `start_date`.
@@ -270,6 +270,11 @@ branch must not be deployed until the columns exist.
 existing moves, which removes the column-shift risk from the migration
 entirely.
 
+**Every tab** — add an `archived` column (rule 7). Leave it blank in existing
+rows; blank reads as "not archived". The harm is asymmetric, which is why
+blank is allowed here: an archived record shown as active is a nuisance, where
+a live tenant hidden as archived loses their billing.
+
 **`rooms`** — rename `price` back to `rent_rate`, then append three empty
 columns:
 
@@ -296,7 +301,7 @@ Split the existing `address` value across the new parts by hand; the console
 will not do it, because guessing where a one-line address divides is exactly
 the kind of inference that would end up printed on a lease contract.
 
-**`leases`** — add four columns:
+**`leases`** — add four more columns:
 
 ```
 signed_date, occupant_count, end_reason, previous_lease_id
@@ -308,3 +313,74 @@ signed_date, occupant_count, end_reason, previous_lease_id
 **One data correction, separate from the columns:** the `rent_rate` on lease
 `l-001` reads `2636`, which is the old month-total figure. Room 101's rent is
 `2200`.
+
+## Writing (KS-66)
+
+The console writes as well as reads. Four rules hold every write together, and
+all four live in one place — `sheets-crud.ts` — rather than once per entity,
+because a rule with three copies has three chances to stop matching.
+
+### Whole rows, never cells
+
+There is no cell-level write. The Sheets API has no compare-and-swap
+([data-layer.md §4](data-layer.md)), so the only way a failed run is safe to
+re-run is if re-applying a write is idempotent — true of "put this row in this
+state", false of "change this one cell".
+
+### Write by header name, and keep what you do not own
+
+A write resolves its columns by name from the header it just read, exactly as
+a read does. Building a row in the contract's own order and hoping the sheet
+agrees would put every value one column off the first time an admin drags a
+column — and unlike a bad read, a bad write cannot be undone by fixing the
+code.
+
+Cells the console does not model are **carried across unchanged**. `type` and
+`detail` belong to the admin; writing only the columns the model knows about
+would blank them on every save, turning "update this record" into "replace
+this record with whatever the console happens to model".
+
+### Never write what could not be read back
+
+Before writing, the row is parsed with the same parser the read path uses. If
+it would not read back, nothing is written.
+
+This is what keeps the two sides in agreement without stating every rule
+twice. A separate set of inbound validations drifts the moment one side gains
+a rule the other lacks, and the failure surfaces as a row that saved cleanly
+and then broke the whole tab on the next page load. It also means a rule
+written for reading — a full national ID in `id_card_last4`, an `end_reason`
+with no `end_date` — guards the write for free.
+
+### Re-find the row immediately before writing
+
+Row numbers are never remembered across requests. A write re-reads the tab and
+locates its row by `id`, because an admin inserting a row shifts every number
+below it and there is no compare-and-swap to catch that. This narrows the
+window to one round trip rather than the length of a user's session; it does
+not close it, and at single-admin scale that is accepted.
+
+### Ids
+
+Generated on write as `<prefix><zero-padded number>` — `t-014`, `l-007` —
+taking the highest existing number and adding one. Readable rather than
+opaque, because the sheet is read and edited by people who need to match a
+lease against paperwork. Ids that do not fit the pattern are ignored when
+numbering but still occupy their value, so the generator checks the id is free
+before using it.
+
+An archived record keeps its id forever. Reusing it would hand the next tenant
+the archived one's identity, and every bill pointing at that id would silently
+attach to the wrong person.
+
+### Dates out
+
+Written in พ.ศ. through `formatThaiDate`, the same function the console
+displays them with, and sent as `valueInputOption=RAW` so Sheets never
+reinterprets them. `USER_ENTERED` would parse each value as though a person
+typed it, rewriting `1 มี.ค. 2568` into whatever Sheets thinks that date is —
+re-introducing the พ.ศ.-vs-CE trap on the way *in*, where nothing catches it.
+
+Numbers are sent as JSON numbers, which `RAW` stores as numbers, so an admin's
+`=SUM()` still works without granting Sheets licence to reinterpret the date
+column beside it.

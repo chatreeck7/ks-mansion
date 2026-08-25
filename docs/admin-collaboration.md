@@ -35,10 +35,24 @@ a document, but it is now a database with a contract.
 
 ## Who owns what — `rooms` tab
 
-The console **reads** this tab and does not yet write to it (the Sheets client
-is scoped `spreadsheets.readonly`). So today every column is admin-editable in
-practice, and the rules below are about what is *safe*, enforced by
-convention plus the protections in the next section.
+The console **reads and writes** this tab as of KS-66 — the Sheets client is
+scoped `spreadsheets`, and the share with the service account must therefore
+be **Editor**, not Viewer, or every write fails with a 403.
+
+Every column is still admin-editable; the console is a second writer, not the
+owner. Two guarantees make that safe, and they are worth knowing because they
+are what let you keep editing the sheet by hand:
+
+- **The console never blanks a column it does not model.** An update carries
+  `type`, `detail` and anything else you add across unchanged. It writes the
+  whole row, but only the cells it owns actually change.
+- **The console never writes a row it could not read back.** Every write is
+  parsed with the read path's own parser first; if it would fail validation,
+  nothing is written. A bad save is refused rather than left in the sheet for
+  the next page load to choke on.
+
+What it cannot protect against is a simultaneous edit — see "What this does
+not solve" at the end.
 
 | Column | Owner | Hand-edit? | Notes |
 |---|---|---|---|
@@ -49,9 +63,10 @@ convention plus the protections in the next section.
 | `floor` | Admin | Yes | Integer 0–3. |
 | `hasMeter` | Admin | Yes | Exactly `TRUE` or `FALSE`. |
 | `detail` | Admin | Yes | Display name where `room_number` is a slug (`laundry` → ร้านซักผ้า). |
-| `status` | Admin | Yes | `occupied`, `noticeGiven`, `available`, `maintenance`. Read by the console. |
+| `status` | Shared | Yes | `occupied`, `noticeGiven`, `available`, `maintenance`. Read *and written* by the console. |
 | `has_tv` / `has_fridge` / `has_aircon` | Admin | Yes | `TRUE`, `FALSE`, or blank. Blank means "not on file" — see below. |
-| `type` | Admin | Yes | **Not read by the console.** AC/FAN. Overlaps `has_aircon`; see the warning below. |
+| `type` | Admin | Yes | **Not read by the console**, and preserved across every write. AC/FAN. Overlaps `has_aircon`; see the warning below. |
+| `archived` | Console | Prefer not | Soft delete (rule 7). Blank or `FALSE` means active. Set by the console's archive action; editing it by hand un-deletes a record. |
 
 **The header row is a contract.** Columns are resolved by name, so they may be
 reordered freely — but renaming or deleting one breaks the read. `hasMeter` is
@@ -89,6 +104,11 @@ and back to `occupied` when the room is re-let.
 
 None of this can be done from the repo; there is no API access here that
 writes sheet structure. In Google Sheets:
+
+### 0. Share with the service account as Editor
+Writes need it. A Viewer share reads fine and then fails every save with a
+403 — the console's error says so explicitly, but it is a confusing state to
+discover mid-edit.
 
 ### 1. Protect the header row and the `id` column
 Select row 1 → right-click → **View more cell actions → Protect range** →

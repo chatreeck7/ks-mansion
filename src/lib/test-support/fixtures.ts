@@ -27,6 +27,7 @@ export function makeRoom(overrides: Partial<Room> = {}): Room {
     rentRate: 2200,
     hasMeter: true,
     appliances: { tv: null, fridge: null, aircon: true },
+    archived: false,
     ...overrides,
   };
 }
@@ -42,6 +43,7 @@ export function makeTenant(overrides: Partial<Tenant> = {}): Tenant {
     occupation: 'พนักงานบริษัท',
     evaluationGrade: 'A',
     note: '',
+    archived: false,
     ...overrides,
   };
 }
@@ -60,6 +62,7 @@ export function makeLease(overrides: Partial<Lease> = {}): Lease {
     occupantCount: 1,
     endReason: null,
     previousLeaseId: null,
+    archived: false,
     ...overrides,
   };
 }
