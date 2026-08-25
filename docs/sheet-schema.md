@@ -133,9 +133,11 @@ reading a tab should check, before trusting the data:
 - Row count matches the tab's non-header row count (no silently-skipped
   trailing rows, no double-read header).
 - The ID column has no duplicate, no blank values.
-- Every row has a value in every column the header declares as required —
-  a row with fewer populated cells than the header width is exactly the
-  corruption shown above and should be flagged, not silently shifted.
+- Every row has a value in every column that *requires* one — see the
+  columns/identity split below, since not every contracted column carries a
+  value on every real row. A row short of the cells its contract demands is
+  exactly the corruption shown above and should be flagged, not silently
+  shifted.
 
 This is a repository-implementation concern (KS-2/KS-54's Sheets adapter),
 not a schema-doc deliverable — noted here so it isn't designed ad hoc later.
