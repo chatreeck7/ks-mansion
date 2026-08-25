@@ -1,5 +1,5 @@
 import type { LedgerColumn, LedgerGroup, LedgerRow } from '@/lib/models/ledger';
-import { isUnit, type Room } from '@/lib/models/room';
+import { isUnit, statusLabel, statusTone, type Room } from '@/lib/models/room';
 import { consolePath } from './paths';
 
 export const ROOM_COLUMNS: LedgerColumn[] = [
@@ -8,6 +8,13 @@ export const ROOM_COLUMNS: LedgerColumn[] = [
   { key: 'status', header: 'สถานะ' },
 ];
 
+/**
+ * The status pill shows the room's actual state. It previously showed a
+ * hard-coded 'ว่าง' for every unit — the model had no status to read, so the
+ * column asserted every room was vacant regardless. Common spaces no longer
+ * get a 'ส่วนกลาง' pill either: the group heading already says that, and the
+ * cell is more useful carrying the same state as everything else.
+ */
 function toRow(room: Room): LedgerRow {
   return {
     id: room.id,
@@ -15,9 +22,7 @@ function toRow(room: Room): LedgerRow {
     cells: {
       room: { kind: 'text', value: room.label },
       rate: { kind: 'figure', value: room.rentRate },
-      status: isUnit(room)
-        ? { kind: 'pill', tone: 'info', label: 'ว่าง' }
-        : { kind: 'pill', tone: 'mute', label: 'ส่วนกลาง' },
+      status: { kind: 'pill', tone: statusTone(room.status), label: statusLabel(room.status) },
     },
   };
 }

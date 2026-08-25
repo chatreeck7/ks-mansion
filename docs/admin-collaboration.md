@@ -45,20 +45,45 @@ convention plus the protections in the next section.
 | `id` | **Console** | **No** | Stable identity. Changing one silently repoints every reference to that room. Generated on write once the console writes. |
 | `room_number` | Admin | Yes | The human label. Safe to correct. |
 | `kind` | Admin | Yes | Exactly `unit` or `common` — anything else fails the read. |
-| `price` | Admin | Yes | Monthly rent. **Blank means "no rate on record"** and is meaningful — do not fill it with 0 to tidy up. |
+| `rent_rate` | Admin | Yes | Monthly **rent**, not a month's bill. **Blank means "no rate on record"** and is meaningful — do not fill it with 0 to tidy up. |
 | `floor` | Admin | Yes | Integer 0–3. |
 | `hasMeter` | Admin | Yes | Exactly `TRUE` or `FALSE`. |
 | `detail` | Admin | Yes | Display name where `room_number` is a slug (`laundry` → ร้านซักผ้า). |
-| `status` | Admin | Yes | **Not read by the console yet** — occupancy is KS-8. Admin bookkeeping for now. |
-| `type` | Admin | Yes | **Not read by the console yet.** AC/FAN. Admin bookkeeping. |
+| `status` | Admin | Yes | `occupied`, `noticeGiven`, `available`, `maintenance`. Read by the console. |
+| `has_tv` / `has_fridge` / `has_aircon` | Admin | Yes | `TRUE`, `FALSE`, or blank. Blank means "not on file" — see below. |
+| `type` | Admin | Yes | **Not read by the console.** AC/FAN. Overlaps `has_aircon`; see the warning below. |
 
 **The header row is a contract.** Columns are resolved by name, so they may be
 reordered freely — but renaming or deleting one breaks the read. `hasMeter` is
 case-sensitive.
 
-**Blank ≠ zero.** Rooms 206, 305, 310 and ห้องเช่าส่วนกลาง have no rent on
-record. The console renders an em dash. Filling those with `0` would assert
-"this room is free", which is a different and false claim.
+**`rent_rate` was called `price`, and held the wrong thing.** It was populated
+from แบบฟอร์มเก็บเงินค่าห้อง's `ค่าห้องฯ` column, which is a *month's total* —
+rent plus water plus electricity — so it moved every month. Room 101 read
+2,636 where the rent is 2,200. The column now holds rent alone and is named
+for it.
+
+**Blank ≠ zero, and blank ≠ no.** ห้องเช่าส่วนกลาง has no rent on record; the
+console renders an em dash. Filling it with `0` would assert "this space is
+free", which is a different and false claim. The appliance columns carry the
+same distinction as a third state: a blank `has_tv` reads as **"not on file"**
+and shows as an em dash, which is not the same as `FALSE`. Leave them blank
+until someone has actually checked — an invented `FALSE` would print on the
+month-end report as fact.
+
+`hasMeter` is the exception that proves it: a blank there **does** fail the
+read, because a room missing from the meter round is a billing problem, where
+an unsurveyed fridge is not.
+
+**`type` and `has_aircon` now say the same thing.** Two cells that can
+disagree about one fact is the failure this whole document guards against —
+so treat `has_aircon` as the real one, and either retire `type` or keep it
+strictly as a marketing label nothing reads.
+
+**`noticeGiven` (แจ้งออก) is a real state, not a nicety.** A room that has
+given notice is billed utilities but **no rent** — the `Utility` value in the
+monthly report's `จะได้รับ ณ สิ้นเดือน` column. Set it when notice is given
+and back to `occupied` when the room is re-let.
 
 ## Applying this — needs someone with edit access
 
@@ -79,14 +104,20 @@ edited, and over-protecting pushes people into copies, which is worse.
 |---|---|
 | `kind` | Dropdown: `unit`, `common` — **Reject input** |
 | `hasMeter` | Dropdown: `TRUE`, `FALSE` — **Reject input** |
+| `has_tv` / `has_fridge` / `has_aircon` | Dropdown: `TRUE`, `FALSE` — allow blank |
 | `floor` | Number between 0 and 3 — **Reject input** |
-| `price` | Number ≥ 0 — **Reject input** |
-| `status` | Dropdown: `occupied`, `maintenance`, `available` |
+| `rent_rate` | Number ≥ 0 — **Reject input** |
+| `status` | Dropdown: `occupied`, `noticeGiven`, `available`, `maintenance` — **Reject input** |
 | `type` | Dropdown: `AC`, `FAN` |
 
-Use **Reject input**, not "Show warning", on the first four. A warning that
-can be dismissed does not prevent a bad read; it just moves the failure to
-the console.
+Use **Reject input**, not "Show warning", everywhere except `type` (which
+nothing reads). A warning that can be dismissed does not prevent a bad read;
+it just moves the failure to the console.
+
+**Do not number-format `rent_rate` if you can avoid it.** Sheets returns the
+*formatted* value, so a thousands separator arrives as the literal `"2,200"`.
+The console strips separators, so this is safe today — but it is one more
+thing that has to keep working, and a plain number needs nothing stripped.
 
 ### 3. A note in the sheet itself
 Add a `README` tab, since a rule nobody sees is not a rule:
@@ -96,16 +127,26 @@ Add a `README` tab, since a rule nobody sees is not a rule:
 > deploy step and no staging copy.
 >
 > - Do not edit the header row or the `id` column.
-> - A blank `price` means "no rate on record", not zero. Leave it blank.
-> - `kind` must be `unit` or `common`; `hasMeter` must be `TRUE` or `FALSE`.
+> - A blank `rent_rate` means "no rate on record", not zero. Leave it blank.
+>   It is **rent only** — not rent plus water and electricity.
+> - `kind` must be `unit` or `common`; `hasMeter` must be `TRUE` or `FALSE`
+>   and must not be left blank.
+> - The `has_*` appliance columns may be left blank — blank means "not on
+>   file", which is not the same as `FALSE`. Do not fill them with guesses.
+> - `id_card_last4` on the tenants tab holds **four digits only**. Never paste
+>   a full national ID there — the console will refuse to read the row.
 > - Never re-number the `id` column. Those are identities, not row numbers.
 > - Made a mess? **File → Version history → See version history** and
 >   restore. That is the undo, and it goes back further than Ctrl-Z.
 
-### 4. Dates — the พ.ศ. trap, for when date columns arrive
-No tab has a date column yet. When one does (KS-18 meter readings, KS-21
-bills), the risk this task named is real: an admin typing `2026` where the
-console expects a Buddhist year gets 1483 CE.
+### 4. Dates — the พ.ศ. trap, now live on the `leases` tab
+The `leases` tab has three date columns — `start_date`, `end_date`,
+`signed_date` — so this is no longer hypothetical: an admin typing `2026`
+where the console expects a Buddhist year gets 1483 CE.
+
+**Format those three columns as plain text** (Format → Number → Plain text).
+Left on automatic, Sheets reads `1 ม.ค. 2568` as a date it does not
+understand, or silently rewrites what is typed.
 
 Two halves, already handled differently:
 - **Display** is solved — `src/lib/format/thai.ts` formats พ.ศ. correctly.
@@ -114,10 +155,10 @@ Two halves, already handled differently:
   than reinterpreting it, and refuses dates that do not exist.
 
 But that only protects input typed *into the console*. For a date column
-edited directly in the sheet, set validation to **Date** and put the expected
-form in the column header itself (e.g. `read_date (พ.ศ. — 1 มี.ค. 2568)`).
-Sheets cannot validate "is this a Buddhist year", so the header text is the
-control.
+edited directly in the sheet, Sheets cannot validate "is this a Buddhist
+year", so the control is the header text plus the plain-text formatting —
+the console's own read is the backstop, and it fails the row rather than
+guessing.
 
 ## Rules that outlive this tab
 

@@ -22,11 +22,32 @@ export interface Tab {
   columnIndex: Record<string, number>;
   dataRows: string[][];
   /**
-   * True when no *required* column holds a value. A row carrying only an
-   * admin's note in some optional column is not data, and must not be
-   * mistaken for a corrupt record.
+   * True when no *identity* column holds a value. A row carrying only an
+   * admin's note in some other column is not data, and must not be mistaken
+   * for a corrupt record.
    */
   isBlankRow(row: string[]): boolean;
+}
+
+/**
+ * What a tab's header must provide, and what makes a row a record.
+ *
+ * These started as one list and had to be split: a tab can legitimately
+ * declare a column whose *value* is optional (`note`, `occupation`, the
+ * address parts) while its *presence* is still mandatory — a header typo
+ * there would otherwise make every row silently read as blank. Folding those
+ * into one list forced a choice between not verifying the header and treating
+ * a stray note row as a corrupt record.
+ */
+export interface TabContract {
+  /** Columns whose absence from the header row is a schema error. */
+  columns: readonly string[];
+  /**
+   * The subset that makes a row a record — a row empty in all of them is
+   * blank and skipped. Defaults to every column, which is right for a tab
+   * where nothing is optional.
+   */
+  identity?: readonly string[];
 }
 
 /**
@@ -52,7 +73,7 @@ function indexHeader(tabName: string, header: string[]): Record<string, number> 
 export async function readTab(
   client: SheetsClient,
   tabName: string,
-  requiredColumns: readonly string[],
+  contract: TabContract,
 ): Promise<Tab> {
   const rows = await client.getTabValues(tabName);
   if (rows.length === 0) {
@@ -61,18 +82,20 @@ export async function readTab(
 
   const [header, ...dataRows] = rows;
   const columnIndex = indexHeader(tabName, header!);
-  for (const column of requiredColumns) {
+  for (const column of contract.columns) {
     if (!(column in columnIndex)) {
       throw new Error(`Sheets tab "${tabName}" is missing required column "${column}"`);
     }
   }
+
+  const identity = contract.identity ?? contract.columns;
 
   return {
     tabName,
     columnIndex,
     dataRows,
     isBlankRow: (row) =>
-      requiredColumns.every((column) => (row[columnIndex[column]] ?? '').trim() === ''),
+      identity.every((column) => (row[columnIndex[column]] ?? '').trim() === ''),
   };
 }
 
@@ -86,4 +109,97 @@ export function requireCell(tab: Tab, row: string[], rowNumber: number, column: 
   const value = cellValue(tab, row, column);
   if (!value) throw new SheetRowError(tab.tabName, rowNumber, `missing "${column}"`);
   return value;
+}
+
+/**
+ * A numeric cell, tolerating the thousands separators an admin naturally
+ * types — and that Sheets itself inserts once a column is number-formatted.
+ *
+ * That formatting is not hypothetical: `rent_rate` in `KS_Mansion_DB` arrives
+ * as `"2,200"`, because the API returns the *formatted* value. Parsing with
+ * a bare `Number()` turns every one of those into `NaN`, so this has to be
+ * the shared path rather than something each repository remembers to do.
+ */
+export function numberCell(tab: Tab, row: string[], rowNumber: number, column: string): number {
+  const raw = cellValue(tab, row, column);
+  const value = Number(raw.replace(/,/g, ''));
+  if (raw === '' || !Number.isFinite(value)) {
+    throw new SheetRowError(tab.tabName, rowNumber, `"${column}" is not a number: "${raw}"`);
+  }
+  return value;
+}
+
+/** Same, but a genuinely blank cell reads as null rather than failing. */
+export function optionalNumberCell(
+  tab: Tab,
+  row: string[],
+  rowNumber: number,
+  column: string,
+): number | null {
+  return cellValue(tab, row, column) === '' ? null : numberCell(tab, row, rowNumber, column);
+}
+
+/**
+ * A boolean cell. Blank throws rather than reading as false: "nobody filled
+ * this in" and "this room has no meter" are different facts, and only one of
+ * them should quietly drop a room out of the meter round.
+ */
+export function booleanCell(tab: Tab, row: string[], rowNumber: number, column: string): boolean {
+  const raw = cellValue(tab, row, column);
+  const normalized = raw.toLowerCase();
+  if (normalized === 'true') return true;
+  if (normalized === 'false') return false;
+  throw new SheetRowError(
+    tab.tabName,
+    rowNumber,
+    `"${column}" must be "true" or "false", got "${raw}"`,
+  );
+}
+
+/**
+ * A boolean cell where blank genuinely means "not recorded".
+ *
+ * Distinct from `booleanCell`, which rejects a blank. Use this only where the
+ * absence of a value is itself a fact worth carrying — an appliance nobody
+ * has surveyed — rather than where a blank is an admin's oversight. Reaching
+ * for it to make a stubborn column stop failing is how "nobody filled this
+ * in" quietly becomes "false".
+ */
+export function nullableBooleanCell(
+  tab: Tab,
+  row: string[],
+  rowNumber: number,
+  column: string,
+): boolean | null {
+  return cellValue(tab, row, column) === '' ? null : booleanCell(tab, row, rowNumber, column);
+}
+
+/** A cell restricted to a known set of values; anything else names the row. */
+export function enumCell<T extends string>(
+  tab: Tab,
+  row: string[],
+  rowNumber: number,
+  column: string,
+  allowed: readonly T[],
+): T {
+  const raw = cellValue(tab, row, column);
+  if ((allowed as readonly string[]).includes(raw)) return raw as T;
+  throw new SheetRowError(
+    tab.tabName,
+    rowNumber,
+    `"${column}" must be one of ${allowed.map((v) => `"${v}"`).join(', ')}, got "${raw}"`,
+  );
+}
+
+/** Same, but a genuinely blank cell reads as null rather than failing. */
+export function optionalEnumCell<T extends string>(
+  tab: Tab,
+  row: string[],
+  rowNumber: number,
+  column: string,
+  allowed: readonly T[],
+): T | null {
+  return cellValue(tab, row, column) === ''
+    ? null
+    : enumCell(tab, row, rowNumber, column, allowed);
 }

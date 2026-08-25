@@ -1,8 +1,13 @@
 /**
- * A tenant profile, per AC-2.1: the fields the lease contract records.
+ * A tenant profile.
  *
- * Guarantor / emergency contact (AC-2.7) and occupation tag (AC-5.3) are
- * deliberately absent — they belong to KS-9 and KS-10.
+ * The model is **person-centric**, not room-centric, even though the
+ * operational ใบผลประเมินผู้เช่า sheet records rooms without names: per-person
+ * history and the AC-5.2 stay-length analytics both need a stable person
+ * identity. Names do exist operationally — รายการค่าไฟและค่าห้อง carries a
+ * room/name/phone sheet.
+ *
+ * Guarantor / emergency contact (AC-2.7) is still KS-9.
  */
 export interface Tenant {
   /** Stable identifier used in URLs. Never derived from a name. */
@@ -21,8 +26,78 @@ export interface Tenant {
    * national identifier out of a shared spreadsheet.
    */
   idCardLast4: string;
-  address: string;
+  /**
+   * Split into the parts the lease contract asks for, rather than one
+   * string. `สัญญาเช่าห้องชุด` has six separate blanks, so KS-31 cannot
+   * generate a contract from a single line — and splitting one heuristically
+   * at generation time would be guesswork on a legal document.
+   */
+  address: ThaiAddress;
   phone: string;
+  /**
+   * อาชีพ. Free text per AC-5.3, not a fixed list: real values are varied
+   * and often compound ('ราชภัฏ/7-11', 'ซีนิค/นักเรียน').
+   */
+  occupation: string;
+  /** ผลประเมิน — A = ดีมาก, B = ดี, C = พอใช้ได้. Null when not yet assessed. */
+  evaluationGrade: EvaluationGrade | null;
+  /** Free text; the real sheet carries qualifiers like '(เลี้ยงแมว)'. */
+  note: string;
+}
+
+export type EvaluationGrade = 'A' | 'B' | 'C';
+
+/** The label shown against each grade in the source sheet's own legend. */
+const GRADE_LABELS: Record<EvaluationGrade, string> = {
+  A: 'ดีมาก',
+  B: 'ดี',
+  C: 'พอใช้ได้',
+};
+
+export interface ThaiAddress {
+  /** บ้านเลขที่ */
+  houseNo: string;
+  /** ถนน */
+  road: string;
+  /** ตำบล */
+  subdistrict: string;
+  /** อำเภอ */
+  district: string;
+  /** จังหวัด */
+  province: string;
+  /** รหัสไปรษณีย์ */
+  postcode: string;
+}
+
+export const EMPTY_ADDRESS: ThaiAddress = {
+  houseNo: '',
+  road: '',
+  subdistrict: '',
+  district: '',
+  province: '',
+  postcode: '',
+};
+
+/**
+ * One line for display, skipping parts that are not recorded so a sparse
+ * address does not render as a row of stray prefixes.
+ */
+export function formatAddress(address: ThaiAddress): string {
+  const parts = [
+    address.houseNo,
+    address.road && `ถ.${address.road}`,
+    address.subdistrict && `ต.${address.subdistrict}`,
+    address.district && `อ.${address.district}`,
+    address.province && `จ.${address.province}`,
+    address.postcode,
+  ].filter(Boolean);
+
+  return parts.length > 0 ? parts.join(' ') : '—';
+}
+
+/** 'A (ดีมาก)', or an em dash when no grade is on record. */
+export function formatGrade(grade: EvaluationGrade | null): string {
+  return grade ? `${grade} (${GRADE_LABELS[grade]})` : '—';
 }
 
 /** 'สมชาย ใจดี (ชาย)' — full name plus nickname, which is how staff refer to people. */
