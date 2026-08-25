@@ -11,6 +11,10 @@ interface Env {
   CONSOLE_PASSWORD_HASH?: string;
   /** Signing key for the session cookie HMAC. */
   SESSION_SECRET?: string;
+  /** Service-account JSON key; absent locally, where the seed is used. */
+  GOOGLE_SERVICE_ACCOUNT_JSON?: string;
+  /** Id of the KS_Mansion_DB spreadsheet. */
+  SHEETS_SPREADSHEET_ID?: string;
 }
 
 type CloudflareRuntime = import('@astrojs/cloudflare').Runtime<Env>;

@@ -18,9 +18,21 @@ This isn't hypothetical. Two things happened this cycle, on the real
 
 - **A manual paste silently duplicated every row** — `room_number` values
   each appeared twice. Caught only by reading the sheet back and counting.
-- **Reading the sheet back today** (via the Drive connector, not the Sheets
-  API) shows the exact failure this document is written to prevent, in
-  production data:
+> ⚠️ **Correction (2026-08-25):** the second bullet below originally claimed
+> `KS_Mansion_DB` was *currently* exhibiting column-shift corruption. **That
+> was wrong, and the production data is fine.** Re-reading the sheet as a
+> table shows all 27 rows well-formed across 7 columns with blanks correctly
+> preserved (`101 | unit | occupied | 2636 | | AC | TRUE`). The earlier
+> reading came from a search-result snippet that collapses empty cells — a
+> rendering artifact of that tool, not the sheet. The example is kept below
+> because it is still an accurate illustration of *what the failure looks
+> like*, and the read-time validation it motivated is still worth having; but
+> it is a constructed example, not an observed incident. The row-duplication
+> incident recorded above **did** happen and is unaffected by this
+> correction.
+
+- **What a column shift would look like** — the shape this document exists to
+  prevent, illustrated with the snippet that was originally misread as real:
 
   ```
   room_number,kind,status,price,detail,type,hasMeter
@@ -37,13 +49,11 @@ This isn't hypothetical. Two things happened this cycle, on the real
   positional reader (`row[3]` = price) would silently read `"AC"` as a price
   for 206 and `"ร้านซักผ้า"` as a `price` for the laundry.
 
-  Neither row is actually corrupt data — this is almost certainly the Drive
-  connector's text-conversion collapsing blank cells, not the Sheets API v4
-  client that `/console` will actually use (same caveat as the spike's
-  latency numbers). But it's a live, reproducible instance of "a row can look
-  fine and still not match its header," which is precisely what stable IDs
-  and read-time validation exist to catch regardless of which mechanism
-  causes it.
+  **This shape is not hypothetical even though this instance was not real.**
+  The Sheets API genuinely omits trailing empty cells, so rows arrive ragged
+  by design — `createGoogleSheetsClient` normalises that, and the repository
+  resolves cells by header name rather than position precisely so a short or
+  shifted row cannot be silently misread.
 
 ## Rules
 
