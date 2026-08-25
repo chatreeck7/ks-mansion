@@ -105,6 +105,10 @@ printed name. Both of those change or collide in ways an opaque ID doesn't.
 
 ### 5. Reserved/computed columns are marked, so nobody hand-edits what the console owns
 
+> Per-column ownership for the `rooms` tab, and the sheet-side protections
+> that enforce it, are in [admin-collaboration.md](admin-collaboration.md)
+> (KS-56).
+
 Any column the console derives or overwrites on write (e.g. a computed
 `archived` flag, a future `balance`) gets a documented prefix or a listed
 callout in that tab's section of this doc, so an admin editing the sheet
