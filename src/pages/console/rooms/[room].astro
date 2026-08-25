@@ -10,7 +10,7 @@ import { getRoomRepository } from '@/lib/repositories';
 
 // Resolved per request rather than at build time: room data will come from
 // Sheets (KS-2), where an admin's edit must show up without a redeploy.
-const room = await getRoomRepository().getRoom(Astro.params.room!);
+const room = await getRoomRepository(Astro.locals.runtime?.env).getRoom(Astro.params.room!);
 
 if (!room) {
   return new Response(null, { status: 404, statusText: 'Not Found' });

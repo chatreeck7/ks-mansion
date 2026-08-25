@@ -5,7 +5,7 @@ import LedgerTable from '@/components/console/LedgerTable.astro';
 import { ROOM_COLUMNS, toRoomGroups } from '@/lib/console/room-ledger';
 import { getRoomRepository } from '@/lib/repositories';
 
-const rooms = await getRoomRepository().listRooms();
+const rooms = await getRoomRepository(Astro.locals.runtime?.env).listRooms();
 const groups = toRoomGroups(rooms);
 ---
 
