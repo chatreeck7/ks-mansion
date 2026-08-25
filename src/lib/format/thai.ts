@@ -1,5 +1,5 @@
 /** Thai month abbreviations, indexed to match Date.getMonth(). */
-const THAI_MONTHS_SHORT = [
+export const THAI_MONTHS_SHORT = [
   'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
   'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.',
 ] as const;
@@ -7,6 +7,11 @@ const THAI_MONTHS_SHORT = [
 /** The Buddhist calendar runs 543 years ahead of the Gregorian one. */
 export function toBuddhistYear(gregorianYear: number): number {
   return gregorianYear + 543;
+}
+
+/** Inverse of `toBuddhistYear`; parsing needs the direction the display does not. */
+export function fromBuddhistYear(buddhistYear: number): number {
+  return buddhistYear - 543;
 }
 
 /** '1 มี.ค. 2568'. Reads the date in local time, matching how it was entered. */
