@@ -25,10 +25,9 @@ const UNDER_MAINTENANCE = new Set(['104', '204', '209']);
  * Rooms with a fan instead of an air conditioner, per the sheet's `type`
  * column — the one appliance fact the source data actually records today.
  *
- * TV and fridge are seeded `false` throughout because **nothing records them
- * yet**, not because no room has them. Read those two as "not on file" until
- * the owner fills `has_tv` / `has_fridge` in `KS_Mansion_DB`; the month-end
- * report that consumes them is a later task.
+ * TV and fridge are seeded `null` — genuinely "not on file" — because nothing
+ * records them yet. That is the honest value, and it is why the model carries
+ * three states rather than two.
  */
 const FAN_ONLY = new Set(['102', '103', '306', '307', '308', '309', '310']);
 
@@ -42,7 +41,7 @@ function unit(label: string, floor: number): Room {
     status,
     rentRate: RENT_RATE[label] ?? null,
     hasMeter: true,
-    appliances: { tv: false, fridge: false, aircon: !FAN_ONLY.has(label) },
+    appliances: { tv: null, fridge: null, aircon: !FAN_ONLY.has(label) },
   };
 }
 
@@ -72,7 +71,7 @@ export const SEED_ROOMS: Room[] = [
     status: 'occupied',
     rentRate: 1800,
     hasMeter: true,
-    appliances: { tv: false, fridge: false, aircon: false },
+    appliances: { tv: null, fridge: null, aircon: false },
   },
   {
     id: 'undercroft',
@@ -82,7 +81,7 @@ export const SEED_ROOMS: Room[] = [
     status: 'available',
     rentRate: null,
     hasMeter: false,
-    appliances: { tv: false, fridge: false, aircon: false },
+    appliances: { tv: null, fridge: null, aircon: false },
   },
 ];
 

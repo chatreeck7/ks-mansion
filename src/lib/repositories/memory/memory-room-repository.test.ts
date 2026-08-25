@@ -62,6 +62,15 @@ describe('SEED_ROOMS', () => {
     expect(byId.get('102')?.appliances.aircon).toBe(false);
     expect(byId.get('101')?.appliances.aircon).toBe(true);
   });
+
+  // Aircon is derivable from the sheet's `type` column; TV and fridge are
+  // recorded nowhere, and `null` says so rather than asserting they are absent.
+  it('leaves TV and fridge as not-on-file rather than claiming no room has one', () => {
+    for (const room of SEED_ROOMS) {
+      expect(room.appliances.tv, room.id).toBeNull();
+      expect(room.appliances.fridge, room.id).toBeNull();
+    }
+  });
 });
 
 describe('createMemoryRoomRepository', () => {
@@ -102,7 +111,7 @@ describe('createMemoryRoomRepository', () => {
     const repo = createMemoryRoomRepository();
     const room = await repo.getRoom('101');
     room!.appliances.tv = true;
-    expect((await repo.getRoom('101'))?.appliances.tv).toBe(false);
+    expect((await repo.getRoom('101'))?.appliances.tv).toBeNull();
   });
 
   it('generates the double-digit ids at the padding boundary', async () => {

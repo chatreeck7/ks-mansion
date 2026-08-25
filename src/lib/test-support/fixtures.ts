@@ -26,7 +26,7 @@ export function makeRoom(overrides: Partial<Room> = {}): Room {
     status: 'occupied',
     rentRate: 2200,
     hasMeter: true,
-    appliances: { tv: false, fridge: false, aircon: true },
+    appliances: { tv: null, fridge: null, aircon: true },
     ...overrides,
   };
 }

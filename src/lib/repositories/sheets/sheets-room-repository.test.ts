@@ -87,6 +87,28 @@ describe('createSheetsRoomRepository', () => {
     expect((await repo.listRooms())[0]?.rentRate).toBeNull();
   });
 
+  /**
+   * Nothing records TV or fridge yet. Reading a blank as `false` would put
+   * "this room has no fridge" on a report nobody has surveyed for — so the
+   * third state exists, and the migration does not require inventing 54
+   * cells of data before the tab can be read at all.
+   */
+  it('reads a blank appliance cell as "not on file", distinct from "no"', async () => {
+    const repo = createSheetsRoomRepository(
+      fakeClient([unitRow({ has_tv: '', has_fridge: 'FALSE' })]),
+    );
+    const [room] = await repo.listRooms();
+    expect(room?.appliances.tv).toBeNull();
+    expect(room?.appliances.fridge).toBe(false);
+  });
+
+  // hasMeter keeps rejecting a blank: an unrecorded meter drops a room out of
+  // the meter round, where an unrecorded fridge costs nothing yet.
+  it('still rejects a blank hasMeter, which is not the same kind of unknown', async () => {
+    const repo = createSheetsRoomRepository(fakeClient([unitRow({ hasMeter: '' })]));
+    await expect(repo.listRooms()).rejects.toThrow(/"hasMeter" must be "true" or "false", got ""/);
+  });
+
   it('accepts booleans case-insensitively', async () => {
     const repo = createSheetsRoomRepository(
       fakeClient([unitRow({ hasMeter: 'false', has_tv: 'true' })]),
@@ -216,11 +238,9 @@ describe('createSheetsRoomRepository', () => {
       await expect(repo.listRooms()).rejects.toThrow(/"hasMeter" must be "true" or "false", got "AC"/);
     });
 
-    // A blank appliance cell is "nobody filled this in", not "this room has
-    // no fridge" — and only one of those should end up on a month-end report.
-    it('throws on a blank appliance cell rather than reading it as absent', async () => {
-      const repo = createSheetsRoomRepository(fakeClient([unitRow({ has_fridge: '' })]));
-      await expect(repo.listRooms()).rejects.toThrow(/"has_fridge" must be "true" or "false", got ""/);
+    it('still rejects a corrupted appliance value, even though blank is allowed', async () => {
+      const repo = createSheetsRoomRepository(fakeClient([unitRow({ has_fridge: 'AC' })]));
+      await expect(repo.listRooms()).rejects.toThrow(/"has_fridge" must be "true" or "false", got "AC"/);
     });
 
     it('throws when kind is neither unit nor common', async () => {

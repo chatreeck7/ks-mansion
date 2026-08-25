@@ -33,11 +33,16 @@ const meta = `${location}${rentClause}`;
 
 // Named individually rather than as a joined list, so "no TV on record"
 // stays distinguishable from a shorter list of what the room does have.
-const APPLIANCES: { label: string; present: boolean }[] = [
+// Three states, not two: an em dash means nobody has surveyed it, which is
+// a different claim from 'ไม่มี'.
+const APPLIANCES = [
   { label: 'แอร์', present: room.appliances.aircon },
   { label: 'ทีวี', present: room.appliances.tv },
   { label: 'ตู้เย็น', present: room.appliances.fridge },
-];
+].map(({ label, present }) => ({
+  label,
+  value: present === null ? '—' : present ? 'มี' : 'ไม่มี',
+}));
 ---
 
 <ConsoleFrame title={`ห้อง ${room.label}`} activeSection="rooms">
@@ -54,7 +59,7 @@ const APPLIANCES: { label: string; present: boolean }[] = [
           APPLIANCES.map((appliance) => (
             <>
               <dt class="text-console-ink-faint">{appliance.label}</dt>
-              <dd>{appliance.present ? 'มี' : 'ไม่มี'}</dd>
+              <dd>{appliance.value}</dd>
             </>
           ))
         }

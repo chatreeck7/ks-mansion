@@ -156,6 +156,24 @@ export function booleanCell(tab: Tab, row: string[], rowNumber: number, column: 
   );
 }
 
+/**
+ * A boolean cell where blank genuinely means "not recorded".
+ *
+ * Distinct from `booleanCell`, which rejects a blank. Use this only where the
+ * absence of a value is itself a fact worth carrying — an appliance nobody
+ * has surveyed — rather than where a blank is an admin's oversight. Reaching
+ * for it to make a stubborn column stop failing is how "nobody filled this
+ * in" quietly becomes "false".
+ */
+export function nullableBooleanCell(
+  tab: Tab,
+  row: string[],
+  rowNumber: number,
+  column: string,
+): boolean | null {
+  return cellValue(tab, row, column) === '' ? null : booleanCell(tab, row, rowNumber, column);
+}
+
 /** A cell restricted to a known set of values; anything else names the row. */
 export function enumCell<T extends string>(
   tab: Tab,

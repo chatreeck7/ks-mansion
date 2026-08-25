@@ -21,11 +21,19 @@ export type RoomStatus = 'occupied' | 'noticeGiven' | 'available' | 'maintenance
  * month-end report prints — รายการค่าไฟและค่าห้อง has TV / ตู้เย็น / แอร์
  * columns with per-floor totals. F6 can reference them later without
  * needing to own them now.
+ *
+ * **`null` means "not on file", and is a different fact from `false`.**
+ * Nothing in the source data records TV or fridge today, and forcing every
+ * room to declare `false` before the tab can be read would have meant
+ * inventing 54 cells of data for a report that does not exist yet — the
+ * opposite of the "don't invent data" ruling. A third state costs the report
+ * one branch and keeps the distinction that matters: a room with no fridge
+ * and a room nobody has surveyed should not print the same.
  */
 export interface RoomAppliances {
-  tv: boolean;
-  fridge: boolean;
-  aircon: boolean;
+  tv: boolean | null;
+  fridge: boolean | null;
+  aircon: boolean | null;
 }
 
 export interface Room {

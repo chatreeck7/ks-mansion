@@ -6,6 +6,7 @@ import {
   cellValue,
   enumCell,
   numberCell,
+  nullableBooleanCell,
   optionalNumberCell,
   readTab,
   requireCell,
@@ -78,10 +79,14 @@ function parseRoom(tab: Tab, row: string[], rowNumber: number): Room {
     status,
     rentRate,
     hasMeter: booleanCell(tab, row, rowNumber, 'hasMeter'),
+    // Blank is "not on file", not "no" — see RoomAppliances. `hasMeter`
+    // above deliberately still rejects a blank: an unrecorded meter drops a
+    // room out of the meter round, where an unrecorded fridge costs nothing
+    // until the month-end report is built.
     appliances: {
-      tv: booleanCell(tab, row, rowNumber, 'has_tv'),
-      fridge: booleanCell(tab, row, rowNumber, 'has_fridge'),
-      aircon: booleanCell(tab, row, rowNumber, 'has_aircon'),
+      tv: nullableBooleanCell(tab, row, rowNumber, 'has_tv'),
+      fridge: nullableBooleanCell(tab, row, rowNumber, 'has_fridge'),
+      aircon: nullableBooleanCell(tab, row, rowNumber, 'has_aircon'),
     },
   };
 }

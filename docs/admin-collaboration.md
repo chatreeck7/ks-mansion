@@ -50,7 +50,7 @@ convention plus the protections in the next section.
 | `hasMeter` | Admin | Yes | Exactly `TRUE` or `FALSE`. |
 | `detail` | Admin | Yes | Display name where `room_number` is a slug (`laundry` → ร้านซักผ้า). |
 | `status` | Admin | Yes | `occupied`, `noticeGiven`, `available`, `maintenance`. Read by the console. |
-| `has_tv` / `has_fridge` / `has_aircon` | Admin | Yes | Exactly `TRUE` or `FALSE`. Blank fails the read — see below. |
+| `has_tv` / `has_fridge` / `has_aircon` | Admin | Yes | `TRUE`, `FALSE`, or blank. Blank means "not on file" — see below. |
 | `type` | Admin | Yes | **Not read by the console.** AC/FAN. Overlaps `has_aircon`; see the warning below. |
 
 **The header row is a contract.** Columns are resolved by name, so they may be
@@ -63,11 +63,17 @@ rent plus water plus electricity — so it moved every month. Room 101 read
 2,636 where the rent is 2,200. The column now holds rent alone and is named
 for it.
 
-**Blank ≠ zero.** ห้องเช่าส่วนกลาง has no rent on record. The console renders
-an em dash. Filling it with `0` would assert "this space is free", which is a
-different and false claim. The same distinction is why a blank `has_tv` or
-`has_fridge` **fails the read** instead of meaning "no": on a month-end report,
-"nobody filled this in" and "this room has no fridge" are different facts.
+**Blank ≠ zero, and blank ≠ no.** ห้องเช่าส่วนกลาง has no rent on record; the
+console renders an em dash. Filling it with `0` would assert "this space is
+free", which is a different and false claim. The appliance columns carry the
+same distinction as a third state: a blank `has_tv` reads as **"not on file"**
+and shows as an em dash, which is not the same as `FALSE`. Leave them blank
+until someone has actually checked — an invented `FALSE` would print on the
+month-end report as fact.
+
+`hasMeter` is the exception that proves it: a blank there **does** fail the
+read, because a room missing from the meter round is a billing problem, where
+an unsurveyed fridge is not.
 
 **`type` and `has_aircon` now say the same thing.** Two cells that can
 disagree about one fact is the failure this whole document guards against —
@@ -98,7 +104,7 @@ edited, and over-protecting pushes people into copies, which is worse.
 |---|---|
 | `kind` | Dropdown: `unit`, `common` — **Reject input** |
 | `hasMeter` | Dropdown: `TRUE`, `FALSE` — **Reject input** |
-| `has_tv` / `has_fridge` / `has_aircon` | Dropdown: `TRUE`, `FALSE` — **Reject input** |
+| `has_tv` / `has_fridge` / `has_aircon` | Dropdown: `TRUE`, `FALSE` — allow blank |
 | `floor` | Number between 0 and 3 — **Reject input** |
 | `rent_rate` | Number ≥ 0 — **Reject input** |
 | `status` | Dropdown: `occupied`, `noticeGiven`, `available`, `maintenance` — **Reject input** |
@@ -123,8 +129,10 @@ Add a `README` tab, since a rule nobody sees is not a rule:
 > - Do not edit the header row or the `id` column.
 > - A blank `rent_rate` means "no rate on record", not zero. Leave it blank.
 >   It is **rent only** — not rent plus water and electricity.
-> - `kind` must be `unit` or `common`; `hasMeter` and the `has_*` columns must
->   be `TRUE` or `FALSE` and must not be left blank.
+> - `kind` must be `unit` or `common`; `hasMeter` must be `TRUE` or `FALSE`
+>   and must not be left blank.
+> - The `has_*` appliance columns may be left blank — blank means "not on
+>   file", which is not the same as `FALSE`. Do not fill them with guesses.
 > - `id_card_last4` on the tenants tab holds **four digits only**. Never paste
 >   a full national ID there — the console will refuse to read the row.
 > - Never re-number the `id` column. Those are identities, not row numbers.

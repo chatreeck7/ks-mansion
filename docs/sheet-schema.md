@@ -183,9 +183,17 @@ Identity: all of the above except `detail` and `type`.
   `Utility` value in the monthly report's `จะได้รับ ณ สิ้นเดือน` column, and a
   boolean occupied/vacant cannot express it.
 - **`has_tv` / `has_fridge` / `has_aircon`** feed the month-end report, which
-  prints TV / ตู้เย็น / แอร์ with per-floor totals. A blank cell fails the row
-  rather than reading as `false`: "nobody filled this in" and "this room has
-  no fridge" are different facts and only one belongs on a report.
+  prints TV / ตู้เย็น / แอร์ with per-floor totals. A blank reads as **"not on
+  file", which is a third state distinct from `false`** — "nobody filled this
+  in" and "this room has no fridge" are different facts and only one belongs
+  on a report. Blank is allowed rather than fatal because nothing records TV
+  or fridge today, and failing the tab until 54 cells were invented would have
+  been the "don't invent data" ruling turned upside down. Fill them when the
+  report needs them; until then `null` is the honest value.
+
+  `hasMeter` deliberately keeps rejecting a blank. The asymmetry is the point:
+  an unrecorded meter drops a room out of the meter round, where an unrecorded
+  fridge costs nothing until a report exists to print it.
 - **`type` (AC/FAN) now overlaps `has_aircon`** and stays admin bookkeeping.
   Two cells that can disagree about the same fact is the corruption class this
   document exists to prevent — retire `type`, or keep it explicitly as a
@@ -257,13 +265,19 @@ carry all of them yet, and **a missing column fails the whole tab by name** —
 deliberately, so a half-migrated sheet cannot be half-read. That means this
 branch must not be deployed until the columns exist.
 
-**`rooms`** — add three columns:
+**Column order does not matter** — every column is resolved by name, so
+**append** new columns at the far right rather than inserting them. Nothing
+existing moves, which removes the column-shift risk from the migration
+entirely.
+
+**`rooms`** — rename `price` back to `rent_rate`, then append three empty
+columns:
 
 | Column | Values | Notes |
 |---|---|---|
-| `has_tv` | `TRUE` / `FALSE` | Blank fails the row |
-| `has_fridge` | `TRUE` / `FALSE` | Blank fails the row |
-| `has_aircon` | `TRUE` / `FALSE` | Seed from `type`: `=IF(G2="AC",TRUE,FALSE)`, then paste as values |
+| `has_tv` | `TRUE` / `FALSE` / blank | Blank means "not on file"; leave empty for now |
+| `has_fridge` | `TRUE` / `FALSE` / blank | Same |
+| `has_aircon` | `TRUE` / `FALSE` / blank | Optionally seed from `type`: `=IF(G2="AC",TRUE,FALSE)`, then paste as values |
 
 `status` already exists and its values (`occupied`, `maintenance`,
 `available`) are already what the console reads. `noticeGiven` is the fourth
