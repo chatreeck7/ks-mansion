@@ -12,4 +12,5 @@ export interface ConsoleSection {
  */
 export const CONSOLE_SECTIONS: ConsoleSection[] = [
   { id: 'rooms', label: 'ห้อง', href: consolePath('console/rooms') },
+  { id: 'tenants', label: 'ผู้เช่า', href: consolePath('console/tenants') },
 ];

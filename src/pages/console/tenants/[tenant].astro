@@ -1,0 +1,48 @@
+---
+// src/pages/console/tenants/[tenant].astro
+import ConsoleFrame from '@/components/console/ConsoleFrame.astro';
+import DetailSheet from '@/components/console/DetailSheet.astro';
+import DetailSection from '@/components/console/DetailSection.astro';
+import { displayName, maskIdCard } from '@/lib/models/tenant';
+import { consolePath } from '@/lib/console/paths';
+import { getTenantRepository } from '@/lib/repositories';
+
+const tenant = await getTenantRepository(Astro.locals.runtime?.env).getTenant(
+  Astro.params.tenant!,
+);
+
+if (!tenant) {
+  return new Response(null, { status: 404, statusText: 'Not Found' });
+}
+---
+
+<ConsoleFrame title={`ผู้เช่า ${tenant.fullName}`} activeSection="tenants">
+  <DetailSheet title={displayName(tenant)} meta="ข้อมูลผู้เช่า">
+    <DetailSection heading="ข้อมูลติดต่อ">
+      <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+        <dt class="text-console-ink-faint">โทรศัพท์</dt>
+        <dd>{tenant.phone || '—'}</dd>
+        <dt class="text-console-ink-faint">ที่อยู่</dt>
+        <dd>{tenant.address || '—'}</dd>
+      </dl>
+    </DetailSection>
+
+    <DetailSection heading="เอกสาร">
+      <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+        <dt class="text-console-ink-faint">บัตรประชาชน</dt>
+        <dd class="font-figure">{maskIdCard(tenant.idCardLast4)}</dd>
+      </dl>
+      <p class="mt-2 text-xs text-console-ink-faint">
+        เก็บเฉพาะเลข 4 หลักท้าย เพื่อใช้ตรวจสอบกับสัญญาเช่าเท่านั้น
+      </p>
+    </DetailSection>
+  </DetailSheet>
+
+  <p class="mt-4 mb-0 leading-none text-console-ink-soft">
+    <a
+      href={consolePath('console/tenants')}
+      class="text-sm underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
+      >← กลับไปรายชื่อผู้เช่า</a
+    >
+  </p>
+</ConsoleFrame>

@@ -5,7 +5,10 @@ import ConsoleNav from './ConsoleNav.astro';
 
 describe('CONSOLE_SECTIONS', () => {
   it('lists only sections that exist — no placeholders for unbuilt features', () => {
-    expect(CONSOLE_SECTIONS.map((s) => s.id)).toEqual(['rooms']);
+    // Extend this as each section actually ships. A failure here means either
+    // a real section landed (update the list) or a placeholder crept in for
+    // something unbuilt (don't).
+    expect(CONSOLE_SECTIONS.map((s) => s.id)).toEqual(['rooms', 'tenants']);
   });
 });
 
