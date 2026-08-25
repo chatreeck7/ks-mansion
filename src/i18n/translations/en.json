@@ -1,0 +1,388 @@
+{
+  "site": {
+    "title": "KS Mansion",
+    "description": "Luxury Retreat & Estate"
+  },
+  "nav": {
+    "menu": "Menu",
+    "home": "Home",
+    "accommodations": "Accommodations",
+    "gallery": "Gallery",
+    "dining": "Dining",
+    "experiences": "Experiences",
+    "contact": "Contact",
+    "contactLocation": "Contact & Location",
+    "reserve": "Reserve",
+    "reserveNow": "Reserve Now"
+  },
+  "footer": {
+    "tagline": "Luxury Retreat & Estate",
+    "quickLinks": "Quick Links",
+    "contact": "Contact",
+    "getInTouch": "Get in Touch",
+    "reservations": "Reservations",
+    "copyright": "© 2025 KS Mansion. All rights reserved."
+  },
+  "home": {
+    "hero": {
+      "title": "Welcome to KS Mansion",
+      "subtitle": "An Exclusive Luxury Retreat",
+      "cta": "Book Your Stay"
+    },
+    "intro": {
+      "title": "A Timeless Sanctuary",
+      "description": "Nestled in a serene location, KS Mansion offers an unparalleled experience of luxury and tranquility. Our historic estate combines classic elegance with modern amenities, providing the perfect escape for discerning guests.",
+      "cta": "Explore Accommodations"
+    },
+    "features": {
+      "historicEstate": {
+        "title": "Historic Estate",
+        "description": "A beautifully restored mansion with rich history and timeless architecture"
+      },
+      "privateGardens": {
+        "title": "Private Gardens",
+        "description": "Expansive landscaped gardens offering peace and natural beauty"
+      },
+      "gourmetDining": {
+        "title": "Gourmet Dining",
+        "description": "Exceptional culinary experiences crafted by our expert chefs"
+      },
+      "luxuryAmenities": {
+        "title": "Luxury Amenities",
+        "description": "World-class facilities designed for your comfort and enjoyment"
+      }
+    }
+  },
+  "accommodations": {
+    "pageTitle": "Accommodations - KS Mansion",
+    "pageDescription": "Luxurious rooms and suites at KS Mansion",
+    "title": "Accommodations",
+    "subtitle": "Luxurious rooms and suites designed for your ultimate comfort",
+    "reserveNow": "Reserve Now",
+    "allRoomsInclude": "All Rooms Include",
+    "amenities": {
+      "wifi": "High-speed WiFi",
+      "climate": "Climate Control",
+      "tv": "Smart TV",
+      "coffee": "Coffee & Tea",
+      "toiletries": "Luxury Toiletries",
+      "safe": "Safe Deposit Box"
+    },
+    "rooms": {
+      "deluxeSuite": {
+        "name": "Deluxe Suite",
+        "size": "45 m² | King Bed | Garden View",
+        "description": "Elegantly appointed suite featuring classic furnishings, modern amenities, and stunning views of our private gardens.",
+        "amenities": ["Private balcony", "Luxury bathroom with soaking tub", "Walk-in closet", "Work desk and seating area"]
+      },
+      "masterSuite": {
+        "name": "Master Suite",
+        "size": "65 m² | King Bed | Estate View",
+        "description": "Our most spacious accommodation featuring a separate living area, premium furnishings, and panoramic estate views.",
+        "amenities": ["Separate living room", "Marble bathroom with rain shower", "Private terrace", "Mini bar and coffee station"]
+      },
+      "gardenRoom": {
+        "name": "Garden Room",
+        "size": "35 m² | Queen Bed | Garden Access",
+        "description": "Charming room with direct access to our beautifully landscaped gardens, perfect for nature lovers.",
+        "amenities": ["Direct garden access", "Rainfall shower", "Cozy reading nook", "Organic bath amenities"]
+      },
+      "presidentialSuite": {
+        "name": "Presidential Suite",
+        "size": "90 m² | King Bed | 360° Views",
+        "description": "The pinnacle of luxury with expansive living spaces, premium furnishings, and unparalleled views from every window.",
+        "amenities": ["Dining area for 6 guests", "Master bathroom with spa tub", "Wraparound terrace", "Private butler service"]
+      }
+    }
+  },
+  "dining": {
+    "pageTitle": "Dining - KS Mansion",
+    "pageDescription": "Exceptional culinary experiences",
+    "title": "Dining",
+    "subtitle": "Exceptional culinary experiences crafted with passion",
+    "culinaryExcellence": {
+      "title": "Culinary Excellence",
+      "description": "At KS Mansion, dining is an art form. Our talented chefs create exquisite dishes using the finest seasonal ingredients, combining traditional techniques with innovative approaches to deliver unforgettable gastronomic experiences."
+    },
+    "venues": {
+      "grandDiningRoom": {
+        "name": "The Grand Dining Room",
+        "meta": "Fine Dining | Dinner Service | Dress Code: Smart Elegant",
+        "description": "Our signature restaurant offers an elegant dining experience in a stunning historic setting. The menu features contemporary cuisine with locally-sourced ingredients, complemented by an extensive wine list."
+      },
+      "gardenTerrace": {
+        "name": "Garden Terrace",
+        "meta": "Al Fresco Dining | All Day | Casual Elegant",
+        "description": "Enjoy breakfast, lunch, or afternoon tea in our beautiful garden setting. The terrace offers lighter fare, fresh salads, and seasonal specialties in a relaxed atmosphere."
+      },
+      "wineCellar": {
+        "name": "The Wine Cellar",
+        "meta": "Private Dining | By Reservation | Intimate Setting",
+        "description": "An exclusive dining venue surrounded by our impressive wine collection. Perfect for intimate celebrations and special occasions, with a customized menu and wine pairings."
+      },
+      "inRoomDining": {
+        "name": "In-Room Dining",
+        "meta": "24-Hour Service | Complete Menu | Private Setting",
+        "description": "Experience the luxury of dining in the privacy of your room. Our 24-hour room service offers the full dining menu, along with special breakfast options and late-night selections."
+      }
+    },
+    "details": {
+      "dinner": "Dinner",
+      "capacity": "Capacity",
+      "reservations": "Reservations",
+      "required": "Required",
+      "breakfast": "Breakfast",
+      "lunch": "Lunch",
+      "afternoonTea": "Afternoon Tea",
+      "service": "Service",
+      "booking": "Booking",
+      "menu": "Menu",
+      "setup": "Setup"
+    },
+    "specialExperiences": {
+      "title": "Special Culinary Experiences",
+      "chefsTable": {
+        "title": "Chef's Table",
+        "description": "An exclusive evening at the chef's table with a specially designed tasting menu and kitchen tour."
+      },
+      "cookingClasses": {
+        "title": "Cooking Classes",
+        "description": "Learn culinary secrets from our master chefs in hands-on cooking workshops."
+      },
+      "winePairing": {
+        "title": "Wine Pairing Dinners",
+        "description": "Multi-course dinners expertly paired with selections from our celebrated wine cellar."
+      },
+      "privatePicnics": {
+        "title": "Private Picnics",
+        "description": "Gourmet picnic baskets for romantic afternoons in our estate grounds."
+      }
+    },
+    "cta": {
+      "title": "Reserve Your Table",
+      "description": "Book your dining experience or inquire about our special culinary events.",
+      "button": "Make a Dining Reservation"
+    }
+  },
+  "experiences": {
+    "pageTitle": "Experiences - KS Mansion",
+    "pageDescription": "Curated activities and unforgettable moments",
+    "title": "Experiences",
+    "subtitle": "Curated activities and unforgettable moments",
+    "intro": {
+      "title": "Discover Exceptional Experiences",
+      "description": "At KS Mansion, we offer a carefully curated selection of experiences designed to create lasting memories. From wellness retreats to cultural immersions, each activity is crafted with attention to detail."
+    },
+    "items": {
+      "spaWellness": {
+        "title": "Spa & Wellness",
+        "description": "Rejuvenate your body and mind with our comprehensive wellness programs. Our spa features traditional and modern treatments, meditation gardens, and expert therapists.",
+        "features": ["Signature massage treatments", "Yoga and meditation sessions", "Hydrotherapy facilities", "Personalized wellness programs"]
+      },
+      "estateTours": {
+        "title": "Guided Estate Tours",
+        "description": "Explore the rich history and architecture of KS Mansion with our expert guides. Walk through centuries of heritage and discover hidden gems throughout the estate.",
+        "features": ["Historical architecture tour", "Garden and grounds exploration", "Art collection viewing", "Heritage storytelling sessions"]
+      },
+      "wineTasting": {
+        "title": "Wine & Spirit Tasting",
+        "description": "Indulge in exclusive tastings from our carefully curated collection. Our sommelier guides you through rare vintages and premium spirits.",
+        "features": ["Private cellar tours", "Expert-led tastings", "Food pairing sessions", "Vintage collection access"]
+      },
+      "outdoorAdventures": {
+        "title": "Outdoor Adventures",
+        "description": "Experience nature at its finest with our outdoor activities. From leisurely walks to active pursuits, there's something for every guest.",
+        "features": ["Guided nature walks", "Tennis and croquet", "Horseback riding", "Cycling tours"]
+      },
+      "culturalImmersion": {
+        "title": "Cultural Immersion",
+        "description": "Engage with local culture through authentic experiences. Our programs connect you with artisans, musicians, and cultural experts.",
+        "features": ["Art workshops", "Cooking classes", "Music performances", "Craft demonstrations"]
+      },
+      "privateEvents": {
+        "title": "Private Events",
+        "description": "Host unforgettable celebrations in our elegant spaces. From intimate gatherings to grand celebrations, we create bespoke events.",
+        "features": ["Weddings and ceremonies", "Corporate retreats", "Anniversary celebrations", "Custom event planning"]
+      }
+    },
+    "cta": {
+      "title": "Ready to Create Your Perfect Experience?",
+      "description": "Contact our concierge team to customize your stay with these exclusive experiences.",
+      "button": "Contact Concierge"
+    }
+  },
+  "gallery": {
+    "pageTitle": "Gallery - KS Mansion",
+    "pageDescription": "Explore the beauty of KS Mansion",
+    "title": "Gallery",
+    "subtitle": "Explore the beauty of KS Mansion",
+    "intro": {
+      "title": "A Visual Journey",
+      "description": "Discover the elegance, beauty, and attention to detail that makes KS Mansion a truly exceptional destination."
+    },
+    "categories": {
+      "all": "All",
+      "exterior": "Exterior",
+      "rooms": "Rooms",
+      "dining": "Dining",
+      "gardens": "Gardens"
+    },
+    "items": {
+      "grandEntrance": { "title": "Grand Entrance", "description": "The historic facade welcomes guests" },
+      "estateOverview": { "title": "Estate Overview", "description": "Panoramic view of the mansion" },
+      "presidentialSuite": { "title": "Presidential Suite", "description": "Luxury accommodation interior" },
+      "masterSuite": { "title": "Master Suite", "description": "Elegant bedroom design" },
+      "spaBathroom": { "title": "Spa Bathroom", "description": "Marble and luxury amenities" },
+      "grandDiningRoom": { "title": "Grand Dining Room", "description": "Fine dining atmosphere" },
+      "wineCellar": { "title": "Wine Cellar", "description": "Private dining venue" },
+      "gardenWalkways": { "title": "Garden Walkways", "description": "Landscaped garden paths" },
+      "centralFountain": { "title": "Central Fountain", "description": "Historic water feature" },
+      "gardenTerrace": { "title": "Garden Terrace", "description": "Outdoor dining area" },
+      "eveningAmbiance": { "title": "Evening Ambiance", "description": "Illuminated facade at dusk" },
+      "suiteLivingRoom": { "title": "Suite Living Room", "description": "Comfortable sitting area" }
+    },
+    "cta": {
+      "title": "Experience It In Person",
+      "description": "See the beauty of KS Mansion firsthand. Book your stay today.",
+      "button": "Book Your Stay"
+    }
+  },
+  "contact": {
+    "pageTitle": "Contact - KS Mansion",
+    "pageDescription": "Get in touch with KS Mansion",
+    "title": "Contact Us",
+    "subtitle": "We're here to assist you with any inquiries",
+    "sendMessage": "Send Us a Message",
+    "followUs": "Follow Us",
+    "contactInfo": {
+      "title": "Contact Information",
+      "address": "Address",
+      "phone": "Phone",
+      "email": "Email",
+      "main": "Main",
+      "reservationsPhone": "Reservations",
+      "concierge": "Concierge"
+    },
+    "officeHours": {
+      "title": "Office Hours",
+      "reception": "Reception",
+      "reservations": "Reservations",
+      "concierge": "Concierge",
+      "24_7": "24/7",
+      "weekdays": "Monday - Friday",
+      "weekends": "Saturday - Sunday"
+    },
+    "location": {
+      "title": "Location",
+      "mapPlaceholder": "Map will be integrated here"
+    },
+    "directions": {
+      "title": "Getting Here",
+      "byCar": {
+        "title": "By Car",
+        "description": "From downtown, take Main Street north for 5 miles. Turn right on Luxury Boulevard and continue for 2 miles. The mansion entrance is on the left."
+      },
+      "byAir": {
+        "title": "By Air",
+        "description": "International Airport is 30 minutes away. We offer private transfer services. Please contact our concierge to arrange pickup."
+      },
+      "byTrain": {
+        "title": "By Train",
+        "description": "Central Station is 15 minutes from the mansion. Taxi and ride-sharing services are readily available at the station."
+      }
+    },
+    "form": {
+      "name": "Name",
+      "email": "Email",
+      "phone": "Phone Number",
+      "subject": "Subject",
+      "message": "Message",
+      "submit": "Send Message",
+      "required": "required",
+      "requiredNote": "* Required fields. We'll respond within 24 hours.",
+      "selectSubject": "Select a subject",
+      "subjects": {
+        "general": "General Inquiry",
+        "reservation": "Reservation Question",
+        "events": "Special Events",
+        "dining": "Dining Reservation",
+        "feedback": "Feedback",
+        "other": "Other"
+      },
+      "success": "Thank you, {name}! Your message has been received. We will respond to {email} within 24 hours."
+    }
+  },
+  "reservations": {
+    "pageTitle": "Room Status - KS Mansion",
+    "pageDescription": "View room availability at KS Mansion",
+    "title": "Room Status",
+    "subtitle": "View our current room availability",
+    "lineBanner": {
+      "title": "Book via LINE Official Account",
+      "subtitle": "Chat with us directly to make your reservation",
+      "addFriend": "Add Friend @ksmansion"
+    },
+    "howToBook": {
+      "title": "How to Book",
+      "description": "To make a reservation, please contact us through our LINE Official Account. Our team will assist you with room selection, special requests, and complete the booking process.",
+      "step1": "Add our LINE Official Account",
+      "step2": "Send your booking request",
+      "step3": "Receive confirmation",
+      "chatOnLine": "Chat with us on LINE",
+      "lineId": "LINE ID: @ksmansion"
+    },
+    "info": {
+      "checkInOut": {
+        "title": "Check-in / Check-out",
+        "checkIn": "Check-in",
+        "checkOut": "Check-out",
+        "earlyLate": "Early check-in and late check-out available upon request"
+      },
+      "whatsIncluded": {
+        "title": "What's Included",
+        "items": ["Daily housekeeping", "Free parking", "Access to common areas", "24/7 support via LINE"]
+      },
+      "cancellation": {
+        "title": "Cancellation Policy",
+        "items": ["Free cancellation up to 48 hours before arrival", "50% charge for late cancellation", "Contact us for flexible options"]
+      }
+    },
+    "roomStatus": {
+      "status": "Status",
+      "available": "Available",
+      "occupied": "Occupied",
+      "reserved": "Reserved",
+      "maintenance": "Maintenance",
+      "floor": "Floor",
+      "allRoomsSummary": "All Rooms Summary",
+      "totalRooms": "Total Rooms",
+      "loading": "Loading room status...",
+      "error": "Failed to load room data. Please try again later.",
+      "tryAgain": "Try Again",
+      "room": "Room",
+      "viewDetails": "View room type details →",
+      "perNight": "/night",
+      "roomTypes": {
+        "AC": {
+          "label": "Air Conditioner",
+          "description": "Climate-controlled room with air conditioning"
+        },
+        "FAN": {
+          "label": "Fan",
+          "description": "Room with ceiling fan for ventilation"
+        }
+      }
+    }
+  },
+  "common": {
+    "loading": "Loading...",
+    "error": "An error occurred",
+    "tryAgain": "Try Again",
+    "bookNow": "Book Now",
+    "learnMore": "Learn More",
+    "viewAll": "View All",
+    "back": "Back",
+    "next": "Next",
+    "previous": "Previous"
+  }
+}

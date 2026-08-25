@@ -1,0 +1,59 @@
+---
+export const prerender = true;
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import Navigation from "../../components/Navigation.astro";
+import Footer from "../../components/Footer.astro";
+import GalleryFilter from "../../components/react/GalleryFilter";
+import { getLocaleFromUrl, useTranslations } from '../../i18n';
+
+const base = import.meta.env.BASE_URL;
+const locale = getLocaleFromUrl(Astro.url);
+const t = useTranslations(locale);
+
+const getUrl = (path: string) => locale === 'th' ? `${base}${path}` : `${base}/en${path}`;
+---
+
+<BaseLayout
+  title={t('gallery.pageTitle')}
+  description={t('gallery.pageDescription')}
+>
+  <Navigation />
+
+  <!-- Page Header -->
+  <section class="page-header">
+    <div class="page-header-content">
+      <h1 class="text-4xl md:text-5xl font-light mb-4 tracking-wide">
+        {t('gallery.title')}
+      </h1>
+      <p class="text-lg md:text-xl">{t('gallery.subtitle')}</p>
+    </div>
+  </section>
+
+  <!-- Gallery Content -->
+  <section class="py-20">
+    <div class="container-custom">
+      <div class="max-w-4xl mx-auto text-center mb-12">
+        <h2>{t('gallery.intro.title')}</h2>
+        <p class="text-lg">
+          {t('gallery.intro.description')}
+        </p>
+      </div>
+
+      <!-- Gallery Filter Component -->
+      <GalleryFilter client:load />
+
+      <!-- Gallery CTA -->
+      <div class="text-center mt-20 p-16 bg-bg-light rounded">
+        <h2 class="mb-5">{t('gallery.cta.title')}</h2>
+        <p class="text-lg mb-8">
+          {t('gallery.cta.description')}
+        </p>
+        <a href={getUrl('/reservations')} class="btn btn-primary"
+          >{t('gallery.cta.button')}</a
+        >
+      </div>
+    </div>
+  </section>
+
+  <Footer />
+</BaseLayout>

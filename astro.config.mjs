@@ -18,6 +18,13 @@ export default defineConfig({
     // runs exercise the same session/credential surface as production.
     platformProxy: { enabled: true },
   }),
+  i18n: {
+    defaultLocale: 'th',
+    locales: ['th', 'en'],
+    routing: {
+      prefixDefaultLocale: false,
+    },
+  },
   integrations: [
     react(),
     tailwind({

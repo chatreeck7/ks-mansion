@@ -1,11 +1,11 @@
 ---
 export const prerender = true;
-import BaseLayout from '../layouts/BaseLayout.astro';
-import Navigation from '../components/Navigation.astro';
-import Footer from '../components/Footer.astro';
-import RoomStatus from '../components/react/RoomStatus';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Navigation from '../../components/Navigation.astro';
+import Footer from '../../components/Footer.astro';
+import RoomStatus from '../../components/react/RoomStatus';
 import { siLine } from 'simple-icons';
-import { getLocaleFromUrl, useTranslations } from '../i18n';
+import { getLocaleFromUrl, useTranslations } from '../../i18n';
 
 const base = import.meta.env.BASE_URL;
 const locale = getLocaleFromUrl(Astro.url);
