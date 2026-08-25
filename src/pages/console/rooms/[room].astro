@@ -4,20 +4,17 @@ import ConsoleFrame from '@/components/console/ConsoleFrame.astro';
 import DetailSheet from '@/components/console/DetailSheet.astro';
 import DetailSection from '@/components/console/DetailSection.astro';
 import { formatFigure } from '@/lib/format/thai';
-import { isUnit, type Room } from '@/lib/models/room';
+import { isUnit } from '@/lib/models/room';
 import { consolePath } from '@/lib/console/paths';
 import { getRoomRepository } from '@/lib/repositories';
 
-export async function getStaticPaths() {
-  const rooms = await getRoomRepository().listRooms();
-  return rooms.map((room) => ({ params: { room: room.id }, props: { room } }));
-}
+// Resolved per request rather than at build time: room data will come from
+// Sheets (KS-2), where an admin's edit must show up without a redeploy.
+const room = await getRoomRepository().getRoom(Astro.params.room!);
 
-interface Props {
-  room: Room;
+if (!room) {
+  return new Response(null, { status: 404, statusText: 'Not Found' });
 }
-
-const { room } = Astro.props;
 
 const location = isUnit(room) ? `ชั้น ${room.floor}` : 'พื้นที่ส่วนกลาง';
 const rentClause = room.rentRate !== null ? ` · ค่าเช่า ${formatFigure(room.rentRate)} ต่อเดือน` : '';

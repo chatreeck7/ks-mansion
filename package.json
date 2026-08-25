@@ -25,6 +25,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@astrojs/cloudflare": "^12.6.13",
     "@astrojs/react": "^4.4.2",
     "@astrojs/tailwind": "^6.0.2",
     "@types/react": "^19.2.6",
