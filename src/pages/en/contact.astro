@@ -1,0 +1,141 @@
+---
+export const prerender = true;
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import Navigation from "../../components/Navigation.astro";
+import Footer from "../../components/Footer.astro";
+import ContactForm from "../../components/react/ContactForm";
+import { siInstagram, siFacebook, siX, siPinterest, siLine } from "simple-icons";
+import { getLocaleFromUrl, useTranslations } from '../../i18n';
+
+const locale = getLocaleFromUrl(Astro.url);
+const t = useTranslations(locale);
+---
+
+<BaseLayout
+  title={t('contact.pageTitle')}
+  description={t('contact.pageDescription')}
+>
+  <Navigation />
+
+  <!-- Page Header -->
+  <section class="page-header">
+    <div class="page-header-content">
+      <h1 class="text-4xl md:text-5xl font-light mb-4 tracking-wide">
+        {t('contact.title')}
+      </h1>
+      <p class="text-lg md:text-xl">
+        {t('contact.subtitle')}
+      </p>
+    </div>
+  </section>
+
+  <!-- Contact Content -->
+  <section class="py-20">
+    <div class="container-custom">
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-16 mb-16">
+        <!-- Contact Form -->
+        <div class="lg:col-span-2">
+          <h2 class="mb-8">{t('contact.sendMessage')}</h2>
+          <ContactForm client:load />
+          <!-- Follow Us -->
+          <div class="mt-4 pt-4 border-t border-gray-200">
+            <h3 class="text-sm text-text-light mb-4 tracking-wide">
+              {t('contact.followUs')}
+            </h3>
+            <div class="flex items-center gap-5">
+              <a href="#" class="text-primary hover:text-accent transition-colors" aria-label="Instagram">
+                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d={siInstagram.path}></path></svg>
+              </a>
+              <a href="#" class="text-primary hover:text-accent transition-colors" aria-label="Facebook">
+                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d={siFacebook.path}></path></svg>
+              </a>
+              <a href="#" class="text-primary hover:text-accent transition-colors" aria-label="X">
+                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d={siX.path}></path></svg>
+              </a>
+              <a href="#" class="text-primary hover:text-accent transition-colors" aria-label="Pinterest">
+                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d={siPinterest.path}></path></svg>
+              </a>
+              <a href="#" class="text-primary hover:text-accent transition-colors" aria-label="LINE">
+                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d={siLine.path}></path></svg>
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Contact Information -->
+        <div class="space-y-6">
+          <div class="bg-bg-light p-8 rounded">
+            <h3 class="text-xl mb-5">{t('contact.contactInfo.title')}</h3>
+            <div class="space-y-5">
+              <div>
+                <h4 class="text-secondary mb-2 font-medium">{t('contact.contactInfo.address')}</h4>
+                <p class="text-text-light text-sm">
+                  123 Mansion Drive<br />Luxury District<br />State, ZIP 12345
+                </p>
+              </div>
+              <div>
+                <h4 class="text-secondary mb-2 font-medium">{t('contact.contactInfo.phone')}</h4>
+                <p class="text-text-light text-sm">
+                  {t('contact.contactInfo.main')}: +1 (555) 123-4567<br />
+                  {t('contact.contactInfo.reservationsPhone')}: +1 (555) 123-4568<br />
+                  {t('contact.contactInfo.concierge')}: +1 (555) 123-4569
+                </p>
+              </div>
+              <div>
+                <h4 class="text-secondary mb-2 font-medium">{t('contact.contactInfo.email')}</h4>
+                <p class="text-text-light text-sm">
+                  info@ksmansion.com<br />reservations@ksmansion.com<br />concierge@ksmansion.com
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-bg-light p-8 rounded">
+            <h3 class="text-xl mb-5">{t('contact.officeHours.title')}</h3>
+            <div class="space-y-2 text-sm text-text-light">
+              <p><strong class="text-primary">{t('contact.officeHours.reception')}:</strong> {t('contact.officeHours.24_7')}</p>
+              <p>
+                <strong class="text-primary">{t('contact.officeHours.reservations')}:</strong><br />
+                {t('contact.officeHours.weekdays')}: 9:00 AM - 8:00 PM<br />
+                {t('contact.officeHours.weekends')}: 10:00 AM - 6:00 PM
+              </p>
+              <p><strong class="text-primary">{t('contact.officeHours.concierge')}:</strong> {t('contact.officeHours.24_7')}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Map Section -->
+      <div class="mb-16">
+        <h2 class="mb-8">{t('contact.location.title')}</h2>
+        <div class="w-full h-[400px] bg-bg-light rounded flex items-center justify-center">
+          <div class="text-center text-text-light">
+            <p class="mb-2">{t('contact.location.mapPlaceholder')}</p>
+            <p class="text-sm">123 Mansion Drive, Luxury District</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Directions -->
+      <div>
+        <h2 class="mb-8">{t('contact.directions.title')}</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div class="bg-bg-light p-8 rounded">
+            <h4 class="text-primary mb-4">{t('contact.directions.byCar.title')}</h4>
+            <p class="text-sm text-text-light">{t('contact.directions.byCar.description')}</p>
+          </div>
+          <div class="bg-bg-light p-8 rounded">
+            <h4 class="text-primary mb-4">{t('contact.directions.byAir.title')}</h4>
+            <p class="text-sm text-text-light">{t('contact.directions.byAir.description')}</p>
+          </div>
+          <div class="bg-bg-light p-8 rounded">
+            <h4 class="text-primary mb-4">{t('contact.directions.byTrain.title')}</h4>
+            <p class="text-sm text-text-light">{t('contact.directions.byTrain.description')}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <Footer />
+</BaseLayout>

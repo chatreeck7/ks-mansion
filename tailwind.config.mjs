@@ -28,7 +28,7 @@ export default {
         'console-mute-bg': '#eceae5',
       },
       fontFamily: {
-        sans: ['Helvetica Neue', 'Arial', 'sans-serif'],
+        sans: ['"Google Sans"', 'Helvetica Neue', 'Arial', 'sans-serif'],
         console: ['Sarabun', 'Noto Sans Thai', 'sans-serif'],
         figure: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
       },

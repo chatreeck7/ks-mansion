@@ -1,0 +1,150 @@
+---
+export const prerender = true;
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import Navigation from "../../components/Navigation.astro";
+import Footer from "../../components/Footer.astro";
+import { getLocaleFromUrl, useTranslations } from '../../i18n';
+
+const base = import.meta.env.BASE_URL;
+const locale = getLocaleFromUrl(Astro.url);
+const t = useTranslations(locale);
+
+const getUrl = (path: string) => locale === 'th' ? `${base}${path}` : `${base}/en${path}`;
+
+const accommodations = [
+  {
+    name: t('accommodations.rooms.deluxeSuite.name'),
+    size: t('accommodations.rooms.deluxeSuite.size'),
+    description: t('accommodations.rooms.deluxeSuite.description'),
+    amenities: [
+      "Private balcony",
+      "Luxury bathroom with soaking tub",
+      "Walk-in closet",
+      "Work desk and seating area",
+    ],
+    gradient: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+  },
+  {
+    name: t('accommodations.rooms.masterSuite.name'),
+    size: t('accommodations.rooms.masterSuite.size'),
+    description: t('accommodations.rooms.masterSuite.description'),
+    amenities: [
+      "Separate living room",
+      "Marble bathroom with rain shower",
+      "Private terrace",
+      "Mini bar and coffee station",
+    ],
+    gradient: "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
+  },
+  {
+    name: t('accommodations.rooms.gardenRoom.name'),
+    size: t('accommodations.rooms.gardenRoom.size'),
+    description: t('accommodations.rooms.gardenRoom.description'),
+    amenities: [
+      "Direct garden access",
+      "Rainfall shower",
+      "Cozy reading nook",
+      "Organic bath amenities",
+    ],
+    gradient: "linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)",
+  },
+  {
+    name: t('accommodations.rooms.presidentialSuite.name'),
+    size: t('accommodations.rooms.presidentialSuite.size'),
+    description: t('accommodations.rooms.presidentialSuite.description'),
+    amenities: [
+      "Dining area for 6 guests",
+      "Master bathroom with spa tub",
+      "Wraparound terrace",
+      "Private butler service",
+    ],
+    gradient: "linear-gradient(135deg, #fa709a 0%, #fee140 100%)",
+  },
+];
+
+const amenities = [
+  { icon: "📶", label: t('accommodations.amenities.wifi') },
+  { icon: "❄️", label: t('accommodations.amenities.climate') },
+  { icon: "📺", label: t('accommodations.amenities.tv') },
+  { icon: "☕", label: t('accommodations.amenities.coffee') },
+  { icon: "🛁", label: t('accommodations.amenities.toiletries') },
+  { icon: "🔒", label: t('accommodations.amenities.safe') },
+];
+---
+
+<BaseLayout
+  title={t('accommodations.pageTitle')}
+  description={t('accommodations.pageDescription')}
+>
+  <Navigation />
+
+  <!-- Page Header -->
+  <section class="page-header">
+    <div class="page-header-content">
+      <h1 class="text-4xl md:text-5xl font-light mb-4 tracking-wide">
+        {t('accommodations.title')}
+      </h1>
+      <p class="text-lg md:text-xl">
+        {t('accommodations.subtitle')}
+      </p>
+    </div>
+  </section>
+
+  <!-- Accommodations Content -->
+  <section class="py-20">
+    <div class="container-custom">
+      <div class="space-y-16">
+        {
+          accommodations.map((room, index) => (
+            <div
+              class={`grid grid-cols-1 md:grid-cols-2 gap-10 items-center ${index % 2 === 1 ? "md:flex-row-reverse" : ""}`}
+            >
+              <div
+                class={`w-full h-[400px] rounded overflow-hidden ${index % 2 === 1 ? "md:order-2" : ""}`}
+              >
+                <div
+                  class="placeholder-img"
+                  style={{ background: room.gradient }}
+                >
+                  <span>{room.name}</span>
+                </div>
+              </div>
+              <div class={index % 2 === 1 ? "md:order-1" : ""}>
+                <h3 class="text-3xl text-primary mb-2">{room.name}</h3>
+                <p class="text-accent font-medium mb-5">{room.size}</p>
+                <p class="mb-5 leading-relaxed">{room.description}</p>
+                <ul class="list-none mb-6 space-y-2">
+                  {room.amenities.map((amenity) => (
+                    <li class="pl-6 relative before:content-['✓'] before:absolute before:left-0 before:text-accent">
+                      {amenity}
+                    </li>
+                  ))}
+                </ul>
+                <a href={getUrl('/reservations')} class="btn btn-secondary">
+                  {t('accommodations.reserveNow')}
+                </a>
+              </div>
+            </div>
+          ))
+        }
+      </div>
+
+      <!-- Amenities Overview -->
+      <div class="mt-20 text-center">
+        <h2 class="mb-10">{t('accommodations.allRoomsInclude')}</h2>
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-8">
+          {
+            amenities.map((amenity) => (
+              <div class="text-center">
+                <span class="text-4xl block mb-3">{amenity.icon}</span>
+                <p class="text-sm">{amenity.label}</p>
+              </div>
+            ))
+          }
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <Footer />
+</BaseLayout>
