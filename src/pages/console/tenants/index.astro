@@ -1,0 +1,20 @@
+---
+// src/pages/console/tenants/index.astro
+import ConsoleFrame from '@/components/console/ConsoleFrame.astro';
+import LedgerTable from '@/components/console/LedgerTable.astro';
+import { TENANT_COLUMNS, toTenantGroups } from '@/lib/console/tenant-ledger';
+import { getTenantRepository } from '@/lib/repositories';
+
+const tenants = await getTenantRepository(Astro.locals.runtime?.env).listTenants();
+const groups = toTenantGroups(tenants);
+---
+
+<ConsoleFrame title="ผู้เช่า" activeSection="tenants">
+  {
+    groups.length > 0 ? (
+      <LedgerTable columns={TENANT_COLUMNS} groups={groups} />
+    ) : (
+      <p class="text-sm text-console-ink-faint">ยังไม่มีข้อมูลผู้เช่า</p>
+    )
+  }
+</ConsoleFrame>
