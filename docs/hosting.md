@@ -100,6 +100,38 @@ service-account JSON key of ~2.3KB.
 built-ins that Workers only exposes behind that flag, so KS-2 isn't blocked
 on a config change.
 
+### Secrets the console needs
+
+Set as **Secret** (encrypted), not plaintext, under **Workers & Pages →
+ks-mansion → Settings → Environment variables**:
+
+| Name | What | Needed by |
+|---|---|---|
+| `CONSOLE_PASSWORD_HASH` | SHA-256 **hex digest** of the admin password — not the password | KS-4 auth |
+| `SESSION_SECRET` | Random string, **32+ chars**, signs the session cookie | KS-4 auth |
+| `GOOGLE_SERVICE_ACCOUNT_JSON` | Service-account key file contents | KS-2 |
+| `SHEETS_SPREADSHEET_ID` | `1Nn8UgvHbhpxuN54Crou-uldGKcYQWVQcwCigVscSaDo` | KS-2 |
+
+Generate the two auth values locally — neither the password nor the secret
+should ever be pasted into a chat or committed:
+
+```bash
+node -e "process.stdout.write('paste-your-password-here')" | shasum -a 256
+```
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+**The console fails closed.** If either auth secret is missing, malformed, or
+the session secret is under 32 characters, every `/console` route returns
+**503** — it does not fall open. A plaintext password pasted into
+`CONSOLE_PASSWORD_HASH` is rejected at the gate for the same reason, rather
+than silently never matching.
+
+For local development, put the same two values in a `.dev.vars` file at the
+repo root (gitignored) and `astro dev` picks them up via `platformProxy`.
+
 ## Free tier fit
 
 Confirmed against Cloudflare's published Workers limits (see
