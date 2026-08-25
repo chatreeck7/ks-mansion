@@ -94,9 +94,27 @@ the original checklist without measuring the real client. The two mechanisms
 tested so far (Drive connector: ~8-10s; hypothesized raw API: 300-800ms) are
 an order of magnitude apart, which is exactly the kind of gap that breaks a
 "chatty per-component fetch" design. **This spike does not close this item** —
-measuring the actual `googleapis` Node client against this sheet is follow-up
-work for whoever wires Task #2, and should happen before any per-component
-(rather than whole-tab) read pattern is considered.
+measuring the actual client against this sheet is follow-up work for whoever
+wires Task #2, and should happen before any per-component (rather than
+whole-tab) read pattern is considered.
+
+### ✅ Closed 2026-08-25 (KS-2) — the fear did not materialise
+
+The real client is live and `/console/rooms` loads **instantly** against the
+production sheet — sub-second, one whole-tab read per render. Owner-observed
+rather than stopwatch-measured, so treat it as an order-of-magnitude result,
+not a precise figure. That is enough to settle what this item was actually
+worried about: the ~8–10s connector number was an artifact of that tool's
+format conversion and says nothing about the API.
+
+Two consequences:
+
+- **KS-55 (read caching) is not urgent.** Prioritise it on quota headroom if
+  it is ever needed, not on page speed — there is no speed problem to fix.
+- The client is **not** `googleapis`, which the note above assumed. That
+  package is ~212 MB unpacked against a 64 MB uncompressed Workers ceiling
+  and cannot ship at all. It is a dependency-free Web Crypto JWT over
+  `fetch` — see `src/lib/repositories/sheets/google-sheets-client.ts`.
 
 The whole-tab-read-into-memory pattern the checklist recommends is the right
 call regardless of which latency number turns out to be true — it bounds the
