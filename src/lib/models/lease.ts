@@ -1,0 +1,65 @@
+import { formatThaiDate } from '@/lib/format/thai';
+
+/**
+ * A tenancy agreement, per AC-2.2.
+ *
+ * Foreign keys are ids, never a room number or tenant name — those are
+ * display labels and can change (docs/sheet-schema.md rule 4).
+ */
+export interface Lease {
+  id: string;
+  roomId: string;
+  tenantId: string;
+  startDate: Date;
+  /** null for an open-ended tenancy — the common case here. */
+  endDate: Date | null;
+  /**
+   * The rent this tenant agreed to, which is **not** necessarily the room's
+   * current `rentRate`. A room's rate is what would be charged to a new
+   * tenant today; this is what this tenancy is billed at. Billing (KS-21)
+   * must read the lease, not the room, or a rate change would silently
+   * re-price every sitting tenant.
+   */
+  rentRate: number;
+  /** เงินประกัน — held, and settled on move-out by KS-14 (AC-2.5). */
+  deposit: number;
+  /** ค่าเช่าล่วงหน้า — rent paid up front at signing. */
+  advanceRent: number;
+}
+
+/** Midnight local, so comparisons are by day and ignore the time of day. */
+function startOfDay(date: Date): number {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+}
+
+/**
+ * Whether the lease covers a given day. Both bounds are **inclusive**: the
+ * last day of a tenancy is still a day the tenant is billed for.
+ */
+export function isActiveOn(lease: Lease, date: Date): boolean {
+  const day = startOfDay(date);
+  if (day < startOfDay(lease.startDate)) return false;
+  return lease.endDate === null || day <= startOfDay(lease.endDate);
+}
+
+/**
+ * The lease in force on a given day, or null if the room is vacant then.
+ *
+ * Overlapping leases should not exist, but a hand-edited sheet can produce
+ * them. Rather than picking arbitrarily, the most recently started wins —
+ * predictable, and matches "who lives there now".
+ */
+export function activeLeaseFor(leases: Lease[], date: Date): Lease | null {
+  const active = leases.filter((lease) => isActiveOn(lease, date));
+  if (active.length === 0) return null;
+
+  return active.reduce((latest, lease) =>
+    startOfDay(lease.startDate) > startOfDay(latest.startDate) ? lease : latest,
+  );
+}
+
+/** '1 ม.ค. 2568 – 31 ธ.ค. 2568', or '… – ไม่กำหนด' when open-ended. */
+export function leaseTermLabel(lease: Lease): string {
+  const end = lease.endDate ? formatThaiDate(lease.endDate) : 'ไม่กำหนด';
+  return `${formatThaiDate(lease.startDate)} – ${end}`;
+}

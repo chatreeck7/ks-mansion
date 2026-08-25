@@ -1,0 +1,57 @@
+---
+// src/components/console/LeaseSection.astro
+// Shared by the room and tenant detail screens: the same lease facts, with
+// the counterpart column swapped depending on which side you arrived from.
+import DetailSection from './DetailSection.astro';
+import { activeLeaseFor, leaseTermLabel, type Lease } from '@/lib/models/lease';
+import { formatBaht } from '@/lib/format/thai';
+
+interface Props {
+  leases: Lease[];
+  /** What the counterpart column shows — a room label, or a tenant name. */
+  counterpartLabel: string;
+  counterpartFor: (lease: Lease) => string;
+  emptyMessage: string;
+  now?: Date;
+}
+
+const { leases, counterpartLabel, counterpartFor, emptyMessage, now = new Date() } = Astro.props;
+
+const active = activeLeaseFor(leases, now);
+// Most recent first: the current tenancy is what someone opened this for.
+const history = [...leases].sort((a, b) => b.startDate.getTime() - a.startDate.getTime());
+---
+
+<DetailSection heading="สัญญาเช่า">
+  {
+    history.length === 0 ? (
+      <p class="mb-0 text-sm text-console-ink-faint">{emptyMessage}</p>
+    ) : (
+      <ul class="m-0 list-none space-y-3 p-0">
+        {history.map((lease) => (
+          <li class="border-l-2 pl-3" class:list={[lease.id === active?.id ? 'border-accent' : 'border-console-sunk']}>
+            <p class="mb-1 flex flex-wrap items-baseline gap-x-2 text-sm">
+              <span class="font-medium text-console-ink">{counterpartFor(lease)}</span>
+              <span class="text-console-ink-faint">{counterpartLabel}</span>
+              {lease.id === active?.id && (
+                <span class="rounded bg-console-ok-bg px-1.5 py-0.5 text-xs text-console-ok">
+                  ปัจจุบัน
+                </span>
+              )}
+            </p>
+            <dl class="m-0 grid grid-cols-[auto_1fr] gap-x-4 gap-y-0.5 text-sm">
+              <dt class="text-console-ink-faint">ระยะสัญญา</dt>
+              <dd class="m-0">{leaseTermLabel(lease)}</dd>
+              <dt class="text-console-ink-faint">ค่าเช่า</dt>
+              <dd class="m-0 font-figure">{formatBaht(lease.rentRate)} ต่อเดือน</dd>
+              <dt class="text-console-ink-faint">เงินประกัน</dt>
+              <dd class="m-0 font-figure">{formatBaht(lease.deposit)}</dd>
+              <dt class="text-console-ink-faint">ค่าเช่าล่วงหน้า</dt>
+              <dd class="m-0 font-figure">{formatBaht(lease.advanceRent)}</dd>
+            </dl>
+          </li>
+        ))}
+      </ul>
+    )
+  }
+</DetailSection>

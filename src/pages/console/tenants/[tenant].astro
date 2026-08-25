@@ -3,17 +3,21 @@
 import ConsoleFrame from '@/components/console/ConsoleFrame.astro';
 import DetailSheet from '@/components/console/DetailSheet.astro';
 import DetailSection from '@/components/console/DetailSection.astro';
+import LeaseSection from '@/components/console/LeaseSection.astro';
 import { displayName, maskIdCard } from '@/lib/models/tenant';
 import { consolePath } from '@/lib/console/paths';
-import { getTenantRepository } from '@/lib/repositories';
+import { getLeaseRepository, getRoomRepository, getTenantRepository } from '@/lib/repositories';
 
-const tenant = await getTenantRepository(Astro.locals.runtime?.env).getTenant(
-  Astro.params.tenant!,
-);
+const env = Astro.locals.runtime?.env;
+const tenant = await getTenantRepository(env).getTenant(Astro.params.tenant!);
 
 if (!tenant) {
   return new Response(null, { status: 404, statusText: 'Not Found' });
 }
+
+const leases = await getLeaseRepository(env).listLeasesForTenant(tenant.id);
+const rooms = leases.length > 0 ? await getRoomRepository(env).listRooms() : [];
+const roomLabelById = new Map(rooms.map((r) => [r.id, r.label]));
 ---
 
 <ConsoleFrame title={`ผู้เช่า ${tenant.fullName}`} activeSection="tenants">
@@ -36,6 +40,13 @@ if (!tenant) {
         เก็บเฉพาะเลข 4 หลักท้าย เพื่อใช้ตรวจสอบกับสัญญาเช่าเท่านั้น
       </p>
     </DetailSection>
+
+    <LeaseSection
+      leases={leases}
+      counterpartLabel="ห้อง"
+      counterpartFor={(lease) => roomLabelById.get(lease.roomId) ?? lease.roomId}
+      emptyMessage="ยังไม่มีสัญญาเช่าสำหรับผู้เช่ารายนี้"
+    />
   </DetailSheet>
 
   <p class="mt-4 mb-0 leading-none text-console-ink-soft">

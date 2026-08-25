@@ -3,18 +3,29 @@
 import ConsoleFrame from '@/components/console/ConsoleFrame.astro';
 import DetailSheet from '@/components/console/DetailSheet.astro';
 import DetailSection from '@/components/console/DetailSection.astro';
+import LeaseSection from '@/components/console/LeaseSection.astro';
 import { formatFigure } from '@/lib/format/thai';
 import { isUnit } from '@/lib/models/room';
+import { displayName } from '@/lib/models/tenant';
 import { consolePath } from '@/lib/console/paths';
-import { getRoomRepository } from '@/lib/repositories';
+import { getLeaseRepository, getRoomRepository, getTenantRepository } from '@/lib/repositories';
 
-// Resolved per request rather than at build time: room data will come from
-// Sheets (KS-2), where an admin's edit must show up without a redeploy.
-const room = await getRoomRepository(Astro.locals.runtime?.env).getRoom(Astro.params.room!);
+const env = Astro.locals.runtime?.env;
+
+// Resolved per request rather than at build time: room data comes from
+// Sheets, where an admin's edit must show up without a redeploy.
+const room = await getRoomRepository(env).getRoom(Astro.params.room!);
 
 if (!room) {
   return new Response(null, { status: 404, statusText: 'Not Found' });
 }
+
+const leases = await getLeaseRepository(env).listLeasesForRoom(room.id);
+
+// Resolve tenant names once for the leases actually shown, rather than
+// per-lease inside the template — that would be a Sheets read each.
+const tenants = leases.length > 0 ? await getTenantRepository(env).listTenants() : [];
+const tenantNameById = new Map(tenants.map((t) => [t.id, displayName(t)]));
 
 const location = isUnit(room) ? `ชั้น ${room.floor}` : 'พื้นที่ส่วนกลาง';
 const rentClause = room.rentRate !== null ? ` · ค่าเช่า ${formatFigure(room.rentRate)} ต่อเดือน` : '';
@@ -31,6 +42,13 @@ const meta = `${location}${rentClause}`;
         <dd>{room.hasMeter ? 'มี' : 'ไม่มี'}</dd>
       </dl>
     </DetailSection>
+
+    <LeaseSection
+      leases={leases}
+      counterpartLabel="ผู้เช่า"
+      counterpartFor={(lease) => tenantNameById.get(lease.tenantId) ?? lease.tenantId}
+      emptyMessage="ยังไม่มีสัญญาเช่าสำหรับห้องนี้"
+    />
   </DetailSheet>
 
   <p class="mt-4 mb-0 leading-none text-console-ink-soft">
