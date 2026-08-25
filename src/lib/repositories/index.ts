@@ -1,10 +1,13 @@
 import type { RoomRepository } from './room-repository';
 import type { TenantRepository } from './tenant-repository';
+import type { LeaseRepository } from './lease-repository';
 import type { SheetsClient } from './sheets/sheets-client';
 import { createMemoryRoomRepository } from './memory/memory-room-repository';
 import { createMemoryTenantRepository } from './memory/memory-tenant-repository';
+import { createMemoryLeaseRepository } from './memory/memory-lease-repository';
 import { createSheetsRoomRepository } from './sheets/sheets-room-repository';
 import { createSheetsTenantRepository } from './sheets/sheets-tenant-repository';
+import { createSheetsLeaseRepository } from './sheets/sheets-lease-repository';
 import { getSheetsClient } from './sheets/client-cache';
 
 /**
@@ -37,4 +40,9 @@ export function getRoomRepository(env?: Record<string, unknown>): RoomRepository
 export function getTenantRepository(env?: Record<string, unknown>): TenantRepository {
   const client = sheetsClientFrom(env);
   return client ? createSheetsTenantRepository(client) : createMemoryTenantRepository();
+}
+
+export function getLeaseRepository(env?: Record<string, unknown>): LeaseRepository {
+  const client = sheetsClientFrom(env);
+  return client ? createSheetsLeaseRepository(client) : createMemoryLeaseRepository();
 }
