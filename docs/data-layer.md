@@ -180,6 +180,74 @@ compute; 10ms is unlikely to be the binding constraint. This wasn't load-
 tested, just confirmed against Cloudflare's own docs — worth a real check once
 KS-57 lands and there's an actual SSR page to profile.
 
+## Caching and the staleness window (KS-55, decided 2026-08-25)
+
+**Decision: cache the client, not the data. Sheet edits appear immediately.**
+
+### What is cached
+
+Only the Sheets **client**, at module scope
+(`src/lib/repositories/sheets/client-cache.ts`), so it is reused across
+requests within a warm Workers isolate.
+
+This was a real defect, not a micro-optimisation. The client caches its
+access token internally, but `getRoomRepository()` constructed a **fresh
+client per request**, which made that cache dead code: every console page
+render paid an RSA signature plus a token round trip *before* reading the
+sheet. Reusing the client cuts a steady-state render from **2 network calls
+to 1**, and removes an RSA sign from the Workers CPU budget (10ms/request,
+and RSA-2048 signing is a meaningful slice of that).
+
+### What is deliberately *not* cached
+
+Tab contents. The card proposed "read whole tabs, cache them, invalidate on
+write" against a premise — *"a table view that fetches per row will burn the
+per-minute quota and feel slow"* — that turned out not to hold:
+
+- **Nothing fetches per row.** `listRooms()` and `getRoom()` are each a
+  single whole-tab read; the shape the card wanted was already there.
+- **It does not feel slow.** Measured after KS-2 went live: pages load
+  instantly (see §3).
+- **Immediacy is a feature that has been exercised, not a theoretical nicety.**
+  "Edit the sheet, reload, see the change with no redeploy" is how the Sheets
+  datastore decision was *verified* working. A read cache trades exactly that
+  away.
+
+So the honest staleness window is **zero**, and no manual refresh button is
+needed — there is nothing to refresh past. That is a better answer than the
+card's suggested compromise, and it is only available because the quota
+headroom below is genuinely large.
+
+### Quota budget
+
+Steady state, per console page render: **1 read**. Cold isolate: **+1 token
+call**, then amortised.
+
+| | Limit | Consumed | Headroom |
+|---|---|---|---|
+| Reads/min/user | 60 | 1 per page view | ~60 page views/min by one admin |
+| Reads/min/project | 300 | same | 5× the per-user ceiling |
+| Writes | 300/min | 0 today — client is `spreadsheets.readonly` | full |
+
+Realistic single-admin use is a few page views per minute, so this runs at
+roughly 2–5% of the per-user ceiling. A future bill run (KS-21) reading 4–5
+whole tabs is a handful of requests, not 28.
+
+**Revisit read caching if any of these become true** — and note that all
+three are quota or concurrency conditions, not speed ones:
+
+1. More than one admin browsing heavily at the same time, pushing sustained
+   reads toward 60/min.
+2. An automated job (scheduled bill generation) running alongside interactive
+   use.
+3. A screen that genuinely needs several different tabs per render, turning
+   one page view into 4–5 reads.
+
+If it is ever needed, the place to add it is behind `SheetsClient` — a TTL
+wrapper around `getTabValues` — so nothing above the repository interface
+changes. Choose the TTL deliberately at that point: it is the exact number of
+seconds by which an admin's edit stops being visible.
+
 ## Fallback trigger
 
 Per the original checklist's ask — what would have to go wrong to move off
