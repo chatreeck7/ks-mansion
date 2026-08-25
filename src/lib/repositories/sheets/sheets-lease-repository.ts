@@ -1,21 +1,44 @@
-import type { Lease } from '@/lib/models/lease';
+import type { Lease, LeaseEndReason } from '@/lib/models/lease';
 import type { LeaseRepository } from '../lease-repository';
 import type { SheetsClient } from './sheets-client';
 import { parseThaiDate } from '@/lib/format/thai-parse';
-import { cellValue, readTab, requireCell, SheetRowError, type Tab } from './tab-reader';
+import {
+  cellValue,
+  numberCell,
+  optionalEnumCell,
+  readTab,
+  requireCell,
+  SheetRowError,
+  type Tab,
+  type TabContract,
+} from './tab-reader';
 
 const TAB_NAME = 'leases';
 
-/** `end_date` is optional — an open-ended tenancy leaves it blank. */
-const REQUIRED_COLUMNS = [
-  'id',
-  'room_id',
-  'tenant_id',
-  'start_date',
-  'rent_rate',
-  'deposit',
-  'advance_rent',
-] as const;
+const END_REASONS: readonly LeaseEndReason[] = ['normal', 'absconded'];
+
+/**
+ * `end_date`, `signed_date`, `end_reason` and `previous_lease_id` are blank on
+ * a running, first-room tenancy, so none of them makes a row a record. The
+ * columns must still exist — see the tenants contract for why.
+ */
+const CONTRACT: TabContract = {
+  columns: [
+    'id',
+    'room_id',
+    'tenant_id',
+    'start_date',
+    'end_date',
+    'signed_date',
+    'rent_rate',
+    'deposit',
+    'advance_rent',
+    'occupant_count',
+    'end_reason',
+    'previous_lease_id',
+  ],
+  identity: ['id', 'room_id', 'tenant_id', 'start_date'],
+};
 
 /**
  * Dates are stored as **Thai Buddhist-era text** (`1 มี.ค. 2568` or
@@ -45,20 +68,39 @@ function parseDate(raw: string, rowNumber: number, column: string): Date {
   return date;
 }
 
-function parseMoney(raw: string, rowNumber: number, column: string): number {
-  // Tolerate the thousands separators an admin naturally types.
-  const value = Number(raw.replace(/,/g, ''));
-  if (raw.trim() === '' || !Number.isFinite(value)) {
-    throw new SheetRowError(TAB_NAME, rowNumber, `"${column}" is not a number: "${raw}"`);
-  }
+function parseMoney(tab: Tab, row: string[], rowNumber: number, column: string): number {
+  const value = numberCell(tab, row, rowNumber, column);
   if (value < 0) {
-    throw new SheetRowError(TAB_NAME, rowNumber, `"${column}" cannot be negative: "${raw}"`);
+    throw new SheetRowError(TAB_NAME, rowNumber, `"${column}" cannot be negative: "${value}"`);
   }
   return value;
 }
 
+/**
+ * จำนวนผู้พัก, which is a billing input rather than a note: ค่าน้ำ is
+ * occupants × 100.
+ *
+ * Blank is rejected, not defaulted. That is the failure the source
+ * spreadsheet warns about in its own instructions — leave it out and the
+ * water charge silently comes out wrong rather than absent. Zero *is*
+ * accepted: ร้านซักผ้า is a shop on its own water meter, not a home.
+ */
+function parseOccupantCount(tab: Tab, row: string[], rowNumber: number): number {
+  const count = numberCell(tab, row, rowNumber, 'occupant_count');
+  if (!Number.isInteger(count) || count < 0) {
+    throw new SheetRowError(
+      TAB_NAME,
+      rowNumber,
+      `"occupant_count" must be a whole number of people, got "${cellValue(tab, row, 'occupant_count')}"`,
+    );
+  }
+  return count;
+}
+
 function parseLease(tab: Tab, row: string[], rowNumber: number): Lease {
-  const startDate = parseDate(cellValue(tab, row, 'start_date'), rowNumber, 'start_date');
+  const id = requireCell(tab, row, rowNumber, 'id');
+  const startRaw = cellValue(tab, row, 'start_date');
+  const startDate = parseDate(startRaw, rowNumber, 'start_date');
 
   const endRaw = cellValue(tab, row, 'end_date');
   const endDate = endRaw ? parseDate(endRaw, rowNumber, 'end_date') : null;
@@ -67,25 +109,49 @@ function parseLease(tab: Tab, row: string[], rowNumber: number): Lease {
     throw new SheetRowError(
       TAB_NAME,
       rowNumber,
-      `"end_date" (${endRaw}) is before "start_date" (${cellValue(tab, row, 'start_date')})`,
+      `"end_date" (${endRaw}) is before "start_date" (${startRaw})`,
     );
   }
 
+  const signedRaw = cellValue(tab, row, 'signed_date');
+  const signedDate = signedRaw ? parseDate(signedRaw, rowNumber, 'signed_date') : null;
+
+  const endReason = optionalEnumCell(tab, row, rowNumber, 'end_reason', END_REASONS);
+  // A tenancy cannot have ended in a particular way and still be running.
+  // Left unchecked this reads as an active lease that also absconded, and
+  // every later summary silently double-counts the room.
+  if (endReason && !endDate) {
+    throw new SheetRowError(
+      TAB_NAME,
+      rowNumber,
+      `"end_reason" is "${endReason}" but "end_date" is blank — a lease that ended needs an end date`,
+    );
+  }
+
+  const previousLeaseId = cellValue(tab, row, 'previous_lease_id') || null;
+  if (previousLeaseId === id) {
+    throw new SheetRowError(TAB_NAME, rowNumber, `"previous_lease_id" points at its own row`);
+  }
+
   return {
-    id: requireCell(tab, row, rowNumber, 'id'),
+    id,
     roomId: requireCell(tab, row, rowNumber, 'room_id'),
     tenantId: requireCell(tab, row, rowNumber, 'tenant_id'),
     startDate,
     endDate,
-    rentRate: parseMoney(cellValue(tab, row, 'rent_rate'), rowNumber, 'rent_rate'),
-    deposit: parseMoney(cellValue(tab, row, 'deposit'), rowNumber, 'deposit'),
-    advanceRent: parseMoney(cellValue(tab, row, 'advance_rent'), rowNumber, 'advance_rent'),
+    signedDate,
+    rentRate: parseMoney(tab, row, rowNumber, 'rent_rate'),
+    deposit: parseMoney(tab, row, rowNumber, 'deposit'),
+    advanceRent: parseMoney(tab, row, rowNumber, 'advance_rent'),
+    occupantCount: parseOccupantCount(tab, row, rowNumber),
+    endReason,
+    previousLeaseId,
   };
 }
 
 export function createSheetsLeaseRepository(client: SheetsClient): LeaseRepository {
   async function listLeases(): Promise<Lease[]> {
-    const tab = await readTab(client, TAB_NAME, REQUIRED_COLUMNS);
+    const tab = await readTab(client, TAB_NAME, CONTRACT);
 
     const leases: Lease[] = [];
     const rowNumberById = new Map<string, number>();

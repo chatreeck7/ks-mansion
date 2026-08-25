@@ -1,14 +1,23 @@
 import { describe, expect, it } from 'vitest';
-import type { Room } from '@/lib/models/room';
+import { statusLabel, statusTone, type Room } from '@/lib/models/room';
+import { makeRoom } from '@/lib/test-support/fixtures';
 import { toRoomGroups } from './room-ledger';
 
 const rooms: Room[] = [
-  { id: '103', label: '103', floor: 1, kind: 'unit', rentRate: 2600, hasMeter: true },
-  { id: '101', label: '101', floor: 1, kind: 'unit', rentRate: 2600, hasMeter: true },
-  { id: '102', label: '102', floor: 1, kind: 'unit', rentRate: 2600, hasMeter: true },
-  { id: '201', label: '201', floor: 2, kind: 'unit', rentRate: 2800, hasMeter: true },
-  { id: 'laundry', label: 'ร้านซักผ้า', floor: 1, kind: 'common', rentRate: null, hasMeter: true },
-  { id: 'undercroft', label: 'ห้องใต้ถุน', floor: 0, kind: 'common', rentRate: null, hasMeter: false },
+  makeRoom({ id: '103', label: '103', rentRate: 2600 }),
+  makeRoom({ id: '101', label: '101', rentRate: 2600 }),
+  makeRoom({ id: '102', label: '102', rentRate: 2600 }),
+  makeRoom({ id: '201', label: '201', floor: 2, rentRate: 2800 }),
+  makeRoom({ id: 'laundry', label: 'ร้านซักผ้า', kind: 'common', rentRate: null }),
+  makeRoom({
+    id: 'undercroft',
+    label: 'ห้องใต้ถุน',
+    floor: 0,
+    kind: 'common',
+    status: 'available',
+    rentRate: null,
+    hasMeter: false,
+  }),
 ];
 
 describe('toRoomGroups', () => {
@@ -24,25 +33,57 @@ describe('toRoomGroups', () => {
     expect(groups.at(-1)?.rows).toHaveLength(2);
   });
 
-  it('gives residential units a rent figure and a vacancy pill', () => {
+  it('gives residential units a rent figure and their actual status', () => {
     const row = toRoomGroups(rooms)[0].rows[0];
     expect(row.cells.rate).toEqual({ kind: 'figure', value: 2600 });
-    expect(row.cells.status).toEqual({ kind: 'pill', tone: 'info', label: 'ว่าง' });
+    expect(row.cells.status).toEqual({ kind: 'pill', tone: 'ok', label: 'มีผู้เช่า' });
   });
 
-  it('gives a common space with no recorded rate an em-dash figure and a muted pill', () => {
+  // Regression: the column used to render a hard-coded 'ว่าง' for every unit,
+  // so an occupied building read as entirely vacant. Asserting each row
+  // against its own room — rather than that some particular label is absent —
+  // is what a literal cannot pass.
+  it('gives each row the status of its own room', () => {
+    const rowsById = new Map(
+      toRoomGroups(rooms)
+        .flatMap((group) => group.rows)
+        .map((row) => [row.id, row]),
+    );
+    for (const room of rooms) {
+      expect(rowsById.get(room.id)?.cells.status, room.id).toEqual({
+        kind: 'pill',
+        tone: statusTone(room.status),
+        label: statusLabel(room.status),
+      });
+    }
+    // …and the fixture must actually contain more than one status, or the
+    // loop above would pass against a constant.
+    expect(new Set(rooms.map((r) => r.status)).size).toBeGreaterThan(1);
+  });
+
+  it('warns on a room that has given notice', () => {
+    const row = toRoomGroups([makeRoom({ status: 'noticeGiven' })])[0].rows[0];
+    expect(row.cells.status).toEqual({ kind: 'pill', tone: 'warn', label: 'แจ้งออก' });
+  });
+
+  it('gives a common space with no recorded rate an em-dash figure', () => {
     const commonRow = toRoomGroups(rooms).at(-1)!.rows[0];
     expect(commonRow.cells.rate).toEqual({ kind: 'figure', value: null });
-    expect(commonRow.cells.status).toEqual({ kind: 'pill', tone: 'mute', label: 'ส่วนกลาง' });
+  });
+
+  // The group heading already says พื้นที่ส่วนกลาง; the pill spending itself
+  // repeating that cost the reader the one fact it could have carried.
+  it('shows a common space its real status rather than repeating its kind', () => {
+    const commonRow = toRoomGroups(rooms).at(-1)!.rows[0];
+    expect(commonRow.cells.status).toEqual({ kind: 'pill', tone: 'ok', label: 'มีผู้เช่า' });
   });
 
   it('renders a rent figure for a common space that does carry a rate — a laundry can be leased out', () => {
-    const rentedLaundry: Room = {
-      id: 'laundry', label: 'ร้านซักผ้า', floor: 1, kind: 'common', rentRate: 4000, hasMeter: true,
-    };
+    const rentedLaundry = makeRoom({
+      id: 'laundry', label: 'ร้านซักผ้า', kind: 'common', rentRate: 4000,
+    });
     const commonRow = toRoomGroups([rentedLaundry]).at(-1)!.rows[0];
     expect(commonRow.cells.rate).toEqual({ kind: 'figure', value: 4000 });
-    expect(commonRow.cells.status).toEqual({ kind: 'pill', tone: 'mute', label: 'ส่วนกลาง' });
   });
 
   it('gives a common-space row a room cell and a link to its detail page, same as a unit row', () => {

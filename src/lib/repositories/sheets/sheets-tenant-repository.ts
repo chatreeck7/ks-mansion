@@ -1,17 +1,64 @@
-import type { Tenant } from '@/lib/models/tenant';
+import type { EvaluationGrade, Tenant, ThaiAddress } from '@/lib/models/tenant';
 import type { TenantRepository } from '../tenant-repository';
 import type { SheetsClient } from './sheets-client';
-import { readTab, requireCell, SheetRowError, type Tab } from './tab-reader';
+import {
+  cellValue,
+  optionalEnumCell,
+  readTab,
+  requireCell,
+  SheetRowError,
+  type Tab,
+  type TabContract,
+} from './tab-reader';
 
 const TAB_NAME = 'tenants';
 
-/** `nickname` is optional; everything else must resolve to build a Tenant. */
-const REQUIRED_COLUMNS = ['id', 'full_name', 'id_card_last4', 'address', 'phone'] as const;
+const GRADES: readonly EvaluationGrade[] = ['A', 'B', 'C'];
+
+/**
+ * Every column here must exist in the header; only `id` and `full_name` make
+ * a row a record.
+ *
+ * The split matters for the free-text columns. A sparse address is normal —
+ * plenty of tenants give a house number and nothing else — and `note` is
+ * where an admin writes things like `(เลี้ยงแมว)`. Requiring a *value* in
+ * those would reject real rows; leaving them out of the header check would
+ * let a typo'd `occupatoin` read as empty for every tenant, forever, without
+ * a word. Both lists, therefore.
+ */
+const CONTRACT: TabContract = {
+  columns: [
+    'id',
+    'full_name',
+    'nickname',
+    'id_card_last4',
+    'phone',
+    'occupation',
+    'evaluation_grade',
+    'note',
+    'address_house_no',
+    'address_road',
+    'address_subdistrict',
+    'address_district',
+    'address_province',
+    'address_postcode',
+  ],
+  identity: ['id', 'full_name'],
+};
+
+function parseAddress(tab: Tab, row: string[]): ThaiAddress {
+  return {
+    houseNo: cellValue(tab, row, 'address_house_no'),
+    road: cellValue(tab, row, 'address_road'),
+    subdistrict: cellValue(tab, row, 'address_subdistrict'),
+    district: cellValue(tab, row, 'address_district'),
+    province: cellValue(tab, row, 'address_province'),
+    postcode: cellValue(tab, row, 'address_postcode'),
+  };
+}
 
 function parseTenant(tab: Tab, row: string[], rowNumber: number): Tenant {
-  const cell = (name: string) => (row[tab.columnIndex[name]] ?? '').trim();
-
-  const idCardLast4 = cell('id_card_last4');
+  const idCardLast4 = cellValue(tab, row, 'id_card_last4');
   // Fail loud rather than storing what the column does not promise: a full
   // 13-digit ID here means someone pasted more than the schema allows, and
   // silently truncating would hide that the sheet holds a national ID.
@@ -27,10 +74,13 @@ function parseTenant(tab: Tab, row: string[], rowNumber: number): Tenant {
   return {
     id: requireCell(tab, row, rowNumber, 'id'),
     fullName: requireCell(tab, row, rowNumber, 'full_name'),
-    nickname: cell('nickname'),
+    nickname: cellValue(tab, row, 'nickname'),
     idCardLast4,
-    address: cell('address'),
-    phone: cell('phone'),
+    address: parseAddress(tab, row),
+    phone: cellValue(tab, row, 'phone'),
+    occupation: cellValue(tab, row, 'occupation'),
+    evaluationGrade: optionalEnumCell(tab, row, rowNumber, 'evaluation_grade', GRADES),
+    note: cellValue(tab, row, 'note'),
   };
 }
 
@@ -45,7 +95,7 @@ function parseTenant(tab: Tab, row: string[], rowNumber: number): Tenant {
 export function createSheetsTenantRepository(client: SheetsClient): TenantRepository {
   return {
     async listTenants(): Promise<Tenant[]> {
-      const tab = await readTab(client, TAB_NAME, REQUIRED_COLUMNS);
+      const tab = await readTab(client, TAB_NAME, CONTRACT);
       const tenants: Tenant[] = [];
       const rowNumberById = new Map<string, number>();
 
@@ -70,13 +120,10 @@ export function createSheetsTenantRepository(client: SheetsClient): TenantReposi
     },
 
     async getTenant(id: string): Promise<Tenant | null> {
-      const tab = await readTab(client, TAB_NAME, REQUIRED_COLUMNS);
+      const tab = await readTab(client, TAB_NAME, CONTRACT);
       const match = tab.dataRows
         .map((row, i) => ({ row, rowNumber: i + 2 }))
-        .find(
-          ({ row }) =>
-            !tab.isBlankRow(row) && (row[tab.columnIndex['id']!] ?? '').trim() === id,
-        );
+        .find(({ row }) => !tab.isBlankRow(row) && cellValue(tab, row, 'id') === id);
 
       return match ? parseTenant(tab, match.row, match.rowNumber) : null;
     },

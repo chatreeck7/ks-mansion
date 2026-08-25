@@ -1,17 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { Tenant } from '@/lib/models/tenant';
+import { makeTenant } from '@/lib/test-support/fixtures';
 import { toTenantGroups } from './tenant-ledger';
 
 function tenant(overrides: Partial<Tenant> = {}): Tenant {
-  return {
-    id: 't-001',
-    fullName: 'สมชาย ใจดี',
-    nickname: 'ชาย',
-    idCardLast4: '1234',
-    address: 'ที่อยู่',
-    phone: '081-234-5678',
-    ...overrides,
-  };
+  return makeTenant({ fullName: 'สมชาย ใจดี', phone: '081-234-5678', ...overrides });
 }
 
 describe('toTenantGroups', () => {

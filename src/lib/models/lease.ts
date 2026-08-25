@@ -25,6 +25,68 @@ export interface Lease {
   deposit: number;
   /** ค่าเช่าล่วงหน้า — rent paid up front at signing. */
   advanceRent: number;
+  /**
+   * จำนวนผู้พัก. Lives on the lease rather than the room because it changes
+   * with the tenancy, and a past bill has to reconstruct the count as it was
+   * at the time.
+   *
+   * This is a **billing input**, not a note: ค่าน้ำ = occupantCount × 100
+   * (AC-1.4 / KS-19). A missing count silently under-bills water, which is
+   * the exact failure the source spreadsheet warns about — hence it is
+   * required rather than defaulted.
+   */
+  occupantCount: number;
+  /**
+   * วันที่ทำสัญญา — the contract header date, distinct from `startDate` in
+   * ข้อ 3. A tenancy is often signed before it begins. KS-31 needs it to
+   * fill the generated document.
+   */
+  signedDate: Date | null;
+  /**
+   * How the tenancy ended. `null` while it is still running.
+   *
+   * `absconded` is `( หนี )` in บัญชีแจ้งคนเข้า-ออก — common enough in the
+   * real log to be a normal outcome, not an edge case. Recording the state
+   * only; collections workflow stays out of scope (F3 was dropped).
+   */
+  endReason: LeaseEndReason | null;
+  /**
+   * The lease this one continues, when a tenant moved rooms (ย้ายห้อง).
+   *
+   * Without it a single tenancy across two rooms reads as two separate
+   * shorter ones, which would corrupt the stay-length analytics in AC-5.2.
+   */
+  previousLeaseId: string | null;
+}
+
+export type LeaseEndReason = 'normal' | 'absconded';
+
+const END_REASON_LABELS: Record<LeaseEndReason, string> = {
+  normal: 'สิ้นสุดตามปกติ',
+  absconded: 'หนี',
+};
+
+/** '' while the tenancy is running, so callers can render it unconditionally. */
+export function endReasonLabel(reason: LeaseEndReason | null): string {
+  return reason ? END_REASON_LABELS[reason] : '';
+}
+
+/** ค่าน้ำ is flat per occupant, not metered — see KS-19. */
+export const WATER_RATE_PER_OCCUPANT = 100;
+
+/**
+ * ค่าน้ำ for a lease: flat by headcount.
+ *
+ * Deliberately does not fall back to a default when the count is zero — a
+ * lease with no occupants recorded is a data error, and quietly billing 0
+ * is what the source spreadsheet's own instructions warn against
+ * ("หากไม่กรอกจะคำนวนผิดพลาด").
+ *
+ * ร้านซักผ้า is the exception: it has a real water meter and is billed per
+ * unit, so it must not go through here.
+ */
+export function waterChargeFor(lease: Lease): number {
+  return lease.occupantCount * WATER_RATE_PER_OCCUPANT;
 }
 
 /** Midnight local, so comparisons are by day and ignore the time of day. */
