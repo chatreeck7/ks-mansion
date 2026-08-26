@@ -1,5 +1,5 @@
 import type { Archivable } from './archivable';
-import { formatThaiDate } from '@/lib/format/thai';
+import { formatBaht, formatThaiDate } from '@/lib/format/thai';
 
 /**
  * A tenancy agreement, per AC-2.2.
@@ -94,6 +94,55 @@ const END_REASON_LABELS: Record<LeaseEndReason, string> = {
 /** '' while the tenancy is running, so callers can render it unconditionally. */
 export function endReasonLabel(reason: LeaseEndReason | null): string {
   return reason ? END_REASON_LABELS[reason] : '';
+}
+
+/**
+ * What is left between a tenant and their deposit when they leave (AC-2.5).
+ *
+ * `amount` follows the same sign convention as the move-event columns and as
+ * บัญชีแจ้งคนเข้า-ออก's own legend: **positive means the tenant still owes it,
+ * negative means it is refunded to them**.
+ *
+ * Owner-confirmed 2026-08-27, and worth having confirmed: the card sat blocked
+ * because getting this backwards tells the owner to refund money to people who
+ * owe it, and the error is silent — a number with the wrong sign still looks
+ * like a number. Three sources agreed (`+ รับเงินเพิ่มจากเงินประกัน` /
+ * `− คืนเงินประกัน` in the register's legend, AC-2.5's wording, and the
+ * ห้อง 310 หนี row showing `+1,894` against a blank `จ่ายจริง` — nobody refunds
+ * someone who fled).
+ */
+export type SettlementOutcome = 'owes' | 'refund' | 'settled';
+
+export interface DepositSettlement {
+  /** Positive: still owed by the tenant. Negative: refunded to them. */
+  amount: number;
+  outcome: SettlementOutcome;
+}
+
+/**
+ * `owed` is damage plus unpaid bills, entered by the admin as one figure.
+ *
+ * Deliberately not read from the bills tab: bill generation (KS-21) does not
+ * exist yet, and the register has only ever recorded the settled total anyway.
+ * When KS-21 lands this function does not change — only where `owed` comes
+ * from does.
+ */
+export function settleDeposit(deposit: number, owed: number): DepositSettlement {
+  const amount = owed - deposit;
+  if (amount > 0) return { amount, outcome: 'owes' };
+  if (amount < 0) return { amount, outcome: 'refund' };
+  return { amount: 0, outcome: 'settled' };
+}
+
+/**
+ * The settlement as a person reads it. Takes the signed amount rather than a
+ * `DepositSettlement` so it can also render a figure read back from the sheet,
+ * where only the amount was stored.
+ */
+export function settlementLabel(amount: number): string {
+  if (amount > 0) return `เก็บเพิ่ม ${formatBaht(amount)}`;
+  if (amount < 0) return `คืน ${formatBaht(Math.abs(amount))}`;
+  return 'พอดี ไม่มียอดค้างและไม่ต้องคืน';
 }
 
 /** ค่าน้ำ is flat per occupant, not metered — see KS-19. */
