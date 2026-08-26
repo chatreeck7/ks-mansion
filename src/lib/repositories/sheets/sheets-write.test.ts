@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createFakeSheets, type FakeSheets } from '@/lib/test-support/fake-sheets';
+import { createInMemorySheets, type InMemorySheets } from '../memory/in-memory-sheets';
 import { createSheetsCrud } from './sheets-crud';
 import { createSheetsLeaseRepository } from './sheets-lease-repository';
 import { createSheetsRoomRepository } from './sheets-room-repository';
@@ -43,11 +43,11 @@ const DRAFT = {
   note: '',
 };
 
-function tenantsWith(rows: string[][]): FakeSheets {
-  return createFakeSheets({ tenants: [TENANT_HEADER, ...rows] });
+function tenantsWith(rows: string[][]): InMemorySheets {
+  return createInMemorySheets({ tenants: [TENANT_HEADER, ...rows] });
 }
 
-function cell(sheet: FakeSheets, tab: string, rowNumber: number, column: string): string {
+function cell(sheet: InMemorySheets, tab: string, rowNumber: number, column: string): string {
   const rows = sheet.rowsOf(tab);
   return rows[rowNumber - 1]![rows[0]!.indexOf(column)] ?? '';
 }
@@ -89,7 +89,7 @@ describe('create', () => {
    * runtime guard is the backstop for a spec that forgets an `idPrefix`.
    */
   it('refuses to create an entity that has no id prefix', async () => {
-    const sheet = createFakeSheets({ rooms: [['id', 'archived'], ['101', 'FALSE']] });
+    const sheet = createInMemorySheets({ rooms: [['id', 'archived'], ['101', 'FALSE']] });
     const crud = createSheetsCrud<{ id: string; archived: boolean }, object>(sheet, {
       tabName: 'rooms',
       contract: { columns: ['id', 'archived'] },
@@ -167,7 +167,7 @@ describe('columns the console does not own', () => {
    * model", and quietly destroying data on every save.
    */
   it('carries an admin-owned column across an update untouched', async () => {
-    const sheet = createFakeSheets({ rooms: [ROOM_HEADER, ROOM_101] });
+    const sheet = createInMemorySheets({ rooms: [ROOM_HEADER, ROOM_101] });
     await createSheetsRoomRepository(sheet).updateRoom('101', { rentRate: 2400 });
 
     expect(cell(sheet, 'rooms', 2, 'type')).toBe('AC');
@@ -183,7 +183,7 @@ describe('columns the console does not own', () => {
   it("writes by header name when the sheet's columns are in a different order", async () => {
     const shuffled = [...ROOM_HEADER].reverse();
     const shuffledRow = [...ROOM_101].reverse();
-    const sheet = createFakeSheets({ rooms: [shuffled, shuffledRow] });
+    const sheet = createInMemorySheets({ rooms: [shuffled, shuffledRow] });
 
     await createSheetsRoomRepository(sheet).updateRoom('101', { rentRate: 2400 });
 
@@ -193,7 +193,7 @@ describe('columns the console does not own', () => {
   });
 
   it('renames a room through detail, never through the room number it is keyed by', async () => {
-    const sheet = createFakeSheets({
+    const sheet = createInMemorySheets({
       rooms: [ROOM_HEADER, ['laundry', 'laundry', 'common', 'occupied', '1800', 'ร้านซักผ้า', '', '1', 'TRUE', 'FALSE', 'FALSE', 'FALSE', 'FALSE']],
     });
     await createSheetsRoomRepository(sheet).updateRoom('laundry', { label: 'ร้านซักรีด' });
@@ -208,7 +208,7 @@ describe('columns the console does not own', () => {
    * tab — a save that looks fine and takes the console down on next load.
    */
   it('writes an unsurveyed appliance as a blank cell, not the word null', async () => {
-    const sheet = createFakeSheets({ rooms: [ROOM_HEADER, ROOM_101] });
+    const sheet = createInMemorySheets({ rooms: [ROOM_HEADER, ROOM_101] });
     const repo = createSheetsRoomRepository(sheet);
 
     await repo.updateRoom('101', { appliances: { tv: null, fridge: false, aircon: true } });
@@ -220,7 +220,7 @@ describe('columns the console does not own', () => {
   });
 
   it('writes a cleared rent rate as blank, never as zero', async () => {
-    const sheet = createFakeSheets({ rooms: [ROOM_HEADER, ROOM_101] });
+    const sheet = createInMemorySheets({ rooms: [ROOM_HEADER, ROOM_101] });
     await createSheetsRoomRepository(sheet).updateRoom('101', { rentRate: null });
 
     // 0 would assert the room is free, which is a different and false claim.
@@ -314,8 +314,8 @@ describe('leases', () => {
     previousLeaseId: null,
   };
 
-  function leaseSheet(): FakeSheets {
-    return createFakeSheets({
+  function leaseSheet(): InMemorySheets {
+    return createInMemorySheets({
       leases: [
         LEASE_HEADER,
         ['l-001', '101', 't-001', '1 ม.ค. 2568', '', '', '2200', '5000', '2200', '2', '', '', 'FALSE'],
