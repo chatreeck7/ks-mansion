@@ -5,6 +5,7 @@
 import DetailSection from './DetailSection.astro';
 import { activeLeaseFor, endReasonLabel, leaseTermLabel, type Lease } from '@/lib/models/lease';
 import { formatBaht } from '@/lib/format/thai';
+import { consolePath } from '@/lib/console/paths';
 
 interface Props {
   leases: Lease[];
@@ -13,9 +14,22 @@ interface Props {
   counterpartFor: (lease: Lease) => string;
   emptyMessage: string;
   now?: Date;
+  /**
+   * Where "add a lease" goes, prefilled for whichever side this is. Omitted
+   * on a screen that has no sensible thing to prefill, which renders no
+   * button rather than one that lands on an empty form.
+   */
+  addHref?: string;
 }
 
-const { leases, counterpartLabel, counterpartFor, emptyMessage, now = new Date() } = Astro.props;
+const {
+  leases,
+  counterpartLabel,
+  counterpartFor,
+  emptyMessage,
+  now = new Date(),
+  addHref,
+} = Astro.props;
 
 const active = activeLeaseFor(leases, now);
 // Most recent first: the current tenancy is what someone opened this for.
@@ -23,6 +37,19 @@ const history = [...leases].sort((a, b) => b.startDate.getTime() - a.startDate.g
 ---
 
 <DetailSection heading="สัญญาเช่า">
+  {
+    addHref && (
+      <p class="mb-3">
+        <a
+          href={addHref}
+          class="rounded border border-console-sunk px-3 py-1.5 text-sm text-console-ink hover:bg-console-sunk focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
+        >
+          เพิ่มสัญญาเช่า
+        </a>
+      </p>
+    )
+  }
+
   {
     history.length === 0 ? (
       <p class="mb-0 text-sm text-console-ink-faint">{emptyMessage}</p>
@@ -63,6 +90,19 @@ const history = [...leases].sort((a, b) => b.startDate.getTime() - a.startDate.g
               <dt class="text-console-ink-faint">จำนวนผู้พัก</dt>
               <dd class="m-0"><span class="font-figure">{lease.occupantCount}</span> คน</dd>
             </dl>
+            {/*
+              Lease-scoped, so the same link works from the room side and the
+              tenant side. Shown on ended leases too — a wrong end date is
+              exactly the thing someone comes here to correct.
+            */}
+            <p class="mb-0 mt-1">
+              <a
+                href={consolePath(`console/leases/${lease.id}/end`)}
+                class="text-xs text-console-ink-soft underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
+              >
+                {lease.endDate ? 'แก้วันสิ้นสุด' : 'บันทึกวันสิ้นสุด'}
+              </a>
+            </p>
           </li>
         ))}
       </ul>

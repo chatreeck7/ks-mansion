@@ -1,0 +1,71 @@
+---
+// src/pages/console/tenants/[tenant]/edit.astro
+import ConsoleFrame from '@/components/console/ConsoleFrame.astro';
+import DetailSheet from '@/components/console/DetailSheet.astro';
+import DetailSection from '@/components/console/DetailSection.astro';
+import TenantForm from '@/components/console/TenantForm.astro';
+import { displayName } from '@/lib/models/tenant';
+import { consolePath } from '@/lib/console/paths';
+import { tenantDraftFromForm } from '@/lib/console/tenant-form';
+import { getTenantRepository } from '@/lib/repositories';
+import type { TenantDraft } from '@/lib/repositories/tenant-repository';
+
+const env = Astro.locals.runtime?.env;
+const id = Astro.params.tenant!;
+const repository = getTenantRepository(env);
+
+const tenant = await repository.getTenant(id);
+if (!tenant) {
+  return new Response(null, { status: 404, statusText: 'Not Found' });
+}
+
+const detailHref = consolePath(`console/tenants/${tenant.id}`);
+
+let error: string | null = null;
+// Starts as what is on file; a failed post replaces it with what was typed.
+let values: TenantDraft = tenant;
+
+if (Astro.request.method === 'POST') {
+  values = tenantDraftFromForm(await Astro.request.formData());
+
+  try {
+    await repository.updateTenant(tenant.id, values);
+    return Astro.redirect(detailHref, 303);
+  } catch (cause) {
+    error = cause instanceof Error ? cause.message : String(cause);
+  }
+}
+---
+
+<ConsoleFrame title={`แก้ไข ${tenant.fullName}`} activeSection="tenants">
+  <DetailSheet title={displayName(tenant)} meta="แก้ไขข้อมูลผู้เช่า">
+    <DetailSection heading="ข้อมูลผู้เช่า">
+      <TenantForm values={values} error={error} submitLabel="บันทึก" cancelHref={detailHref} />
+    </DetailSection>
+
+    <DetailSection heading="เก็บเข้าคลัง">
+      <p class="mb-2 text-xs text-console-ink-faint">
+        ผู้เช่าที่เก็บเข้าคลังจะไม่แสดงในรายชื่อ แต่ประวัติและสัญญาเช่ายังอยู่ครบ
+        และเปิดจากลิงก์เดิมได้ — ไม่ใช่การลบ
+      </p>
+      <!-- Its own form: archiving must be a deliberate act, not something
+           that can ride along with an unrelated edit. -->
+      <form method="POST" action={consolePath(`console/tenants/${tenant.id}/archive`)}>
+        <button
+          type="submit"
+          class="rounded border border-console-crit px-3 py-1.5 text-sm text-console-crit hover:bg-console-crit-bg focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
+        >
+          เก็บเข้าคลัง
+        </button>
+      </form>
+    </DetailSection>
+  </DetailSheet>
+
+  <p class="mt-4 mb-0 leading-none text-console-ink-soft">
+    <a
+      href={detailHref}
+      class="text-sm underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
+      >← กลับไปข้อมูลผู้เช่า</a
+    >
+  </p>
+</ConsoleFrame>

@@ -1,0 +1,171 @@
+---
+// src/pages/console/leases/new.astro
+import ConsoleFrame from '@/components/console/ConsoleFrame.astro';
+import DetailSheet from '@/components/console/DetailSheet.astro';
+import DetailSection from '@/components/console/DetailSection.astro';
+import ErrorSummary from '@/components/console/ErrorSummary.astro';
+import FormActions from '@/components/console/FormActions.astro';
+import FormField from '@/components/console/FormField.astro';
+import { displayName } from '@/lib/models/tenant';
+import { consolePath } from '@/lib/console/paths';
+import { dateToInput, leaseDraftFromForm } from '@/lib/console/lease-form';
+import { getLeaseRepository, getRoomRepository, getTenantRepository } from '@/lib/repositories';
+import type { LeaseDraft } from '@/lib/repositories/lease-repository';
+
+const env = Astro.locals.runtime?.env;
+
+const [rooms, tenants] = await Promise.all([
+  getRoomRepository(env).listRooms(),
+  getTenantRepository(env).listTenants(),
+]);
+
+// Prefilled when arriving from a room or a tenant, so the common path — "add
+// a lease for *this* room" — does not start by hunting through a long list.
+const presetRoomId = Astro.url.searchParams.get('room') ?? '';
+const presetTenantId = Astro.url.searchParams.get('tenant') ?? '';
+
+// Back where they came from, not to a generic index.
+const cancelHref = presetRoomId
+  ? consolePath(`console/rooms/${presetRoomId}`)
+  : presetTenantId
+    ? consolePath(`console/tenants/${presetTenantId}`)
+    : consolePath('console/rooms');
+
+let error: string | null = null;
+let values: LeaseDraft | null = null;
+
+if (Astro.request.method === 'POST') {
+  values = leaseDraftFromForm(await Astro.request.formData());
+
+  try {
+    const lease = await getLeaseRepository(env).createLease(values);
+    // `astro check` reports `lease` as unused (ts 6133) — a false positive
+    // of the same kind as console/index.astro's: TypeScript's analysis stops
+    // at a frontmatter `return` and misses the line below.
+    return Astro.redirect(consolePath(`console/rooms/${lease.roomId}`), 303);
+  } catch (cause) {
+    error = cause instanceof Error ? cause.message : String(cause);
+  }
+}
+
+const v = {
+  roomId: values?.roomId ?? presetRoomId,
+  tenantId: values?.tenantId ?? presetTenantId,
+  startDate: dateToInput(values?.startDate ?? null),
+  endDate: dateToInput(values?.endDate ?? null),
+  signedDate: dateToInput(values?.signedDate ?? null),
+  rentRate: values?.rentRate ?? '',
+  deposit: values?.deposit ?? '',
+  advanceRent: values?.advanceRent ?? '',
+  occupantCount: values?.occupantCount ?? 1,
+};
+
+const CONTROL_CLASS =
+  'rounded border border-console-sunk bg-console-card px-3 py-2 text-console-ink ' +
+  'focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule';
+---
+
+<ConsoleFrame title="เพิ่มสัญญาเช่า" activeSection="rooms">
+  <DetailSheet title="เพิ่มสัญญาเช่า" meta="สัญญาเช่า">
+    <DetailSection heading="รายละเอียดสัญญา">
+      <ErrorSummary message={error} />
+
+      <form method="POST" class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <FormField name="roomId" label="ห้อง" required span="half">
+          <select id="roomId" name="roomId" required class={CONTROL_CLASS}>
+            <option value="">— เลือกห้อง —</option>
+            {
+              rooms.map((room) => (
+                <option value={room.id} selected={room.id === v.roomId}>
+                  {room.label}
+                </option>
+              ))
+            }
+          </select>
+        </FormField>
+
+        <FormField name="tenantId" label="ผู้เช่า" required span="half">
+          <select id="tenantId" name="tenantId" required class={CONTROL_CLASS}>
+            <option value="">— เลือกผู้เช่า —</option>
+            {
+              tenants.map((tenant) => (
+                <option value={tenant.id} selected={tenant.id === v.tenantId}>
+                  {displayName(tenant)}
+                </option>
+              ))
+            }
+          </select>
+        </FormField>
+
+        <FormField
+          name="startDate"
+          label="วันเริ่มเช่า"
+          type="date"
+          value={v.startDate}
+          required
+          span="half"
+        />
+        <FormField
+          name="signedDate"
+          label="วันที่ทำสัญญา"
+          type="date"
+          value={v.signedDate}
+          span="half"
+          hint="เว้นว่างได้ ถ้าเซ็นวันเดียวกับวันเริ่มเช่า"
+        />
+
+        <FormField
+          name="rentRate"
+          label="ค่าเช่า (บาท/เดือน)"
+          type="number"
+          value={v.rentRate}
+          required
+          span="half"
+          min={0}
+          inputmode="numeric"
+          hint="ค่าเช่าที่ผู้เช่ารายนี้ตกลง อาจต่างจากเรตปัจจุบันของห้อง"
+        />
+        <FormField
+          name="occupantCount"
+          label="จำนวนผู้พัก"
+          type="number"
+          value={v.occupantCount}
+          required
+          span="half"
+          min={1}
+          inputmode="numeric"
+          hint="ใช้คิดค่าน้ำ (คนละ 100 บาท) — ถ้าใส่ผิด ค่าน้ำจะผิดทุกเดือน"
+        />
+
+        <FormField
+          name="deposit"
+          label="เงินประกัน (บาท)"
+          type="number"
+          value={v.deposit}
+          span="half"
+          min={0}
+          inputmode="numeric"
+        />
+        <FormField
+          name="advanceRent"
+          label="ค่าเช่าล่วงหน้า (บาท)"
+          type="number"
+          value={v.advanceRent}
+          span="half"
+          min={0}
+          inputmode="numeric"
+        />
+
+        <FormActions submitLabel="บันทึกสัญญา" cancelHref={cancelHref} />
+      </form>
+    </DetailSection>
+  </DetailSheet>
+
+  <p class="mt-4 mb-0 leading-none text-console-ink-soft">
+    <a
+      href={cancelHref}
+      class="text-sm underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
+      >← กลับ</a
+    >
+  </p>
+</ConsoleFrame>
