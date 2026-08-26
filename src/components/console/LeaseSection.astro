@@ -89,6 +89,40 @@ const history = [...leases].sort((a, b) => b.startDate.getTime() - a.startDate.g
               */}
               <dt class="text-console-ink-faint">จำนวนผู้พัก</dt>
               <dd class="m-0"><span class="font-figure">{lease.occupantCount}</span> คน</dd>
+
+              {/*
+                AC-2.3's move-in/move-out log. Shown only where a figure was
+                actually recorded — a blank means nobody wrote it down, and
+                rendering it as 0 would assert nothing changed hands, which is
+                a different and common outcome (the `-` in จ่ายจริง).
+              */}
+              {lease.moveInDue !== null && (
+                <Fragment>
+                  <dt class="text-console-ink-faint">ยอดวันเข้า</dt>
+                  <dd class="m-0 font-figure">
+                    {formatBaht(lease.moveInDue)}
+                    {lease.moveInPaid !== null && lease.moveInPaid !== lease.moveInDue && (
+                      <span class="text-console-warn"> · จ่ายจริง {formatBaht(lease.moveInPaid)}</span>
+                    )}
+                  </dd>
+                </Fragment>
+              )}
+
+              {lease.moveOutDue !== null && (
+                <Fragment>
+                  <dt class="text-console-ink-faint">ยอดวันออก</dt>
+                  <dd class="m-0 font-figure">
+                    <span class:list={[lease.moveOutDue < 0 ? 'text-console-ok' : 'text-console-crit']}>
+                      {lease.moveOutDue < 0
+                        ? `คืน ${formatBaht(Math.abs(lease.moveOutDue))}`
+                        : `เก็บเพิ่ม ${formatBaht(lease.moveOutDue)}`}
+                    </span>
+                    {lease.moveOutPaid !== null && lease.moveOutPaid !== lease.moveOutDue && (
+                      <span class="text-console-warn"> · จ่ายจริง {formatBaht(lease.moveOutPaid)}</span>
+                    )}
+                  </dd>
+                </Fragment>
+              )}
             </dl>
             {/*
               Lease-scoped, so the same link works from the room side and the

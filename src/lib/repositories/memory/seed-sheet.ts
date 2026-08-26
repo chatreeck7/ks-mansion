@@ -149,6 +149,7 @@ const LEASES_HEADER = [
   'id', 'room_id', 'tenant_id', 'start_date', 'end_date', 'signed_date',
   'rent_rate', 'deposit', 'advance_rent', 'occupant_count',
   'end_reason', 'previous_lease_id', 'archived',
+  'move_in_due', 'move_in_paid', 'move_out_due', 'move_out_paid',
 ];
 
 /**
@@ -166,20 +167,20 @@ const LEASES_HEADER = [
 const LEASE_ROWS: (string | number)[][] = [
   ['l-001', '101', 't-001',
    thaiDate(2025, 1, 1), '', thaiDate(2024, 12, 28),
-   2200, 5000, 2200, 2, '', '', ''],
+   2200, 5000, 2200, 2, '', '', '', 7400, 7400, '', ''],
 
   ['l-002', '102', 't-002',
    thaiDate(2025, 3, 1), thaiDate(2026, 2, 28), thaiDate(2025, 2, 25),
-   3000, 9000, 3000, 1, 'normal', '', ''],
+   3000, 9000, 3000, 1, 'normal', '', '', 12000, 12000, -1432, -1432],
 
   ['l-003', '103', 't-003',
    thaiDate(2023, 1, 1), thaiDate(2023, 12, 31), thaiDate(2022, 12, 20),
-   2500, 6000, 2500, 1, 'absconded', '', ''],
+   2500, 6000, 2500, 1, 'absconded', '', '', 8500, 8500, 1894, 0],
 
   // t-002 moved 102 → 105 rather than leaving; one tenancy, two rooms.
   ['l-004', '105', 't-002',
    thaiDate(2026, 3, 1), '', thaiDate(2026, 2, 20),
-   2500, 9000, 2500, 1, '', 'l-002', ''],
+   2500, 9000, 2500, 1, '', 'l-002', '', 2500, 2500, '', ''],
 ];
 
 // ---------------------------------------------------------------- build

@@ -10,7 +10,7 @@ import { endReasonLabel, type LeaseEndReason } from '@/lib/models/lease';
 import { formatThaiDate } from '@/lib/format/thai';
 import { displayName } from '@/lib/models/tenant';
 import { consolePath } from '@/lib/console/paths';
-import { dateFromInput, dateToInput } from '@/lib/console/lease-form';
+import { dateFromInput, dateToInput, optionalNumberField } from '@/lib/console/lease-form';
 import { getLeaseRepository, getRoomRepository, getTenantRepository } from '@/lib/repositories';
 
 const env = Astro.locals.runtime?.env;
@@ -31,11 +31,15 @@ const roomHref = consolePath(`console/rooms/${lease.roomId}`);
 let error: string | null = null;
 let endDateValue = dateToInput(lease.endDate);
 let endReasonValue: string = lease.endReason ?? '';
+let moveOutDueValue: string = lease.moveOutDue === null ? '' : String(lease.moveOutDue);
+let moveOutPaidValue: string = lease.moveOutPaid === null ? '' : String(lease.moveOutPaid);
 
 if (Astro.request.method === 'POST') {
   const form = await Astro.request.formData();
   endDateValue = String(form.get('endDate') ?? '').trim();
   endReasonValue = String(form.get('endReason') ?? '').trim();
+  moveOutDueValue = String(form.get('moveOutDue') ?? '').trim();
+  moveOutPaidValue = String(form.get('moveOutPaid') ?? '').trim();
 
   try {
     // A room transfer (KS-64) is still its own card — this records how a
@@ -43,6 +47,8 @@ if (Astro.request.method === 'POST') {
     await repository.updateLease(lease.id, {
       endDate: dateFromInput(endDateValue),
       endReason: (endReasonValue || null) as LeaseEndReason | null,
+      moveOutDue: optionalNumberField(form, 'moveOutDue'),
+      moveOutPaid: optionalNumberField(form, 'moveOutPaid'),
     });
     return Astro.redirect(roomHref, 303);
   } catch (cause) {
@@ -99,6 +105,32 @@ const END_REASONS: readonly LeaseEndReason[] = ['normal', 'absconded'];
             }
           </select>
         </FormField>
+
+        <div class="sm:col-span-2">
+          <h3 class="mb-2 font-figure text-xs font-semibold text-console-rule">
+            ยอดวันย้ายออก
+          </h3>
+          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <FormField
+              name="moveOutDue"
+              label="ยอดจ่าย"
+              type="number"
+              value={moveOutDueValue}
+              span="half"
+              inputmode="numeric"
+              hint="ติดลบ = คืนเงินประกัน · บวก = ผู้เช่ายังค้างอยู่"
+            />
+            <FormField
+              name="moveOutPaid"
+              label="จ่ายจริง"
+              type="number"
+              value={moveOutPaidValue}
+              span="half"
+              inputmode="numeric"
+              hint="ใส่ 0 ถ้าเรียกเก็บแล้วไม่ได้รับ — ต่างจากเว้นว่างที่แปลว่ายังไม่ได้บันทึก"
+            />
+          </div>
+        </div>
 
         <FormActions submitLabel="บันทึก" cancelHref={roomHref} />
       </form>

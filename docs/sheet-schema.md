@@ -246,7 +246,8 @@ Identity: `id`, `full_name`.
 
 ```
 id, room_id, tenant_id, start_date, end_date, signed_date,
-rent_rate, deposit, advance_rent, occupant_count, end_reason, previous_lease_id, archived
+rent_rate, deposit, advance_rent, occupant_count, end_reason, previous_lease_id, archived,
+move_in_due, move_in_paid, move_out_due, move_out_paid
 ```
 
 Identity: `id`, `room_id`, `tenant_id`, `start_date`.
@@ -272,6 +273,25 @@ Identity: `id`, `room_id`, `tenant_id`, `start_date`.
 - `rent_rate` here is **the rate this tenancy is billed at**, which is not
   necessarily the room's current rate. Billing must read the lease, or a rate
   change would silently re-price every sitting tenant.
+- **`move_in_due` / `move_in_paid` / `move_out_due` / `move_out_paid`** are
+  AC-2.3's log — `ยอดจ่าย` against `จ่ายจริง` on both sides of
+  บัญชีแจ้งคนเข้า-ออก. They live on the lease rather than in an event tab of
+  their own because a move-in *is* a lease start and a move-out *is* a lease
+  end: exactly one of each per tenancy. AC-2.3's third requirement, lease
+  duration, is already derived by `leaseTermLabel`.
+
+  **Blank is "not recorded"; zero is "nothing changed hands".** Both occur, and
+  the difference matters: the register is full of `-` in `จ่ายจริง` against a
+  positive `ยอดจ่าย`, which is what a tenant absconding looks like. A blank that
+  read as 0 would erase that, and KS-14's settlement depends on it.
+
+  **Sign convention, shared with AC-2.5 / KS-14:** positive means the tenant
+  pays, negative means the tenant is paid. A `move_out_due` of `-1,244` is a
+  deposit refund; `+678` is money still owed after the deposit was consumed —
+  the register's own `+ รับเงินเพิ่มจากเงินประกัน` / `- คืนเงินประกัน` legend.
+
+  A split payment like `2,500/2,000` is stored as its **total**. The instalment
+  schedule is KS-23's concern, not this column's.
 
 ### `meter_readings`
 

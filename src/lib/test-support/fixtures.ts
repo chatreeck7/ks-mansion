@@ -62,6 +62,10 @@ export function makeLease(overrides: Partial<Lease> = {}): Lease {
     occupantCount: 1,
     endReason: null,
     previousLeaseId: null,
+    moveInDue: null,
+    moveInPaid: null,
+    moveOutDue: null,
+    moveOutPaid: null,
     archived: false,
     ...overrides,
   };

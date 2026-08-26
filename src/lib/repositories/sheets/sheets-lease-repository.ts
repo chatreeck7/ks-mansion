@@ -10,6 +10,7 @@ import {
   numberCell,
   nullableBooleanCell,
   optionalEnumCell,
+  optionalNumberCell,
   requireCell,
   SheetRowError,
   type Tab,
@@ -42,6 +43,10 @@ const CONTRACT: TabContract = {
     'end_reason',
     'previous_lease_id',
     ARCHIVED_COLUMN,
+    'move_in_due',
+    'move_in_paid',
+    'move_out_due',
+    'move_out_paid',
   ],
   identity: ['id', 'room_id', 'tenant_id', 'start_date'],
 };
@@ -152,6 +157,12 @@ function parseLease(tab: Tab, row: string[], rowNumber: number): Lease {
     occupantCount: parseOccupantCount(tab, row, rowNumber),
     endReason,
     previousLeaseId,
+    // Blank is "not recorded", not zero — see the field docs. Zero is a real
+    // outcome here (a tenant who paid nothing), so the two must stay apart.
+    moveInDue: optionalNumberCell(tab, row, rowNumber, 'move_in_due'),
+    moveInPaid: optionalNumberCell(tab, row, rowNumber, 'move_in_paid'),
+    moveOutDue: optionalNumberCell(tab, row, rowNumber, 'move_out_due'),
+    moveOutPaid: optionalNumberCell(tab, row, rowNumber, 'move_out_paid'),
     archived: nullableBooleanCell(tab, row, rowNumber, ARCHIVED_COLUMN) ?? false,
   };
 }
@@ -185,6 +196,12 @@ function toRowValues(fields: Partial<LeaseDraft>): RowValues {
   if (fields.previousLeaseId !== undefined) {
     values['previous_lease_id'] = fields.previousLeaseId ?? '';
   }
+  // `null` writes a blank cell, never 0 — the distinction the field docs
+  // rely on, and the one the register itself makes with `-`.
+  if (fields.moveInDue !== undefined) values['move_in_due'] = fields.moveInDue ?? '';
+  if (fields.moveInPaid !== undefined) values['move_in_paid'] = fields.moveInPaid ?? '';
+  if (fields.moveOutDue !== undefined) values['move_out_due'] = fields.moveOutDue ?? '';
+  if (fields.moveOutPaid !== undefined) values['move_out_paid'] = fields.moveOutPaid ?? '';
 
   return values;
 }

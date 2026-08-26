@@ -58,6 +58,30 @@ export interface Lease extends Archivable {
    * shorter ones, which would corrupt the stay-length analytics in AC-5.2.
    */
   previousLeaseId: string | null;
+  /**
+   * The move-in and move-out amounts, per AC-2.3 — `ยอดจ่าย` against
+   * `จ่ายจริง` on both sides of บัญชีแจ้งคนเข้า-ออก.
+   *
+   * A move-in is a lease start and a move-out is a lease end, exactly one of
+   * each per tenancy, so these live beside the dates they pair with rather
+   * than in an event log of their own. AC-2.3's third requirement — lease
+   * duration — is already derived by `leaseTermLabel`.
+   *
+   * **`null` is "not recorded", never zero.** Zero asserts that nothing
+   * changed hands, which is a real and different outcome: the register is
+   * full of `-` in `จ่ายจริง` against a positive `ยอดจ่าย`, and that is
+   * exactly what a tenant absconding looks like.
+   *
+   * **Sign convention, shared with AC-2.5 / KS-14:** positive means the
+   * tenant pays, negative means the tenant is paid. So a move-out `due` of
+   * `-1,244` is a deposit refund and `+678` is money still owed after the
+   * deposit was consumed — the `+ รับเงินเพิ่มจากเงินประกัน` and
+   * `- คืนเงินประกัน` notes in the register's own legend.
+   */
+  moveInDue: number | null;
+  moveInPaid: number | null;
+  moveOutDue: number | null;
+  moveOutPaid: number | null;
 }
 
 export type LeaseEndReason = 'normal' | 'absconded';
