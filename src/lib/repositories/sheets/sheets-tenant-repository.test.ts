@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createFakeSheets } from '@/lib/test-support/fake-sheets';
+import { createInMemorySheets } from '../memory/in-memory-sheets';
 import { createSheetsTenantRepository } from './sheets-tenant-repository';
 
 const HEADER = [
@@ -10,7 +10,7 @@ const HEADER = [
 ];
 
 function client(rows: string[][]) {
-  return createFakeSheets({ tenants: [HEADER, ...rows] });
+  return createInMemorySheets({ tenants: [HEADER, ...rows] });
 }
 
 function row(overrides: Partial<Record<string, string>> = {}): string[] {
@@ -151,7 +151,7 @@ describe('createSheetsTenantRepository', () => {
     });
 
     it('throws when the header is missing a contracted column', async () => {
-      const bare = createFakeSheets({ tenants: [['id', 'full_name'], ['t-1', 'สมชาย']] });
+      const bare = createInMemorySheets({ tenants: [['id', 'full_name'], ['t-1', 'สมชาย']] });
       await expect(createSheetsTenantRepository(bare).listTenants()).rejects.toThrow(
         /missing required column "nickname"/,
       );
@@ -162,7 +162,7 @@ describe('createSheetsTenantRepository', () => {
     // otherwise read as empty for every tenant, forever, without a word.
     it('throws when an optional-valued column is missing from the header', async () => {
       const header = HEADER.filter((c) => c !== 'occupation');
-      const noOccupation = createFakeSheets({ tenants: [header, header.map(() => 'x')] });
+      const noOccupation = createInMemorySheets({ tenants: [header, header.map(() => 'x')] });
       await expect(createSheetsTenantRepository(noOccupation).listTenants()).rejects.toThrow(
         /missing required column "occupation"/,
       );

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createFakeSheets } from '@/lib/test-support/fake-sheets';
+import { createInMemorySheets } from '../memory/in-memory-sheets';
 import { createSheetsLeaseRepository } from './sheets-lease-repository';
 
 const HEADER = [
@@ -9,7 +9,7 @@ const HEADER = [
 ];
 
 function client(rows: string[][]) {
-  return createFakeSheets({ leases: [HEADER, ...rows] });
+  return createInMemorySheets({ leases: [HEADER, ...rows] });
 }
 
 function row(overrides: Partial<Record<string, string>> = {}): string[] {

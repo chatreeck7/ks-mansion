@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createFakeSheets } from '@/lib/test-support/fake-sheets';
+import { createInMemorySheets } from '../memory/in-memory-sheets';
 import { createSheetsRoomRepository } from './sheets-room-repository';
 
 const HEADER = [
@@ -10,7 +10,7 @@ const HEADER = [
 const BLANK_ROW = HEADER.map(() => '');
 
 function fakeClient(rows: string[][]) {
-  return createFakeSheets({ rooms: [[...HEADER], ...rows] });
+  return createInMemorySheets({ rooms: [[...HEADER], ...rows] });
 }
 
 function unitRow(overrides: Partial<Record<(typeof HEADER)[number], string>> = {}): string[] {
@@ -56,7 +56,7 @@ describe('createSheetsRoomRepository', () => {
       'has_aircon', 'hasMeter', 'floor', 'rent_rate', 'status', 'kind', 'room_number', 'id',
       'has_tv', 'has_fridge', 'archived', 'detail',
     ];
-    const client = createFakeSheets({ rooms: [
+    const client = createInMemorySheets({ rooms: [
           shuffledHeader,
           ['TRUE', 'TRUE', '2', '2300', 'occupied', 'unit', '201', '201', 'FALSE', 'FALSE', 'FALSE', ''],
         ] });
@@ -183,12 +183,12 @@ describe('createSheetsRoomRepository', () => {
 
   describe('validation — catching the corruption KS-53 documented', () => {
     it('throws when the header is missing a required column', async () => {
-      const client = createFakeSheets({ rooms: [['room_number', 'kind'], ['101', 'unit']] });
+      const client = createInMemorySheets({ rooms: [['room_number', 'kind'], ['101', 'unit']] });
       await expect(createSheetsRoomRepository(client).listRooms()).rejects.toThrow(/missing required column "id"/);
     });
 
     it('throws when the header has a duplicate column name', async () => {
-      const client = createFakeSheets({
+      const client = createInMemorySheets({
         rooms: [
           [...HEADER, 'rent_rate'],
           [...unitRow(), '9999'],
