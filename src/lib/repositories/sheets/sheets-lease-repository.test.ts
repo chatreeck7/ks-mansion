@@ -6,6 +6,7 @@ const HEADER = [
   'id', 'room_id', 'tenant_id', 'start_date', 'end_date', 'signed_date',
   'rent_rate', 'deposit', 'advance_rent', 'occupant_count',
   'end_reason', 'previous_lease_id', 'archived',
+  'move_in_due', 'move_in_paid', 'move_out_due', 'move_out_paid',
 ];
 
 function client(rows: string[][]) {
@@ -49,6 +50,10 @@ describe('createSheetsLeaseRepository', () => {
       occupantCount: 2,
       endReason: null,
       previousLeaseId: null,
+      moveInDue: null,
+      moveInPaid: null,
+      moveOutDue: null,
+      moveOutPaid: null,
     });
   });
 
@@ -104,6 +109,33 @@ describe('createSheetsLeaseRepository', () => {
       'absconded',
       null,
     ]);
+  });
+
+  /**
+   * AC-2.3. The register writes `-` in จ่ายจริง against a positive ยอดจ่าย when
+   * a tenant absconded — owed money, paid none of it. A blank that read as 0
+   * would erase that difference, and KS-14's settlement depends on it.
+   */
+  it('keeps "not recorded" apart from "nothing was paid" in the move amounts', async () => {
+    const [blank] = await createSheetsLeaseRepository(client([row()])).listLeases();
+    expect(blank!.moveInDue).toBeNull();
+    expect(blank!.moveOutPaid).toBeNull();
+
+    const [absconded] = await createSheetsLeaseRepository(
+      client([row({ move_out_due: '1894', move_out_paid: '0' })]),
+    ).listLeases();
+    expect(absconded!.moveOutDue).toBe(1894);
+    expect(absconded!.moveOutPaid).toBe(0);
+  });
+
+  /** A refund is negative, and the register writes it with a thousands comma. */
+  it('reads a negative settlement, commas and all', async () => {
+    const [lease] = await createSheetsLeaseRepository(
+      client([row({ move_out_due: '-1,244', move_out_paid: '-1,244' })]),
+    ).listLeases();
+
+    expect(lease!.moveOutDue).toBe(-1244);
+    expect(lease!.moveOutPaid).toBe(-1244);
   });
 
   it('keeps a room transfer linked to the tenancy it continues', async () => {

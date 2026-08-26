@@ -44,6 +44,18 @@ function numberField(form: FormData, field: string): number {
   return raw === '' ? 0 : Number(raw);
 }
 
+/**
+ * The same read where blank must stay **null**, not 0.
+ *
+ * The move-event amounts distinguish "nobody wrote this down" from "nothing
+ * changed hands", and the register uses both: a `-` in จ่ายจริง against a
+ * positive ยอดจ่าย is exactly what a tenant absconding looks like.
+ */
+export function optionalNumberField(form: FormData, field: string): number | null {
+  const raw = String(form.get(field) ?? '').trim();
+  return raw === '' ? null : Number(raw);
+}
+
 export function leaseDraftFromForm(form: FormData): LeaseDraft {
   const text = (field: string): string => String(form.get(field) ?? '').trim();
 
@@ -67,5 +79,14 @@ export function leaseDraftFromForm(form: FormData): LeaseDraft {
     // ย้ายห้อง (KS-64): the tenancy this one continues. Blank is the normal
     // case — most leases start fresh rather than continuing one.
     previousLeaseId: text('previousLeaseId') || null,
+    // AC-2.3's move-in half. Blank stays null — "not recorded" rather than
+    // "nothing was paid", which are different facts and the register
+    // distinguishes them.
+    moveInDue: optionalNumberField(form, 'moveInDue'),
+    moveInPaid: optionalNumberField(form, 'moveInPaid'),
+    // The move-out half belongs to the end screen, where an end date exists
+    // to pair it with. A lease being created has not moved out.
+    moveOutDue: null,
+    moveOutPaid: null,
   };
 }

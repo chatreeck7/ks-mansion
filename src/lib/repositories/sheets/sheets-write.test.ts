@@ -298,6 +298,7 @@ describe('leases', () => {
     'id', 'room_id', 'tenant_id', 'start_date', 'end_date', 'signed_date',
     'rent_rate', 'deposit', 'advance_rent', 'occupant_count',
     'end_reason', 'previous_lease_id', 'archived',
+    'move_in_due', 'move_in_paid', 'move_out_due', 'move_out_paid',
   ];
 
   const LEASE_DRAFT = {
@@ -312,6 +313,10 @@ describe('leases', () => {
     occupantCount: 1,
     endReason: null,
     previousLeaseId: null,
+    moveInDue: null,
+    moveInPaid: null,
+    moveOutDue: null,
+    moveOutPaid: null,
   };
 
   function leaseSheet(): InMemorySheets {
@@ -343,6 +348,51 @@ describe('leases', () => {
     const sheet = leaseSheet();
     await createSheetsLeaseRepository(sheet).createLease(LEASE_DRAFT);
     expect(cell(sheet, 'leases', 3, 'end_date')).toBe('');
+  });
+
+  /**
+   * AC-2.3. A move-in is a lease start, so the amounts go in at creation.
+   */
+  it('writes the move-in amounts alongside the lease that opened', async () => {
+    const sheet = leaseSheet();
+    await createSheetsLeaseRepository(sheet).createLease({
+      ...LEASE_DRAFT,
+      moveInDue: 7500,
+      moveInPaid: 5500,
+    });
+
+    expect(cell(sheet, 'leases', 3, 'move_in_due')).toBe('7500');
+    expect(cell(sheet, 'leases', 3, 'move_in_paid')).toBe('5500');
+  });
+
+  /**
+   * Blank and 0 are different claims — "nobody recorded this" against
+   * "nothing changed hands" — and the register uses both. Writing 0 for an
+   * unrecorded amount would quietly turn every un-entered lease into one
+   * where the tenant paid nothing.
+   */
+  it('writes an unrecorded amount as blank, never as zero', async () => {
+    const sheet = leaseSheet();
+    await createSheetsLeaseRepository(sheet).createLease(LEASE_DRAFT);
+
+    expect(cell(sheet, 'leases', 3, 'move_in_due')).toBe('');
+    expect(cell(sheet, 'leases', 3, 'move_out_paid')).toBe('');
+  });
+
+  /** A refund is negative; the settlement sign is shared with AC-2.5. */
+  it('writes a negative settlement on the way out', async () => {
+    const sheet = leaseSheet();
+    const repo = createSheetsLeaseRepository(sheet);
+    const created = await repo.createLease(LEASE_DRAFT);
+
+    await repo.updateLease(created.id, {
+      endDate: new Date(2026, 8, 30),
+      moveOutDue: -1244,
+      moveOutPaid: -1244,
+    });
+
+    expect(cell(sheet, 'leases', 3, 'move_out_due')).toBe('-1244');
+    expect((await repo.getLease(created.id))?.moveOutDue).toBe(-1244);
   });
 
   it('keeps a transfer linked to the lease it continues', async () => {
