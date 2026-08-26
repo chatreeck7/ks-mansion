@@ -1,0 +1,117 @@
+---
+// src/pages/console/health.astro
+// KS-67. Behind the middleware's auth like every other /console route.
+import ConsoleFrame from '@/components/console/ConsoleFrame.astro';
+import DetailSection from '@/components/console/DetailSection.astro';
+import StatusPill from '@/components/console/StatusPill.astro';
+import { checkDatastoreHealth } from '@/lib/repositories/health';
+
+const { datastore, tabs } = await checkDatastoreHealth(Astro.locals.runtime?.env);
+
+const failed = tabs.filter((tab) => tab.status === 'failed').length;
+const onSheets = datastore.backend === 'sheets';
+---
+
+<ConsoleFrame title="สถานะระบบ" activeSection="health">
+  <h1 class="mb-1 text-xl font-medium text-console-ink">สถานะระบบ</h1>
+  <p class="mb-6 text-sm text-console-ink-faint">
+    หน้านี้บอกว่าตอนนี้คอนโซลอ่านข้อมูลจากที่ไหน และแท็บไหนอ่านไม่ผ่านเพราะอะไร
+  </p>
+
+  <DetailSection heading="แหล่งข้อมูล">
+    <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+      <dt class="text-console-ink-faint">กำลังอ่านจาก</dt>
+      <dd>
+        {
+          onSheets ? (
+            <StatusPill tone="ok" label="Google Sheets" />
+          ) : (
+            <StatusPill tone="warn" label="ข้อมูลตัวอย่าง (in-memory)" />
+          )
+        }
+      </dd>
+
+      {
+        datastore.sourceId && (
+          <Fragment>
+            <dt class="text-console-ink-faint">แหล่งที่มา</dt>
+            <dd class="break-all font-figure text-xs">
+              {datastore.sourceUrl ? (
+                <a
+                  href={datastore.sourceUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  class="underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
+                >
+                  {datastore.sourceId}
+                </a>
+              ) : (
+                datastore.sourceId
+              )}
+            </dd>
+          </Fragment>
+        )
+      }
+    </dl>
+
+    {
+      !onSheets && (
+        <p class="mt-3 text-xs text-console-ink-soft">
+          คอนโซลกำลังแสดง<strong>ข้อมูลตัวอย่าง</strong> ไม่ใช่ข้อมูลจริงของตึก —
+          สิ่งที่แก้ในหน้านี้จะหายไปเมื่อรีสตาร์ท เพราะไม่พบ {datastore.missingConfig.join(' และ ')}
+        </p>
+      )
+    }
+  </DetailSection>
+
+  <DetailSection heading="แท็บข้อมูล">
+    <ul class="flex flex-col gap-3">
+      {
+        tabs.map((tab) => (
+          <li class="border-b border-console-sunk pb-3 last:border-0 last:pb-0">
+            <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <span class="text-sm text-console-ink">{tab.label}</span>
+              <span class="font-figure text-xs text-console-ink-faint">{tab.tab}</span>
+              {tab.status === 'ok' ? (
+                <StatusPill tone="ok" label={`${tab.records} รายการ`} />
+              ) : (
+                <StatusPill tone="crit" label="อ่านไม่ผ่าน" />
+              )}
+            </div>
+
+            {/*
+              The error verbatim. It already names the tab, the row number an
+              admin sees in the sheet, and the column — which is the whole
+              reason this page exists.
+            */}
+            {tab.error && (
+              <p
+                role="alert"
+                class="mt-2 whitespace-pre-wrap break-words bg-console-crit-bg px-3 py-2 font-figure text-xs text-console-crit"
+              >
+                {tab.error}
+              </p>
+            )}
+          </li>
+        ))
+      }
+    </ul>
+
+    {
+      failed < tabs.length && (
+        <p class="mt-3 text-xs text-console-ink-faint">
+          จำนวนรายการนับเฉพาะที่อ่านกลับมาได้ ไม่รวมรายการที่เก็บเข้าคลัง (archived)
+          — ถ้าตัวเลขไม่ตรงกับที่คาด แปลว่าชีตกับคอนโซลมองไม่ตรงกัน
+        </p>
+      )
+    }
+  </DetailSection>
+
+  {
+    failed > 0 && (
+      <p class="mt-4 text-sm text-console-ink-soft">
+        แก้ตามข้อความข้างบน แล้วรีเฟรชหน้านี้ — คอนโซลรายงานอย่างเดียว ไม่แก้ให้เอง
+      </p>
+    )
+  }
+</ConsoleFrame>
