@@ -1,0 +1,149 @@
+---
+// src/pages/console/rooms/[room]/edit.astro
+// KS-17 (rent rate) and KS-62 (แจ้งออก) — both were only ever missing a way to
+// set what the model already holds.
+import ConsoleFrame from '@/components/console/ConsoleFrame.astro';
+import DetailSheet from '@/components/console/DetailSheet.astro';
+import DetailSection from '@/components/console/DetailSection.astro';
+import ErrorSummary from '@/components/console/ErrorSummary.astro';
+import FormActions from '@/components/console/FormActions.astro';
+import FormField from '@/components/console/FormField.astro';
+import { isUnit, statusLabel } from '@/lib/models/room';
+import { consolePath } from '@/lib/console/paths';
+import { applianceToForm, roomEditFromForm, ROOM_STATUSES } from '@/lib/console/room-form';
+import { getRoomRepository } from '@/lib/repositories';
+import type { RoomEdit } from '@/lib/repositories/room-repository';
+
+const env = Astro.locals.runtime?.env;
+const repository = getRoomRepository(env);
+
+const room = await repository.getRoom(Astro.params.room!);
+if (!room) {
+  return new Response(null, { status: 404, statusText: 'Not Found' });
+}
+
+const detailHref = consolePath(`console/rooms/${room.id}`);
+
+let error: string | null = null;
+// Starts as what is on file; a failed post replaces it with what was typed, so
+// an edit is never silently discarded.
+let values: RoomEdit = room;
+
+if (Astro.request.method === 'POST') {
+  values = roomEditFromForm(await Astro.request.formData());
+
+  try {
+    await repository.updateRoom(room.id, values);
+    return Astro.redirect(detailHref, 303);
+  } catch (cause) {
+    error = cause instanceof Error ? cause.message : String(cause);
+  }
+}
+
+const APPLIANCES = [
+  { name: 'appliances.tv', label: 'ทีวี', value: values.appliances.tv },
+  { name: 'appliances.fridge', label: 'ตู้เย็น', value: values.appliances.fridge },
+  { name: 'appliances.aircon', label: 'แอร์', value: values.appliances.aircon },
+];
+
+// Blank is "ยังไม่ได้สำรวจ", which is a different fact from "ไม่มี" and only one
+// of them belongs on the month-end report.
+const APPLIANCE_CHOICES = [
+  { value: '', label: 'ยังไม่ได้สำรวจ' },
+  { value: 'true', label: 'มี' },
+  { value: 'false', label: 'ไม่มี' },
+];
+
+const CONTROL_CLASS =
+  'rounded border border-console-sunk bg-console-card px-3 py-2 text-console-ink ' +
+  'focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule';
+---
+
+<ConsoleFrame title={`แก้ไขห้อง ${room.label}`} activeSection="rooms">
+  <DetailSheet title={room.label} meta="แก้ไขข้อมูลห้อง">
+    <DetailSection heading="ข้อมูลห้อง">
+      <ErrorSummary message={error} />
+
+      <form method="POST" class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <FormField
+          name="label"
+          label="ชื่อที่แสดง"
+          value={values.label}
+          required
+          span="half"
+          hint={isUnit(room) ? 'ปกติคือเลขห้อง' : 'ชื่อพื้นที่ เช่น ร้านซักผ้า'}
+        />
+
+        <FormField name="status" label="สถานะ" required span="half">
+          <select id="status" name="status" required class={CONTROL_CLASS}>
+            {
+              ROOM_STATUSES.map((status) => (
+                <option value={status} selected={status === values.status}>
+                  {statusLabel(status)}
+                </option>
+              ))
+            }
+          </select>
+        </FormField>
+
+        <FormField
+          name="rentRate"
+          label="ค่าเช่า (บาท/เดือน)"
+          type="number"
+          value={values.rentRate ?? ''}
+          span="half"
+          min={0}
+          inputmode="numeric"
+          hint="เว้นว่างได้ = ยังไม่มีเรตในระบบ ไม่ใช่ศูนย์"
+        />
+
+        <FormField name="hasMeter" label="มิเตอร์ไฟ" required span="half">
+          <select id="hasMeter" name="hasMeter" required class={CONTROL_CLASS}>
+            <option value="true" selected={values.hasMeter}>มี</option>
+            <option value="false" selected={!values.hasMeter}>ไม่มี</option>
+          </select>
+        </FormField>
+
+        <div class="sm:col-span-2">
+          <h3 class="mb-2 font-figure text-xs font-semibold text-console-rule">
+            เครื่องใช้ไฟฟ้า
+          </h3>
+          <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            {
+              APPLIANCES.map((appliance) => (
+                <FormField name={appliance.name} label={appliance.label}>
+                  <select id={appliance.name} name={appliance.name} class={CONTROL_CLASS}>
+                    {APPLIANCE_CHOICES.map((choice) => (
+                      <option
+                        value={choice.value}
+                        selected={choice.value === applianceToForm(appliance.value)}
+                      >
+                        {choice.label}
+                      </option>
+                    ))}
+                  </select>
+                </FormField>
+              ))
+            }
+          </div>
+        </div>
+
+        <FormActions submitLabel="บันทึก" cancelHref={detailHref} />
+      </form>
+
+      <p class="mt-3 text-xs text-console-ink-faint">
+        <strong>แจ้งออก</strong> หมายถึงผู้เช่าบอกเลิกแล้วแต่ยังไม่ย้ายออก —
+        เดือนนั้นจะคิดเฉพาะค่าน้ำค่าไฟ ไม่คิดค่าเช่า
+        เมื่อมีผู้เช่าใหม่ให้เปลี่ยนกลับเป็น <strong>มีผู้เช่า</strong>
+      </p>
+    </DetailSection>
+  </DetailSheet>
+
+  <p class="mt-4 mb-0 leading-none text-console-ink-soft">
+    <a
+      href={detailHref}
+      class="text-sm underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
+      >← กลับไปข้อมูลห้อง</a
+    >
+  </p>
+</ConsoleFrame>

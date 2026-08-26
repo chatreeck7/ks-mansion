@@ -6,6 +6,7 @@ import DetailSection from '@/components/console/DetailSection.astro';
 import ErrorSummary from '@/components/console/ErrorSummary.astro';
 import FormActions from '@/components/console/FormActions.astro';
 import FormField from '@/components/console/FormField.astro';
+import { endReasonLabel, type LeaseEndReason } from '@/lib/models/lease';
 import { formatThaiDate } from '@/lib/format/thai';
 import { displayName } from '@/lib/models/tenant';
 import { consolePath } from '@/lib/console/paths';
@@ -29,21 +30,30 @@ const roomHref = consolePath(`console/rooms/${lease.roomId}`);
 
 let error: string | null = null;
 let endDateValue = dateToInput(lease.endDate);
+let endReasonValue: string = lease.endReason ?? '';
 
 if (Astro.request.method === 'POST') {
   const form = await Astro.request.formData();
   endDateValue = String(form.get('endDate') ?? '').trim();
+  endReasonValue = String(form.get('endReason') ?? '').trim();
 
   try {
-    // Only the end date. Why the tenancy ended is KS-63 and a room transfer
-    // is KS-64 — folding either in here would ship half of a card that has
-    // its own decisions to make.
-    await repository.updateLease(lease.id, { endDate: dateFromInput(endDateValue) });
+    // A room transfer (KS-64) is still its own card — this records how a
+    // tenancy ended, not what it continues into.
+    await repository.updateLease(lease.id, {
+      endDate: dateFromInput(endDateValue),
+      endReason: (endReasonValue || null) as LeaseEndReason | null,
+    });
     return Astro.redirect(roomHref, 303);
   } catch (cause) {
+    // Includes the store's refusal of a reason with no end date — a lease
+    // cannot have ended a particular way and still be running. Surfaced
+    // rather than re-checked here, so the rule keeps living in one place.
     error = cause instanceof Error ? cause.message : String(cause);
   }
 }
+
+const END_REASONS: readonly LeaseEndReason[] = ['normal', 'absconded'];
 ---
 
 <ConsoleFrame title="สิ้นสุดสัญญาเช่า" activeSection="rooms">
@@ -73,12 +83,32 @@ if (Astro.request.method === 'POST') {
           hint="เว้นว่างไว้ ถ้าต้องการยกเลิกวันสิ้นสุดและให้สัญญาเดินต่อ"
         />
 
+        <FormField name="endReason" label="สาเหตุที่สิ้นสุด" span="half">
+          <select
+            id="endReason"
+            name="endReason"
+            class="rounded border border-console-sunk bg-console-card px-3 py-2 text-console-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
+          >
+            <option value="" selected={endReasonValue === ''}>ไม่ระบุ</option>
+            {
+              END_REASONS.map((reason) => (
+                <option value={reason} selected={reason === endReasonValue}>
+                  {endReasonLabel(reason)}
+                </option>
+              ))
+            }
+          </select>
+        </FormField>
+
         <FormActions submitLabel="บันทึก" cancelHref={roomHref} />
       </form>
 
       <p class="mt-3 text-xs text-console-ink-faint">
         การบันทึกวันสิ้นสุดไม่ได้ลบสัญญา ประวัติยังอยู่ครบ —
-        ส่วนสาเหตุที่ออกและการย้ายห้องจะมาทีหลัง
+        ส่วนการย้ายห้องจะมาทีหลัง
+      </p>
+      <p class="mt-1 text-xs text-console-ink-faint">
+        ถ้าระบุสาเหตุ ต้องมีวันสิ้นสุดด้วย — สัญญาที่ยังเดินอยู่จะสิ้นสุดด้วยสาเหตุใดไม่ได้
       </p>
     </DetailSection>
   </DetailSheet>
