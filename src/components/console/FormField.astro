@@ -1,0 +1,86 @@
+---
+// src/components/console/FormField.astro
+interface Props {
+  name: string;
+  label: string;
+  type?: 'text' | 'number' | 'date' | 'tel';
+  value?: string | number | null;
+  required?: boolean;
+  /** Standing guidance — what to put here. Always shown. */
+  hint?: string;
+  /** What went wrong this time. Replaces nothing; sits below the input. */
+  error?: string;
+  autofocus?: boolean;
+  inputmode?: 'text' | 'numeric' | 'tel';
+  min?: number;
+  max?: number;
+  step?: number;
+  maxlength?: number;
+  /** Width in the grid: a postcode does not need the same room as an address. */
+  span?: 'full' | 'half';
+}
+
+const {
+  name,
+  label,
+  type = 'text',
+  value,
+  required = false,
+  hint,
+  error,
+  autofocus = false,
+  inputmode,
+  min,
+  max,
+  step,
+  maxlength,
+  span = 'full',
+} = Astro.props;
+
+const hintId = hint ? `${name}-hint` : undefined;
+const errorId = error ? `${name}-error` : undefined;
+// Both, when both exist — a screen reader should get the standing guidance
+// and the thing that just went wrong, not a choice between them.
+const describedBy = [hintId, errorId].filter(Boolean).join(' ') || undefined;
+
+// A select or textarea is passed in rather than described by props; the prop
+// list needed to cover every control would be longer than the markup it saves.
+const hasControl = Astro.slots.has('default');
+---
+
+<div class:list={['flex flex-col gap-1', span === 'half' ? 'sm:col-span-1' : 'sm:col-span-2']}>
+  <label class="text-sm text-console-ink-soft" for={name}>
+    {label}
+    {required && <span class="text-console-crit" aria-hidden="true">*</span>}
+  </label>
+
+  {
+    hasControl ? (
+      <slot />
+    ) : (
+      <input
+        id={name}
+        name={name}
+        type={type}
+        value={value ?? ''}
+        required={required}
+        autofocus={autofocus}
+        inputmode={inputmode}
+        min={min}
+        max={max}
+        step={step}
+        maxlength={maxlength}
+        aria-describedby={describedBy}
+        aria-invalid={error ? 'true' : undefined}
+        class:list={[
+          'rounded border bg-console-card px-3 py-2 text-console-ink',
+          'focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule',
+          error ? 'border-console-crit' : 'border-console-sunk',
+        ]}
+      />
+    )
+  }
+
+  {hint && <p id={hintId} class="text-xs text-console-ink-faint">{hint}</p>}
+  {error && <p id={errorId} class="text-xs text-console-crit">{error}</p>}
+</div>

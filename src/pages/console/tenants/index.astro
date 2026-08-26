@@ -3,6 +3,7 @@
 import ConsoleFrame from '@/components/console/ConsoleFrame.astro';
 import LedgerTable from '@/components/console/LedgerTable.astro';
 import { TENANT_COLUMNS, toTenantGroups } from '@/lib/console/tenant-ledger';
+import { consolePath } from '@/lib/console/paths';
 import { getTenantRepository } from '@/lib/repositories';
 
 const tenants = await getTenantRepository(Astro.locals.runtime?.env).listTenants();
@@ -10,6 +11,14 @@ const groups = toTenantGroups(tenants);
 ---
 
 <ConsoleFrame title="ผู้เช่า" activeSection="tenants">
+  <p class="mb-4">
+    <a
+      href={consolePath('console/tenants/new')}
+      class="rounded bg-console-ink px-3 py-1.5 text-sm text-console-card hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
+      >เพิ่มผู้เช่า</a
+    >
+  </p>
+
   {
     groups.length > 0 ? (
       <LedgerTable columns={TENANT_COLUMNS} groups={groups} />

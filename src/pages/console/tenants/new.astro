@@ -1,0 +1,54 @@
+---
+// src/pages/console/tenants/new.astro
+import ConsoleFrame from '@/components/console/ConsoleFrame.astro';
+import DetailSheet from '@/components/console/DetailSheet.astro';
+import DetailSection from '@/components/console/DetailSection.astro';
+import TenantForm from '@/components/console/TenantForm.astro';
+import { consolePath } from '@/lib/console/paths';
+import { tenantDraftFromForm } from '@/lib/console/tenant-form';
+import { getTenantRepository } from '@/lib/repositories';
+import type { TenantDraft } from '@/lib/repositories/tenant-repository';
+
+const env = Astro.locals.runtime?.env;
+const listHref = consolePath('console/tenants');
+
+let error: string | null = null;
+let values: TenantDraft | null = null;
+
+if (Astro.request.method === 'POST') {
+  values = tenantDraftFromForm(await Astro.request.formData());
+
+  try {
+    const tenant = await getTenantRepository(env).createTenant(values);
+    // POST-redirect-GET, so a refresh on the new tenant's page cannot
+    // create a second one.
+    //
+    // `astro check` reports `tenant` as unused (ts 6133). It is a false
+    // positive of the same kind as the one in console/index.astro —
+    // TypeScript's analysis stops at a frontmatter `return`, so it does not
+    // see the line below. Don't "fix" it by deleting the binding.
+    return Astro.redirect(consolePath(`console/tenants/${tenant.id}`), 303);
+  } catch (cause) {
+    // The store validated this against the read path's own parser and
+    // refused it. Its message names the field and why — repeat it rather
+    // than replacing it with something vaguer.
+    error = cause instanceof Error ? cause.message : String(cause);
+  }
+}
+---
+
+<ConsoleFrame title="เพิ่มผู้เช่า" activeSection="tenants">
+  <DetailSheet title="เพิ่มผู้เช่า" meta="ข้อมูลผู้เช่า">
+    <DetailSection heading="ข้อมูลผู้เช่า">
+      <TenantForm values={values} error={error} submitLabel="บันทึก" cancelHref={listHref} />
+    </DetailSection>
+  </DetailSheet>
+
+  <p class="mt-4 mb-0 leading-none text-console-ink-soft">
+    <a
+      href={listHref}
+      class="text-sm underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
+      >← กลับไปรายชื่อผู้เช่า</a
+    >
+  </p>
+</ConsoleFrame>

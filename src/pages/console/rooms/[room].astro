@@ -68,6 +68,7 @@ const APPLIANCES = [
 
     <LeaseSection
       leases={leases}
+      addHref={consolePath(`console/leases/new?room=${room.id}`)}
       counterpartLabel="ผู้เช่า"
       counterpartFor={(lease) => tenantNameById.get(lease.tenantId) ?? lease.tenantId}
       emptyMessage="ยังไม่มีสัญญาเช่าสำหรับห้องนี้"

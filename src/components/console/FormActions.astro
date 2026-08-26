@@ -1,0 +1,28 @@
+---
+// src/components/console/FormActions.astro
+interface Props {
+  submitLabel: string;
+  cancelHref: string;
+  cancelLabel?: string;
+}
+
+const { submitLabel, cancelHref, cancelLabel = 'ยกเลิก' } = Astro.props;
+---
+
+<div class="mt-2 flex items-center gap-3 sm:col-span-2">
+  <button
+    type="submit"
+    class="rounded bg-console-ink px-4 py-2 text-sm text-console-card hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
+  >
+    {submitLabel}
+  </button>
+
+  <!-- A link, not a reset: cancelling means leaving, not blanking the form
+       and sitting on it. -->
+  <a
+    href={cancelHref}
+    class="text-sm text-console-ink-soft underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
+  >
+    {cancelLabel}
+  </a>
+</div>
