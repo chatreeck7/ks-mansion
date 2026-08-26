@@ -158,6 +158,21 @@ demanding a value there rejects legitimate tenants; but leaving them
 unverified means a header typo (`occupatoin`) reads as empty for every tenant,
 forever, silently. Both lists close both holes.
 
+### Tab names are matched case-insensitively
+
+The headings below are lowercase — `rooms`, `meter_readings` — and so are the
+`TAB_NAME` constants in each repository. **The tabs in `KS_Mansion_DB` are
+capitalised**: `Rooms`, `Tenants`, `Leases`, `Meter_Readings`, `Bills`.
+
+That is not a mismatch waiting to break. A Sheets A1 range resolves a tab name
+without regard to case, so `rooms` finds `Rooms`, and this has been true of
+every read the console has ever done against the live sheet.
+
+Worth stating plainly because it looks like a bug the first time you notice it,
+and the tempting "fix" — renaming the constants to match the sheet — would tie
+the code to a display choice an admin is free to change. Column names are the
+contract; the tab's capitalisation is not.
+
 ### `rooms`
 
 ```
