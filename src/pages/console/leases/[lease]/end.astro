@@ -6,8 +6,13 @@ import DetailSection from '@/components/console/DetailSection.astro';
 import ErrorSummary from '@/components/console/ErrorSummary.astro';
 import FormActions from '@/components/console/FormActions.astro';
 import FormField from '@/components/console/FormField.astro';
-import { endReasonLabel, type LeaseEndReason } from '@/lib/models/lease';
-import { formatThaiDate } from '@/lib/format/thai';
+import {
+  endReasonLabel,
+  settleDeposit,
+  settlementLabel,
+  type LeaseEndReason,
+} from '@/lib/models/lease';
+import { formatBaht, formatThaiDate } from '@/lib/format/thai';
 import { displayName } from '@/lib/models/tenant';
 import { consolePath } from '@/lib/console/paths';
 import { dateFromInput, dateToInput, optionalNumberField } from '@/lib/console/lease-form';
@@ -31,15 +36,26 @@ const roomHref = consolePath(`console/rooms/${lease.roomId}`);
 let error: string | null = null;
 let endDateValue = dateToInput(lease.endDate);
 let endReasonValue: string = lease.endReason ?? '';
-let moveOutDueValue: string = lease.moveOutDue === null ? '' : String(lease.moveOutDue);
 let moveOutPaidValue: string = lease.moveOutPaid === null ? '' : String(lease.moveOutPaid);
+// What the tenant owes: damage plus unpaid bills, as one figure. Not stored —
+// only the settlement it produces is (AC-2.5). KS-21 will eventually supply
+// the unpaid half, and `settleDeposit` will not need to change when it does.
+let owedValue = '';
+// The settlement already on file, so revisiting the screen shows the outcome
+// rather than an empty form that looks like nothing was ever settled.
+let settledAmount: number | null = lease.moveOutDue;
 
 if (Astro.request.method === 'POST') {
   const form = await Astro.request.formData();
   endDateValue = String(form.get('endDate') ?? '').trim();
   endReasonValue = String(form.get('endReason') ?? '').trim();
-  moveOutDueValue = String(form.get('moveOutDue') ?? '').trim();
+  owedValue = String(form.get('owed') ?? '').trim();
   moveOutPaidValue = String(form.get('moveOutPaid') ?? '').trim();
+
+  // Blank owed leaves the settlement alone rather than computing against zero,
+  // which would read as "the whole deposit is refundable" on a screen someone
+  // opened only to fix a date.
+  if (owedValue !== '') settledAmount = settleDeposit(lease.deposit, Number(owedValue)).amount;
 
   try {
     // A room transfer (KS-64) is still its own card — this records how a
@@ -47,7 +63,7 @@ if (Astro.request.method === 'POST') {
     await repository.updateLease(lease.id, {
       endDate: dateFromInput(endDateValue),
       endReason: (endReasonValue || null) as LeaseEndReason | null,
-      moveOutDue: optionalNumberField(form, 'moveOutDue'),
+      moveOutDue: settledAmount,
       moveOutPaid: optionalNumberField(form, 'moveOutPaid'),
     });
     return Astro.redirect(roomHref, 303);
@@ -108,17 +124,39 @@ const END_REASONS: readonly LeaseEndReason[] = ['normal', 'absconded'];
 
         <div class="sm:col-span-2">
           <h3 class="mb-2 font-figure text-xs font-semibold text-console-rule">
-            ยอดวันย้ายออก
+            หักเงินประกัน
           </h3>
+
+          <dl class="mb-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+            <dt class="text-console-ink-faint">เงินประกันที่ถือไว้</dt>
+            <dd class="m-0 font-figure">{formatBaht(lease.deposit)}</dd>
+            {
+              settledAmount !== null && (
+                <Fragment>
+                  <dt class="text-console-ink-faint">ผลหักล้างที่บันทึกไว้</dt>
+                  <dd
+                    class:list={[
+                      'm-0 font-figure',
+                      settledAmount > 0 ? 'text-console-crit' : 'text-console-ok',
+                    ]}
+                  >
+                    {settlementLabel(settledAmount)}
+                  </dd>
+                </Fragment>
+              )
+            }
+          </dl>
+
           <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <FormField
-              name="moveOutDue"
-              label="ยอดจ่าย"
+              name="owed"
+              label="ยอดที่ค้างทั้งหมด"
               type="number"
-              value={moveOutDueValue}
+              value={owedValue}
               span="half"
+              min={0}
               inputmode="numeric"
-              hint="ติดลบ = คืนเงินประกัน · บวก = ผู้เช่ายังค้างอยู่"
+              hint="ค่าเสียหาย + ค่าเช่าค้าง รวมเป็นยอดเดียว — คอนโซลจะหักกับเงินประกันให้เอง"
             />
             <FormField
               name="moveOutPaid"
@@ -130,6 +168,11 @@ const END_REASONS: readonly LeaseEndReason[] = ['normal', 'absconded'];
               hint="ใส่ 0 ถ้าเรียกเก็บแล้วไม่ได้รับ — ต่างจากเว้นว่างที่แปลว่ายังไม่ได้บันทึก"
             />
           </div>
+
+          <p class="mt-2 text-xs text-console-ink-faint">
+            ค้างมากกว่าเงินประกัน → <strong>เก็บเพิ่ม</strong> (ยึดเงินประกันทั้งหมด) ·
+            ค้างน้อยกว่า → <strong>คืน</strong> ส่วนที่เหลือ
+          </p>
         </div>
 
         <FormActions submitLabel="บันทึก" cancelHref={roomHref} />

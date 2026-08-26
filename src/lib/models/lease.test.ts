@@ -5,6 +5,8 @@ import {
   activeLeaseFor,
   endReasonLabel,
   leaseTermLabel,
+  settleDeposit,
+  settlementLabel,
   waterChargeFor,
   WATER_RATE_PER_OCCUPANT,
   type Lease,
@@ -127,5 +129,53 @@ describe('previousLeaseId', () => {
     });
     expect(transfer.previousLeaseId).toBe('l-002');
     expect(first.previousLeaseId).toBeNull();
+  });
+});
+
+/**
+ * AC-2.5, and the reason this card sat blocked for two days: getting the sign
+ * backwards tells the owner to refund money to people who owe it, and a number
+ * with the wrong sign still looks like a number. Owner confirmed 2026-08-27.
+ */
+describe('settleDeposit', () => {
+  it('reports what the tenant still owes when damage exceeds the deposit', () => {
+    expect(settleDeposit(5000, 6000)).toEqual({ amount: 1000, outcome: 'owes' });
+  });
+
+  it('reports a refund when the deposit more than covers what is owed', () => {
+    expect(settleDeposit(5000, 3000)).toEqual({ amount: -2000, outcome: 'refund' });
+  });
+
+  it('reports neither when they cancel out exactly', () => {
+    expect(settleDeposit(5000, 5000)).toEqual({ amount: 0, outcome: 'settled' });
+  });
+
+  /**
+   * The ห้อง 310 หนี row: `ยอดจ่าย +1,894` against a blank `จ่ายจริง`. Nobody
+   * refunds a tenant who fled, so a positive figure has to mean money owed —
+   * which is what pinned the convention.
+   */
+  it('gives the absconded case a positive amount, never a refund', () => {
+    const { amount, outcome } = settleDeposit(3000, 4894);
+    expect(amount).toBe(1894);
+    expect(outcome).toBe('owes');
+  });
+
+  it('treats an undamaged move-out as a full refund of the deposit', () => {
+    expect(settleDeposit(5000, 0)).toEqual({ amount: -5000, outcome: 'refund' });
+  });
+});
+
+describe('settlementLabel', () => {
+  it('says which direction the money moves, not just a signed number', () => {
+    expect(settlementLabel(1894)).toContain('เก็บเพิ่ม');
+    expect(settlementLabel(-1244)).toContain('คืน');
+    expect(settlementLabel(0)).toContain('พอดี');
+  });
+
+  /** A refund reads as a positive quantity of money going the other way. */
+  it('drops the minus sign when describing a refund', () => {
+    expect(settlementLabel(-1244)).toBe('คืน 1,244');
+    expect(settlementLabel(-1244)).not.toContain('-');
   });
 });

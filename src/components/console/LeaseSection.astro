@@ -3,7 +3,13 @@
 // Shared by the room and tenant detail screens: the same lease facts, with
 // the counterpart column swapped depending on which side you arrived from.
 import DetailSection from './DetailSection.astro';
-import { activeLeaseFor, endReasonLabel, leaseTermLabel, type Lease } from '@/lib/models/lease';
+import {
+  activeLeaseFor,
+  endReasonLabel,
+  leaseTermLabel,
+  settlementLabel,
+  type Lease,
+} from '@/lib/models/lease';
 import { formatBaht } from '@/lib/format/thai';
 import { consolePath } from '@/lib/console/paths';
 
@@ -113,9 +119,7 @@ const history = [...leases].sort((a, b) => b.startDate.getTime() - a.startDate.g
                   <dt class="text-console-ink-faint">ยอดวันออก</dt>
                   <dd class="m-0 font-figure">
                     <span class:list={[lease.moveOutDue < 0 ? 'text-console-ok' : 'text-console-crit']}>
-                      {lease.moveOutDue < 0
-                        ? `คืน ${formatBaht(Math.abs(lease.moveOutDue))}`
-                        : `เก็บเพิ่ม ${formatBaht(lease.moveOutDue)}`}
+                      {settlementLabel(lease.moveOutDue)}
                     </span>
                     {lease.moveOutPaid !== null && lease.moveOutPaid !== lease.moveOutDue && (
                       <span class="text-console-warn"> · จ่ายจริง {formatBaht(lease.moveOutPaid)}</span>
