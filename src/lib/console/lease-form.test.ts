@@ -89,13 +89,31 @@ describe('leaseDraftFromForm', () => {
    * starts with either set would be shipping half of a card that has its own
    * decisions still to make.
    */
-  it('never sets an end reason or a previous lease on create', () => {
+  it('never sets an end reason on create — a new lease has not ended', () => {
     const draft = leaseDraftFromForm(
-      formOf({ startDate: '2026-03-01', endReason: 'absconded', previousLeaseId: 'l-001' }),
+      formOf({ startDate: '2026-03-01', endReason: 'absconded' }),
     );
 
     expect(draft.endReason).toBeNull();
-    expect(draft.previousLeaseId).toBeNull();
+  });
+
+  /**
+   * ย้ายห้อง (KS-64). Without the link, one tenancy across two rooms
+   * reads as two short ones and the AC-5.2 stay-length analytics are wrong.
+   */
+  it('carries a room transfer link when one is chosen', () => {
+    const draft = leaseDraftFromForm(
+      formOf({ startDate: '2026-03-01', previousLeaseId: 'l-002' }),
+    );
+
+    expect(draft.previousLeaseId).toBe('l-002');
+  });
+
+  it('leaves the transfer link null for an ordinary new tenancy', () => {
+    expect(leaseDraftFromForm(formOf({ startDate: '2026-03-01' })).previousLeaseId).toBeNull();
+    expect(
+      leaseDraftFromForm(formOf({ startDate: '2026-03-01', previousLeaseId: '' })).previousLeaseId,
+    ).toBeNull();
   });
 
   it('reads a blank money field as zero rather than NaN', () => {

@@ -61,9 +61,11 @@ export function leaseDraftFromForm(form: FormData): LeaseDraft {
     deposit: numberField(form, 'deposit'),
     advanceRent: numberField(form, 'advanceRent'),
     occupantCount: numberField(form, 'occupantCount'),
-    // KS-63 and KS-64 own these. A lease starts with neither: it has not
-    // ended, and creating one is not a room transfer.
+    // A new lease has not ended, so it has no reason — that is KS-63's, set
+    // on the end screen where an end date exists to go with it.
     endReason: null,
-    previousLeaseId: null,
+    // ย้ายห้อง (KS-64): the tenancy this one continues. Blank is the normal
+    // case — most leases start fresh rather than continuing one.
+    previousLeaseId: text('previousLeaseId') || null,
   };
 }

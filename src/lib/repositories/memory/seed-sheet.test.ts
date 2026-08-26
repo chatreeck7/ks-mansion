@@ -165,6 +165,23 @@ describe('the seed store refuses what Sheets would refuse', () => {
     );
   });
 
+  /**
+   * KS-63's success path. `( หนี )` appears dozens of times across 13 years of
+   * บัญชีแจ้งคนเข้า-ออก — a normal outcome here, not an edge case — so the
+   * pairing of a reason with its date has to work, not merely fail safely.
+   */
+  it('accepts an end reason when it comes with an end date', async () => {
+    const { leases } = repositories();
+
+    const ended = await leases.updateLease('l-001', {
+      endDate: new Date(2026, 8, 30),
+      endReason: 'absconded',
+    });
+
+    expect(ended.endReason).toBe('absconded');
+    expect(await leases.getLease('l-001')).toMatchObject({ endReason: 'absconded' });
+  });
+
   it('still accepts a valid write, so the guard is not simply refusing everything', async () => {
     const { tenants } = repositories();
 

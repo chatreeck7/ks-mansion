@@ -6,6 +6,7 @@ import DetailSection from '@/components/console/DetailSection.astro';
 import ErrorSummary from '@/components/console/ErrorSummary.astro';
 import FormActions from '@/components/console/FormActions.astro';
 import FormField from '@/components/console/FormField.astro';
+import { formatThaiDate } from '@/lib/format/thai';
 import { displayName } from '@/lib/models/tenant';
 import { consolePath } from '@/lib/console/paths';
 import { dateToInput, leaseDraftFromForm } from '@/lib/console/lease-form';
@@ -14,10 +15,33 @@ import type { LeaseDraft } from '@/lib/repositories/lease-repository';
 
 const env = Astro.locals.runtime?.env;
 
-const [rooms, tenants] = await Promise.all([
+const [rooms, tenants, leases] = await Promise.all([
   getRoomRepository(env).listRooms(),
   getTenantRepository(env).listTenants(),
+  getLeaseRepository(env).listLeases(),
 ]);
+
+/**
+ * Candidates for ย้ายห้อง (KS-64): tenancies that have ended.
+ *
+ * Deliberately not filtered to the selected tenant — without client JS the
+ * list cannot react to that select, and the row parser cannot check it either
+ * (it sees one row, so it cannot know whose lease the other id belongs to).
+ * So each option carries its tenant and room instead, which makes a wrong
+ * pick visible rather than silently linking two different people's tenancies.
+ */
+const roomLabelById = new Map(rooms.map((r) => [r.id, r.label]));
+const tenantNameById = new Map(tenants.map((t) => [t.id, displayName(t)]));
+const transferable = leases
+  .filter((lease) => lease.endDate !== null)
+  .sort((a, b) => b.startDate.getTime() - a.startDate.getTime());
+
+function transferLabel(lease: (typeof transferable)[number]): string {
+  const room = roomLabelById.get(lease.roomId) ?? lease.roomId;
+  const who = tenantNameById.get(lease.tenantId) ?? lease.tenantId;
+  const until = lease.endDate ? formatThaiDate(lease.endDate) : '';
+  return `ห้อง ${room} · ${who} · ถึง ${until}`;
+}
 
 // Prefilled when arriving from a room or a tenant, so the common path — "add
 // a lease for *this* room" — does not start by hunting through a long list.
@@ -58,6 +82,7 @@ const v = {
   deposit: values?.deposit ?? '',
   advanceRent: values?.advanceRent ?? '',
   occupantCount: values?.occupantCount ?? 1,
+  previousLeaseId: values?.previousLeaseId ?? '',
 };
 
 const CONTROL_CLASS =
@@ -155,6 +180,25 @@ const CONTROL_CLASS =
           min={0}
           inputmode="numeric"
         />
+
+        {
+          transferable.length > 0 && (
+            <FormField
+              name="previousLeaseId"
+              label="ย้ายมาจากสัญญาเดิม"
+              hint="เว้นว่างถ้าเป็นผู้เช่าใหม่ — ใช้เมื่อผู้เช่าเดิมย้ายห้อง เพื่อให้นับเป็นการเช่าต่อเนื่องครั้งเดียว"
+            >
+              <select id="previousLeaseId" name="previousLeaseId" class={CONTROL_CLASS}>
+                <option value="">— ไม่ใช่การย้ายห้อง —</option>
+                {transferable.map((lease) => (
+                  <option value={lease.id} selected={lease.id === v.previousLeaseId}>
+                    {transferLabel(lease)}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+          )
+        }
 
         <FormActions submitLabel="บันทึกสัญญา" cancelHref={cancelHref} />
       </form>

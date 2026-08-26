@@ -258,6 +258,57 @@ Identity: `id`, `room_id`, `tenant_id`, `start_date`.
   necessarily the room's current rate. Billing must read the lease, or a rate
   change would silently re-price every sitting tenant.
 
+### `meter_readings`
+
+```
+id, room_id, meter_type, read_date, previous_reading,
+current_reading, rate_per_unit, note, archived
+```
+
+Identity: `id`, `room_id`, `meter_type`, `read_date`.
+
+**Append-only (rule 6).** A correction is a new row, never an edit to an old
+one — these are history, and a bill already issued must stay reconstructable
+from what was true when it was issued.
+
+- **`meter_type`** is `electricity` or `water`. It exists because **ร้านซักผ้า
+  has two meters**: the source file encodes the pair inline as `4215//786` →
+  `4343//816` at `5//15` บาท/หน่วย. Two typed rows per cycle says the same thing
+  without a `//` convention every reader has to learn.
+- **`rate_per_unit` is stored per reading, not configured globally.** The 2553
+  archive shows ฿6/unit for rooms and ฿5 / ฿15 for the laundry's two meters.
+  Rates change, and a bill from two years ago has to reconstruct the rate it was
+  charged at — not the rate in force today.
+- **Units are derived, never stored.** `current_reading − previous_reading`. A
+  stored copy is a second place for the arithmetic to disagree with itself, and
+  the sheet is hand-edited.
+- `read_date` is Thai Buddhist-era text in a **plain-text** column, same as the
+  lease dates and for the same reason.
+
+### `bills`
+
+```
+id, room_id, lease_id, cycle, issue_date, due_date,
+rent_amount, electricity_amount, water_amount, total_amount,
+arrears_note, archived
+```
+
+Identity: `id`, `room_id`, `cycle`.
+
+**Append-only (rule 6).** A corrected bill is a new row.
+
+- **`room_id` is required; `lease_id` is optional.** A room in `แจ้งออก` still
+  bills utilities with no rent (see `chargesRent`), and a common space may be
+  billed with no tenancy behind it at all. Requiring a lease would make those
+  unrepresentable.
+- **`cycle`** names the billing month. KS-20 owns the actual rule — read
+  25th–26th, issue 26th, due 10th — and this column is what it writes.
+- **`arrears_note`** is KS-22's manual annotation. Free text, never auto-flagged:
+  ค้าง is something an admin asserts, not something the console infers.
+- **Payments are deliberately not here.** Recording a payment against a bill row
+  would be an edit to append-only history. KS-23 should get its own `payments`
+  tab; that is that card's decision to make, not this schema's to pre-empt.
+
 ## Pending sheet migration
 
 The code on this branch reads the headers above. `KS_Mansion_DB` does not

@@ -75,7 +75,15 @@ const APPLIANCES = [
     />
   </DetailSheet>
 
-  <p class="mt-4 mb-0 leading-none text-console-ink-soft">
+  <p class="mt-4 mb-2 leading-none">
+    <a
+      href={consolePath(`console/rooms/${room.id}/edit`)}
+      class="text-sm text-console-ink underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
+      >แก้ไขข้อมูลห้อง</a
+    >
+  </p>
+
+  <p class="mt-0 mb-0 leading-none text-console-ink-soft">
     <a
       href={consolePath('console/rooms')}
       class="text-sm underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
