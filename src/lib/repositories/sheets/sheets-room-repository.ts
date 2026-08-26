@@ -14,6 +14,7 @@ import {
   SheetRowError,
   type Tab,
   type TabContract,
+  type TabDescriptor,
 } from './tab-reader';
 import type { RowValues } from './tab-writer';
 
@@ -131,6 +132,9 @@ function toRowValues(fields: Partial<RoomEdit>): RowValues {
 }
 
 /** No `idPrefix`: rooms are edited, never created. See `RoomEdit`. */
+/** The `rooms` tab and its contract, for the health page to inspect. */
+export const ROOMS_TAB: TabDescriptor = { tabName: TAB_NAME, contract: CONTRACT };
+
 const SPEC: EntitySpec<Room, RoomEdit> = {
   tabName: TAB_NAME,
   contract: CONTRACT,

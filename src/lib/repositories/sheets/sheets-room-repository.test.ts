@@ -182,9 +182,17 @@ describe('createSheetsRoomRepository', () => {
   });
 
   describe('validation — catching the corruption KS-53 documented', () => {
-    it('throws when the header is missing a required column', async () => {
+    /**
+     * Every missing name at once, not just the first. Reporting one at a time
+     * turns a short header into one fix-and-recheck round per column, and
+     * each round is a person going back to a spreadsheet.
+     */
+    it('names every missing column, not only the first', async () => {
       const client = createInMemorySheets({ rooms: [['room_number', 'kind'], ['101', 'unit']] });
-      await expect(createSheetsRoomRepository(client).listRooms()).rejects.toThrow(/missing required column "id"/);
+
+      await expect(createSheetsRoomRepository(client).listRooms()).rejects.toThrow(
+        /missing required columns .*"id".*"archived"/,
+      );
     });
 
     it('throws when the header has a duplicate column name', async () => {

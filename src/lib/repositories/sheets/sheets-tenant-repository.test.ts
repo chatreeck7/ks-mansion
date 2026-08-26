@@ -150,10 +150,11 @@ describe('createSheetsTenantRepository', () => {
       );
     });
 
-    it('throws when the header is missing a contracted column', async () => {
+    it('throws when the header is missing contracted columns, naming them all', async () => {
       const bare = createInMemorySheets({ tenants: [['id', 'full_name'], ['t-1', 'สมชาย']] });
+
       await expect(createSheetsTenantRepository(bare).listTenants()).rejects.toThrow(
-        /missing required column "nickname"/,
+        /missing required columns .*"nickname".*"address_postcode".*"archived"/,
       );
     });
 

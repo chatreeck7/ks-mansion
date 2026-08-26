@@ -92,6 +92,44 @@ const onSheets = datastore.backend === 'sheets';
                 {tab.error}
               </p>
             )}
+
+            {/*
+              Rows the tab is not reading. The count alone only helps someone
+              who already knows what to expect — during a migration, nobody
+              does. Only rows that *hold something* are raised; a blank spacer
+              row is normal in a hand-kept sheet and would be noise.
+            */}
+            {tab.rows && tab.rows.ignoredWithContent.length > 0 && (
+              <div
+                role="alert"
+                class="mt-2 bg-console-warn-bg px-3 py-2 text-xs text-console-warn"
+              >
+                <p class="mb-1 font-medium">
+                  มี {tab.rows.ignoredWithContent.length} แถวที่มีข้อมูล แต่คอนโซลมองไม่เห็น
+                </p>
+                <p class="mb-1">
+                  เพราะไม่ได้กรอก <span class="font-figure">{tab.rows.identityColumns.join(' / ')}</span>
+                  — แถวจะถูกข้ามทั้งแถว ไม่มีข้อความเตือน
+                </p>
+                <ul class="m-0 list-none p-0">
+                  {tab.rows.ignoredWithContent.map((skipped) => (
+                    <li class="font-figure">
+                      แถว {skipped.rowNumber} — มีข้อมูลใน {skipped.populated.join(', ')}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {tab.rows && (
+              <p class="mt-1 font-figure text-xs text-console-ink-faint">
+                {tab.rows.dataRows} แถวในชีต
+                {tab.rows.skipped.length > tab.rows.ignoredWithContent.length &&
+                  ` · ข้ามแถวว่าง ${tab.rows.skipped.length - tab.rows.ignoredWithContent.length}`}
+                {tab.rows.unknownColumns.length > 0 &&
+                  ` · คอลัมน์ที่ไม่ได้อ่าน: ${tab.rows.unknownColumns.join(', ')}`}
+              </p>
+            )}
           </li>
         ))
       }
