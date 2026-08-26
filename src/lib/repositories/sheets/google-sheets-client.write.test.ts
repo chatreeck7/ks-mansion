@@ -84,6 +84,17 @@ describe('appendRow', () => {
 
     expect(decodeURIComponent(sheetCalls()[0]!.url)).toContain("/values/'tenants':append");
   });
+
+  // The append counterpart of `updateRow`'s guard below: the API reports
+  // success, and the blank row it leaves reads back as blank and is skipped,
+  // so the caller is told it saved a record that does not exist.
+  it('refuses an empty row rather than appending a blank one', async () => {
+    const { fetchImpl, sheetCalls } = recordingFetch();
+    const client = await clientWith(fetchImpl);
+
+    await expect(client.appendRow('tenants', [])).rejects.toThrow(/empty row/);
+    expect(sheetCalls()).toHaveLength(0);
+  });
 });
 
 describe('updateRow', () => {

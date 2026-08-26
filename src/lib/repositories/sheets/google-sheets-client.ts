@@ -218,6 +218,13 @@ export function createGoogleSheetsClient(options: GoogleSheetsClientOptions): Sh
     },
 
     async appendRow(tabName: string, values: CellValue[]): Promise<void> {
+      if (values.length === 0) {
+        // Same reason as `updateRow`: the API reports success, and the blank
+        // row it leaves reads back as blank and is skipped — so a caller that
+        // built the row wrong gets a record that silently does not exist.
+        throw new Error(`Refusing to append an empty row to tab "${tabName}".`);
+      }
+
       // INSERT_ROWS, not the default OVERWRITE: with OVERWRITE the API writes
       // into whatever it decides is the first empty row after the table,
       // which lands on top of an admin's notes if they left a gap and then
