@@ -1,44 +1,62 @@
-import type { Room, SpaceKind } from '@/lib/models/room';
-import type { RoomRepository } from '../room-repository';
+import { ARCHIVED_COLUMN } from '@/lib/models/archivable';
+import type { Room, RoomStatus, SpaceKind } from '@/lib/models/room';
+import type { RoomEdit, RoomRepository } from '../room-repository';
+import { createSheetsCrud, type EntitySpec } from './sheets-crud';
 import type { SheetsClient } from './sheets-client';
-import { cellValue, readTab, requireCell, SheetRowError, type Tab } from './tab-reader';
+import {
+  booleanCell,
+  cellValue,
+  enumCell,
+  numberCell,
+  nullableBooleanCell,
+  optionalNumberCell,
+  requireCell,
+  SheetRowError,
+  type Tab,
+  type TabContract,
+} from './tab-reader';
+import type { RowValues } from './tab-writer';
 
 const TAB_NAME = 'rooms';
 
-/** Columns every row must resolve to build a Room. `detail` is optional. */
-const REQUIRED_COLUMNS = ['id', 'room_number', 'kind', 'price', 'floor', 'hasMeter'] as const;
+const KINDS: readonly SpaceKind[] = ['unit', 'common'];
+const STATUSES: readonly RoomStatus[] = ['occupied', 'noticeGiven', 'available', 'maintenance'];
+
+/**
+ * `detail` is optional — a unit's `room_number` already is its label — so it
+ * stays out of the identity set while remaining a column the console writes.
+ */
+const CONTRACT: TabContract = {
+  columns: [
+    'id',
+    'room_number',
+    'kind',
+    'status',
+    'rent_rate',
+    'detail',
+    'floor',
+    'hasMeter',
+    'has_tv',
+    'has_fridge',
+    'has_aircon',
+    ARCHIVED_COLUMN,
+  ],
+  identity: [
+    'id',
+    'room_number',
+    'kind',
+    'status',
+    'rent_rate',
+    'floor',
+    'hasMeter',
+    'has_tv',
+    'has_fridge',
+    'has_aircon',
+  ],
+};
 
 const MIN_FLOOR = 0;
 const MAX_FLOOR = 3;
-
-function parseNumber(raw: string, rowNumber: number, column: string): number {
-  const value = Number(raw);
-  if (raw.trim() === '' || !Number.isFinite(value)) {
-    throw new SheetRowError(TAB_NAME, rowNumber, `"${column}" is not a number: "${raw}"`);
-  }
-  return value;
-}
-
-function parseNullableNumber(raw: string, rowNumber: number, column: string): number | null {
-  if (raw === '') return null;
-  return parseNumber(raw, rowNumber, column);
-}
-
-function parseKind(raw: string, rowNumber: number): SpaceKind {
-  if (raw === 'unit' || raw === 'common') return raw;
-  throw new SheetRowError(TAB_NAME, rowNumber, `"kind" must be "unit" or "common", got "${raw}"`);
-}
-
-function parseBoolean(raw: string, rowNumber: number, column: string): boolean {
-  const normalized = raw.toLowerCase();
-  if (normalized === 'true') return true;
-  if (normalized === 'false') return false;
-  throw new SheetRowError(
-    TAB_NAME,
-    rowNumber,
-    `"${column}" must be "true" or "false", got "${raw}"`,
-  );
-}
 
 /**
  * Parses one data row into a Room, per the target header contract in
@@ -51,74 +69,83 @@ function parseRoom(tab: Tab, row: string[], rowNumber: number): Room {
   const id = requireCell(tab, row, rowNumber, 'id');
   const roomNumber = requireCell(tab, row, rowNumber, 'room_number');
 
-  const kind = parseKind(cellValue(tab, row, 'kind'), rowNumber);
-  const rentRate = parseNullableNumber(cellValue(tab, row, 'price'), rowNumber, 'price');
-
-  const floorRaw = cellValue(tab, row, 'floor');
-  const floor = parseNumber(floorRaw, rowNumber, 'floor');
+  const floor = numberCell(tab, row, rowNumber, 'floor');
   if (!Number.isInteger(floor) || floor < MIN_FLOOR || floor > MAX_FLOOR) {
     throw new SheetRowError(
       TAB_NAME,
       rowNumber,
-      `"floor" must be an integer from ${MIN_FLOOR} to ${MAX_FLOOR}, got "${floorRaw}"`,
+      `"floor" must be an integer from ${MIN_FLOOR} to ${MAX_FLOOR}, got "${cellValue(tab, row, 'floor')}"`,
     );
   }
 
-  const hasMeter = parseBoolean(cellValue(tab, row, 'hasMeter'), rowNumber, 'hasMeter');
-
-  // The display name, where room_number is a slug ('laundry' → 'ร้านซักผ้า').
-  const label = cellValue(tab, row, 'detail') || roomNumber;
-
-  return { id, label, floor, kind, rentRate, hasMeter };
+  return {
+    id,
+    // The display name, where room_number is a slug ('laundry' → 'ร้านซักผ้า').
+    label: cellValue(tab, row, 'detail') || roomNumber,
+    floor,
+    kind: enumCell(tab, row, rowNumber, 'kind', KINDS),
+    status: enumCell(tab, row, rowNumber, 'status', STATUSES),
+    // Rent, not a total bill — see the field's doc-comment in models/room.ts.
+    rentRate: optionalNumberCell(tab, row, rowNumber, 'rent_rate'),
+    hasMeter: booleanCell(tab, row, rowNumber, 'hasMeter'),
+    // Blank is "not on file", not "no" — see RoomAppliances. `hasMeter`
+    // above deliberately still rejects a blank: an unrecorded meter drops a
+    // room out of the meter round, where an unrecorded fridge costs nothing
+    // until the month-end report is built.
+    appliances: {
+      tv: nullableBooleanCell(tab, row, rowNumber, 'has_tv'),
+      fridge: nullableBooleanCell(tab, row, rowNumber, 'has_fridge'),
+      aircon: nullableBooleanCell(tab, row, rowNumber, 'has_aircon'),
+    },
+    archived: nullableBooleanCell(tab, row, rowNumber, ARCHIVED_COLUMN) ?? false,
+  };
 }
 
 /**
- * Reads the "rooms" tab per docs/sheet-schema.md: header row resolved by
- * name (never position), a stable id column separate from room_number,
- * validated on read.
+ * The inverse of `parseRoom`, for the fields a room edit may touch.
  *
- * `getRoom` deliberately does not go through `listRooms` — it parses only
- * the one row it needs, so a lookup for a valid room never fails because of
- * an unrelated malformed row elsewhere in the tab. That also means it skips
- * `listRooms`'s whole-tab duplicate-id check; duplicate ids are a
- * tab-integrity concern `listRooms` is responsible for surfacing, not a
- * per-lookup one.
+ * `label` writes to `detail` rather than `room_number`: the room number is
+ * the physical identity the whole registry is keyed to, and letting a rename
+ * change it would silently repoint every lease and meter reading. Renaming
+ * ร้านซักผ้า should change what it is called, not which space it is.
  */
+function toRowValues(fields: Partial<RoomEdit>): RowValues {
+  const values: RowValues = {};
+
+  if (fields.label !== undefined) values['detail'] = fields.label;
+  if (fields.status !== undefined) values['status'] = fields.status;
+  if (fields.hasMeter !== undefined) values['hasMeter'] = fields.hasMeter;
+  // `null` is "no rate on record", which is a blank cell — never 0, which
+  // would assert the space is free.
+  if (fields.rentRate !== undefined) values['rent_rate'] = fields.rentRate ?? '';
+
+  if (fields.appliances !== undefined) {
+    // `null` is "not on file", which is a blank cell — writing the string
+    // "null" would read back as a corrupted boolean and fail the whole tab.
+    values['has_tv'] = fields.appliances.tv ?? '';
+    values['has_fridge'] = fields.appliances.fridge ?? '';
+    values['has_aircon'] = fields.appliances.aircon ?? '';
+  }
+
+  return values;
+}
+
+/** No `idPrefix`: rooms are edited, never created. See `RoomEdit`. */
+const SPEC: EntitySpec<Room, RoomEdit> = {
+  tabName: TAB_NAME,
+  contract: CONTRACT,
+  label: 'room',
+  parse: parseRoom,
+  toRowValues,
+};
+
 export function createSheetsRoomRepository(client: SheetsClient): RoomRepository {
+  const crud = createSheetsCrud(client, SPEC);
+
   return {
-    async listRooms(): Promise<Room[]> {
-      const tab = await readTab(client, TAB_NAME, REQUIRED_COLUMNS);
-
-      const rooms: Room[] = [];
-      const rowNumberById = new Map<string, number>();
-      tab.dataRows.forEach((row, i) => {
-        const rowNumber = i + 2; // +2: 1-indexed, plus the header row
-        if (tab.isBlankRow(row)) return;
-
-        const room = parseRoom(tab, row, rowNumber);
-        const previousRow = rowNumberById.get(room.id);
-        if (previousRow !== undefined) {
-          throw new SheetRowError(
-            TAB_NAME,
-            rowNumber,
-            `duplicate id "${room.id}", already used on row ${previousRow}`,
-          );
-        }
-        rowNumberById.set(room.id, rowNumber);
-        rooms.push(room);
-      });
-
-      return rooms;
-    },
-
-    async getRoom(id: string): Promise<Room | null> {
-      const tab = await readTab(client, TAB_NAME, REQUIRED_COLUMNS);
-
-      const match = tab.dataRows
-        .map((row, i) => ({ row, rowNumber: i + 2 }))
-        .find(({ row }) => !tab.isBlankRow(row) && cellValue(tab, row, 'id') === id);
-
-      return match ? parseRoom(tab, match.row, match.rowNumber) : null;
-    },
+    listRooms: crud.list,
+    getRoom: crud.get,
+    updateRoom: crud.update,
+    archiveRoom: crud.archive,
   };
 }

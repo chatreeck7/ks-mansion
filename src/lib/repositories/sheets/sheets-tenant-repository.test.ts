@@ -1,11 +1,16 @@
 import { describe, expect, it } from 'vitest';
+import { createFakeSheets } from '@/lib/test-support/fake-sheets';
 import { createSheetsTenantRepository } from './sheets-tenant-repository';
-import type { SheetsClient } from './sheets-client';
 
-const HEADER = ['id', 'full_name', 'nickname', 'id_card_last4', 'address', 'phone'];
+const HEADER = [
+  'id', 'full_name', 'nickname', 'id_card_last4', 'phone',
+  'occupation', 'evaluation_grade', 'note',
+  'address_house_no', 'address_road', 'address_subdistrict',
+  'address_district', 'address_province', 'address_postcode', 'archived',
+];
 
-function client(rows: string[][]): SheetsClient {
-  return { async getTabValues() { return [HEADER, ...rows]; } };
+function client(rows: string[][]) {
+  return createFakeSheets({ tenants: [HEADER, ...rows] });
 }
 
 function row(overrides: Partial<Record<string, string>> = {}): string[] {
@@ -14,8 +19,17 @@ function row(overrides: Partial<Record<string, string>> = {}): string[] {
     full_name: 'สมชาย ใจดี',
     nickname: 'ชาย',
     id_card_last4: '1234',
-    address: '99 หมู่ 4 ต.ในเมือง',
     phone: '081-234-5678',
+    occupation: 'ราชภัฏ/7-11',
+    evaluation_grade: 'A',
+    note: '(เลี้ยงแมว)',
+    address_house_no: '99/1',
+    address_road: 'มิตรภาพ',
+    address_subdistrict: 'ในเมือง',
+    address_district: 'เมือง',
+    address_province: 'ขอนแก่น',
+    address_postcode: '40000',
+    archived: 'FALSE',
   };
   const merged: Record<string, string | undefined> = { ...defaults, ...overrides };
   return HEADER.map((c) => merged[c] ?? '');
@@ -25,16 +39,27 @@ describe('createSheetsTenantRepository', () => {
   it('parses a well-formed row', async () => {
     const [tenant] = await createSheetsTenantRepository(client([row()])).listTenants();
     expect(tenant).toEqual({
+      archived: false,
       id: 't-001',
       fullName: 'สมชาย ใจดี',
       nickname: 'ชาย',
       idCardLast4: '1234',
-      address: '99 หมู่ 4 ต.ในเมือง',
       phone: '081-234-5678',
+      occupation: 'ราชภัฏ/7-11',
+      evaluationGrade: 'A',
+      note: '(เลี้ยงแมว)',
+      address: {
+        houseNo: '99/1',
+        road: 'มิตรภาพ',
+        subdistrict: 'ในเมือง',
+        district: 'เมือง',
+        province: 'ขอนแก่น',
+        postcode: '40000',
+      },
     });
   });
 
-  it('allows a blank nickname — it is optional, unlike the rest', async () => {
+  it('allows a blank nickname — it is optional, unlike the name', async () => {
     const [tenant] = await createSheetsTenantRepository(client([row({ nickname: '' })])).listTenants();
     expect(tenant?.nickname).toBe('');
   });
@@ -44,6 +69,36 @@ describe('createSheetsTenantRepository', () => {
       client([row({ id_card_last4: '' })]),
     ).listTenants();
     expect(tenant?.idCardLast4).toBe('');
+  });
+
+  // Most tenants give a house number and little else. A sparse address is
+  // the normal case, so it must read as a partial record rather than fail.
+  it('reads a partly-filled address without inventing the missing parts', async () => {
+    const [tenant] = await createSheetsTenantRepository(
+      client([
+        row({
+          address_road: '',
+          address_subdistrict: '',
+          address_district: '',
+          address_postcode: '',
+        }),
+      ]),
+    ).listTenants();
+    expect(tenant?.address).toEqual({
+      houseNo: '99/1',
+      road: '',
+      subdistrict: '',
+      district: '',
+      province: 'ขอนแก่น',
+      postcode: '',
+    });
+  });
+
+  it('reads no grade as not-yet-assessed rather than a failing grade', async () => {
+    const [tenant] = await createSheetsTenantRepository(
+      client([row({ evaluation_grade: '' })]),
+    ).listTenants();
+    expect(tenant?.evaluationGrade).toBeNull();
   });
 
   it('finds a tenant by id, and returns null for an unknown one', async () => {
@@ -75,6 +130,13 @@ describe('createSheetsTenantRepository', () => {
       }
     });
 
+    it('refuses a grade outside the sheet\'s own A/B/C legend', async () => {
+      const repo = createSheetsTenantRepository(client([row({ evaluation_grade: 'ดี' })]));
+      await expect(repo.listTenants()).rejects.toThrow(
+        /"evaluation_grade" must be one of "A", "B", "C", got "ดี"/,
+      );
+    });
+
     it('throws on a missing required cell', async () => {
       await expect(
         createSheetsTenantRepository(client([row({ full_name: '' })])).listTenants(),
@@ -88,17 +150,26 @@ describe('createSheetsTenantRepository', () => {
       );
     });
 
-    it('throws when the header is missing a required column', async () => {
-      const bare: SheetsClient = {
-        async getTabValues() { return [['id', 'full_name'], ['t-1', 'สมชาย']]; },
-      };
+    it('throws when the header is missing a contracted column', async () => {
+      const bare = createFakeSheets({ tenants: [['id', 'full_name'], ['t-1', 'สมชาย']] });
       await expect(createSheetsTenantRepository(bare).listTenants()).rejects.toThrow(
-        /missing required column "id_card_last4"/,
+        /missing required column "nickname"/,
       );
     });
 
-    it('skips a row that is blank in every required column', async () => {
-      const noteRow = ['', '', 'ย้ายออกแล้ว', '', '', ''];
+    // The free-text columns hold no value on plenty of real rows, so their
+    // *presence* is the only thing that can be checked. A typo'd header would
+    // otherwise read as empty for every tenant, forever, without a word.
+    it('throws when an optional-valued column is missing from the header', async () => {
+      const header = HEADER.filter((c) => c !== 'occupation');
+      const noOccupation = createFakeSheets({ tenants: [header, header.map(() => 'x')] });
+      await expect(createSheetsTenantRepository(noOccupation).listTenants()).rejects.toThrow(
+        /missing required column "occupation"/,
+      );
+    });
+
+    it('skips a row carrying only an admin note, without demanding an id for it', async () => {
+      const noteRow = HEADER.map((c) => (c === 'note' ? 'ย้ายออกแล้ว' : ''));
       const repo = createSheetsTenantRepository(client([row(), noteRow]));
       expect(await repo.listTenants()).toHaveLength(1);
     });

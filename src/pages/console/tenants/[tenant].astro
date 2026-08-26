@@ -4,7 +4,7 @@ import ConsoleFrame from '@/components/console/ConsoleFrame.astro';
 import DetailSheet from '@/components/console/DetailSheet.astro';
 import DetailSection from '@/components/console/DetailSection.astro';
 import LeaseSection from '@/components/console/LeaseSection.astro';
-import { displayName, maskIdCard } from '@/lib/models/tenant';
+import { displayName, formatAddress, formatGrade, maskIdCard } from '@/lib/models/tenant';
 import { consolePath } from '@/lib/console/paths';
 import { getLeaseRepository, getRoomRepository, getTenantRepository } from '@/lib/repositories';
 
@@ -26,8 +26,19 @@ const roomLabelById = new Map(rooms.map((r) => [r.id, r.label]));
       <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
         <dt class="text-console-ink-faint">โทรศัพท์</dt>
         <dd>{tenant.phone || '—'}</dd>
-        <dt class="text-console-ink-faint">ที่อยู่</dt>
-        <dd>{tenant.address || '—'}</dd>
+        <dt class="text-console-ink-faint">ที่อยู่ตามทะเบียนบ้าน</dt>
+        <dd>{formatAddress(tenant.address)}</dd>
+        <dt class="text-console-ink-faint">อาชีพ</dt>
+        <dd>{tenant.occupation || '—'}</dd>
+      </dl>
+    </DetailSection>
+
+    <DetailSection heading="ผลประเมิน">
+      <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+        <dt class="text-console-ink-faint">เกรด</dt>
+        <dd>{formatGrade(tenant.evaluationGrade)}</dd>
+        <dt class="text-console-ink-faint">หมายเหตุ</dt>
+        <dd>{tenant.note || '—'}</dd>
       </dl>
     </DetailSection>
 

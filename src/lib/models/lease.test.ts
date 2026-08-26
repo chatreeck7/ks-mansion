@@ -1,18 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { isActiveOn, activeLeaseFor, leaseTermLabel, type Lease } from './lease';
+import { makeLease } from '@/lib/test-support/fixtures';
+import {
+  isActiveOn,
+  activeLeaseFor,
+  endReasonLabel,
+  leaseTermLabel,
+  waterChargeFor,
+  WATER_RATE_PER_OCCUPANT,
+  type Lease,
+} from './lease';
 
 function lease(overrides: Partial<Lease> = {}): Lease {
-  return {
-    id: 'l-001',
-    roomId: '101',
-    tenantId: 't-001',
-    startDate: new Date(2025, 0, 1),
-    endDate: null,
-    rentRate: 2636,
-    deposit: 5000,
-    advanceRent: 2636,
-    ...overrides,
-  };
+  return makeLease(overrides);
 }
 
 const JUNE = new Date(2025, 5, 15);
@@ -85,5 +84,48 @@ describe('leaseTermLabel', () => {
     expect(leaseTermLabel(lease({ startDate: new Date(2025, 0, 1), endDate: null }))).toBe(
       '1 ม.ค. 2568 – ไม่กำหนด',
     );
+  });
+});
+
+describe('waterChargeFor', () => {
+  it('charges a flat rate per occupant — ค่าน้ำ is not metered for a home', () => {
+    expect(waterChargeFor(lease({ occupantCount: 3 }))).toBe(3 * WATER_RATE_PER_OCCUPANT);
+    expect(waterChargeFor(lease({ occupantCount: 1 }))).toBe(100);
+  });
+
+  // The source spreadsheet's own instruction is that leaving the headcount
+  // out makes the calculation wrong ("หากไม่กรอกจะคำนวนผิดพลาด"). The model
+  // cannot stop that on its own — what it can do is refuse to invent a
+  // default, so a zero here reads as zero rather than as one occupant.
+  it('does not fall back to a default when no occupants are recorded', () => {
+    expect(waterChargeFor(lease({ occupantCount: 0 }))).toBe(0);
+  });
+});
+
+describe('endReasonLabel', () => {
+  it('names how the tenancy ended', () => {
+    expect(endReasonLabel('normal')).toBe('สิ้นสุดตามปกติ');
+    expect(endReasonLabel('absconded')).toBe('หนี');
+  });
+
+  it('is empty while the tenancy is still running', () => {
+    expect(endReasonLabel(null)).toBe('');
+  });
+});
+
+describe('previousLeaseId', () => {
+  // A tenant moving 102 → 105 is one tenancy, not two. Without the link,
+  // length-of-stay analytics (AC-5.2) would count two short stays where the
+  // building has one long-standing tenant.
+  it('links a transfer back to the lease it continues', () => {
+    const first = lease({ id: 'l-002', roomId: '102', endDate: new Date(2026, 1, 28) });
+    const transfer = lease({
+      id: 'l-004',
+      roomId: '105',
+      startDate: new Date(2026, 2, 1),
+      previousLeaseId: first.id,
+    });
+    expect(transfer.previousLeaseId).toBe('l-002');
+    expect(first.previousLeaseId).toBeNull();
   });
 });
