@@ -29,7 +29,7 @@ import { getSheetsClient } from './sheets/client-cache';
  * hits; repositories themselves are cheap and stateless, so a new one per
  * request is fine and keeps reads un-cached (see KS-55 / docs/data-layer.md).
  */
-function sheetsClientFrom(env?: Record<string, unknown>): SheetsClient {
+export function sheetsClientFrom(env?: Record<string, unknown>): SheetsClient {
   const credentialsJson = String(env?.GOOGLE_SERVICE_ACCOUNT_JSON ?? '').trim();
   const spreadsheetId = String(env?.SHEETS_SPREADSHEET_ID ?? '').trim();
   if (!credentialsJson || !spreadsheetId) return sharedSeedSheets();

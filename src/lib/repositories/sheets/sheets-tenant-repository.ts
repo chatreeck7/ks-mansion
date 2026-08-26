@@ -11,6 +11,7 @@ import {
   SheetRowError,
   type Tab,
   type TabContract,
+  type TabDescriptor,
 } from './tab-reader';
 import type { RowValues } from './tab-writer';
 
@@ -122,6 +123,9 @@ function toRowValues(fields: Partial<TenantDraft>): RowValues {
 
   return values;
 }
+
+/** The `tenants` tab and its contract, for the health page to inspect. */
+export const TENANTS_TAB: TabDescriptor = { tabName: TAB_NAME, contract: CONTRACT };
 
 const SPEC: EntitySpec<Tenant, TenantDraft> = {
   tabName: TAB_NAME,

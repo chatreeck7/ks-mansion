@@ -47,6 +47,18 @@ export interface Tab {
  * into one list forced a choice between not verifying the header and treating
  * a stray note row as a corrupt record.
  */
+/**
+ * A tab and the contract it is read under, together.
+ *
+ * Exists so something outside a repository — the health page — can inspect a
+ * tab without being handed the contract to keep in step separately. The
+ * repository stays the one place that decides what its own tab looks like.
+ */
+export interface TabDescriptor {
+  tabName: string;
+  contract: TabContract;
+}
+
 export interface TabContract {
   /** Columns whose absence from the header row is a schema error. */
   columns: readonly string[];
@@ -90,10 +102,17 @@ export async function readTab(
 
   const [header, ...dataRows] = rows;
   const columnIndex = indexHeader(tabName, header!);
-  for (const column of contract.columns) {
-    if (!(column in columnIndex)) {
-      throw new Error(`Sheets tab "${tabName}" is missing required column "${column}"`);
-    }
+
+  // Every missing column at once, not the first. This used to throw on the
+  // first name it could not find, which made a sheet short several columns
+  // into one fix-and-recheck round per column — and each round is a person
+  // going back to a spreadsheet, not a fast loop.
+  const missing = contract.columns.filter((column) => !(column in columnIndex));
+  if (missing.length > 0) {
+    const label = missing.length === 1 ? 'column' : 'columns';
+    throw new Error(
+      `Sheets tab "${tabName}" is missing required ${label} ${missing.map((c) => `"${c}"`).join(', ')}`,
+    );
   }
 
   const identity = contract.identity ?? contract.columns;

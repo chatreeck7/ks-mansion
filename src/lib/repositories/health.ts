@@ -3,8 +3,13 @@ import {
   getLeaseRepository,
   getRoomRepository,
   getTenantRepository,
+  sheetsClientFrom,
   type DatastoreDescription,
 } from './index';
+import { LEASES_TAB } from './sheets/sheets-lease-repository';
+import { ROOMS_TAB } from './sheets/sheets-room-repository';
+import { TENANTS_TAB } from './sheets/sheets-tenant-repository';
+import { diagnoseTab, type TabDiagnostic } from './tab-diagnostics';
 
 /**
  * Whether each entity tab currently reads (KS-67).
@@ -39,6 +44,11 @@ export interface TabHealth {
    * would only lose that.
    */
   error?: string;
+  /**
+   * Which rows the tab is not reading. Absent when the tab failed, since
+   * nothing can be said about rows in a tab whose header does not parse.
+   */
+  rows?: TabDiagnostic;
 }
 
 export interface DatastoreHealth {
@@ -58,21 +68,49 @@ export interface TabProbe {
   tab: string;
   label: string;
   read(): Promise<{ length: number }>;
+  /**
+   * The row-level look at the same tab. Optional so a probe can be written
+   * without one — the tests that exercise the per-tab isolation rule care
+   * about failure handling, not about rows.
+   */
+  inspect?(): Promise<TabDiagnostic>;
 }
 
 export function repositoryProbes(env?: Record<string, unknown>): TabProbe[] {
+  const client = () => sheetsClientFrom(env);
+
   return [
-    { tab: 'rooms', label: 'ห้องพัก', read: () => getRoomRepository(env).listRooms() },
-    { tab: 'tenants', label: 'ผู้เช่า', read: () => getTenantRepository(env).listTenants() },
-    { tab: 'leases', label: 'สัญญาเช่า', read: () => getLeaseRepository(env).listLeases() },
+    {
+      tab: 'rooms',
+      label: 'ห้องพัก',
+      read: () => getRoomRepository(env).listRooms(),
+      inspect: () => diagnoseTab(client(), ROOMS_TAB),
+    },
+    {
+      tab: 'tenants',
+      label: 'ผู้เช่า',
+      read: () => getTenantRepository(env).listTenants(),
+      inspect: () => diagnoseTab(client(), TENANTS_TAB),
+    },
+    {
+      tab: 'leases',
+      label: 'สัญญาเช่า',
+      read: () => getLeaseRepository(env).listLeases(),
+      inspect: () => diagnoseTab(client(), LEASES_TAB),
+    },
   ];
 }
 
 export async function probeTabs(probes: TabProbe[]): Promise<TabHealth[]> {
   return Promise.all(
-    probes.map(async ({ tab, label, read }): Promise<TabHealth> => {
+    probes.map(async ({ tab, label, read, inspect }): Promise<TabHealth> => {
       try {
-        return { tab, label, status: 'ok', records: (await read()).length };
+        const records = (await read()).length;
+        // Only once the tab reads: a header that does not parse has no rows
+        // to say anything about, and a second failure here would just repeat
+        // the first in less useful words.
+        const rows = inspect ? await inspect() : undefined;
+        return { tab, label, status: 'ok', records, rows };
       } catch (cause) {
         // Caught per tab, never around the whole set: a broken `leases` must
         // still report that `rooms` and `tenants` are fine. Conflating them
