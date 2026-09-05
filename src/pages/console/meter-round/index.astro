@@ -1,0 +1,52 @@
+---
+// src/pages/console/meter-round/index.astro
+import ConsoleLayout from '@/layouts/ConsoleLayout.astro';
+import MeterRoundStepper from '@/components/react/MeterRoundStepper';
+import { startRound } from '@/lib/console/meter-round';
+import { consolePath } from '@/lib/console/paths';
+import { getMeterReadingRepository, getRoomRepository } from '@/lib/repositories';
+
+/**
+ * The meter round (KS-72).
+ *
+ * Deliberately **not** wrapped in `ConsoleFrame`: this is the one screen with
+ * no navigation at all, neither the desktop rail nor the mobile tab bar. The
+ * round is 27 stops done one-handed while walking the building, and a tab bar
+ * under the thumb is a tab bar that eventually taps someone out of a round
+ * half-finished. The ✕ in the stepper is the only way out, and it is at the
+ * top where a mis-tap does not reach.
+ *
+ * The round is built here, on the server, so the browser is handed a stop
+ * list rather than the whole registry and every reading in it. The state
+ * machine then lives in the island; each reading posts to ./reading as it is
+ * entered.
+ */
+
+const env = Astro.locals.runtime?.env;
+
+// One fetch each, not one per stop. `startRound` needs the whole history to
+// work out which meters exist and what each one continues from.
+const [rooms, history] = await Promise.all([
+  getRoomRepository(env).listRooms(),
+  getMeterReadingRepository(env).listReadings(),
+]);
+
+const round = startRound(rooms, history);
+
+/**
+ * The date every reading in this round is filed under, fixed now rather than
+ * per reading. A round walked across midnight is still one round, and the
+ * cycle it belongs to is decided by when it started.
+ */
+const readDateIso = new Date().toISOString();
+---
+
+<ConsoleLayout title="จดมิเตอร์">
+  <MeterRoundStepper
+    client:load
+    initialRound={round}
+    readDateIso={readDateIso}
+    exitHref={consolePath('console/rooms')}
+    postUrl={consolePath('console/meter-round/reading')}
+  />
+</ConsoleLayout>

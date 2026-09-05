@@ -8,7 +8,12 @@ describe('CONSOLE_SECTIONS', () => {
     // Extend this as each section actually ships. A failure here means either
     // a real section landed (update the list) or a placeholder crept in for
     // something unbuilt (don't).
-    expect(CONSOLE_SECTIONS.map((s) => s.id)).toEqual(['rooms', 'tenants', 'health']);
+    expect(CONSOLE_SECTIONS.map((s) => s.id)).toEqual([
+      'rooms',
+      'tenants',
+      'meter-round',
+      'health',
+    ]);
   });
 });
 
