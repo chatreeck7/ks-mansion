@@ -69,6 +69,27 @@ export function isUnit(room: Room): boolean {
   return room.kind === 'unit';
 }
 
+/**
+ * The registry in the order someone walks it: 101→105, 201→210, 301→310, then
+ * the common spaces.
+ *
+ * It is one rule serving two callers that must not disagree — the room ledger
+ * groups by floor for the screen, and the meter round steps through the same
+ * sequence on a phone. Both used to be a candidate for their own sort, and a
+ * second copy of this is a second place for the intra-floor ordering bug that
+ * was already found and fixed once.
+ *
+ * Common spaces last because that is where they are: ร้านซักผ้า and the
+ * undercroft are at ground level, reached after coming back down.
+ */
+export function inWalkingOrder(rooms: Room[]): Room[] {
+  const units = rooms
+    .filter(isUnit)
+    .sort((a, b) => a.floor - b.floor || a.label.localeCompare(b.label));
+
+  return [...units, ...rooms.filter((room) => !isUnit(room))];
+}
+
 /** True while someone is living there, including after notice is given. */
 export function isTenanted(room: Room): boolean {
   return room.status === 'occupied' || room.status === 'noticeGiven';

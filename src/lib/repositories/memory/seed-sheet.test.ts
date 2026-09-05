@@ -5,6 +5,7 @@ import { createSheetsLeaseRepository } from '../sheets/sheets-lease-repository';
 import { createSheetsMeterReadingRepository } from '../sheets/sheets-meter-reading-repository';
 import { createSheetsRoomRepository } from '../sheets/sheets-room-repository';
 import { createSheetsTenantRepository } from '../sheets/sheets-tenant-repository';
+import { metersFrom, startRound } from '@/lib/console/meter-round';
 import { getTenantRepository } from '../index';
 import { createSeedSheets } from './seed-sheet';
 
@@ -127,6 +128,40 @@ describe('the seed sheet reads through the real repositories', () => {
 
     expect(await meterReadings.listReadingsForRoom('104')).toEqual([]);
     expect(await meterReadings.getReading('m-012')).toMatchObject({ archived: true });
+  });
+
+  /**
+   * The meter round over the real registry, not a fixture — the check that
+   * KS-71's stop list and KS-18's seed agree about the building.
+   *
+   * 26 metered spaces (the undercroft has none) plus the laundry's second
+   * meter is 27 stops. That it equals the room count is a coincidence of this
+   * building, and exactly why the count must never be taken off the rooms
+   * list: swap the undercroft for a metered space and the two diverge.
+   */
+  it('builds a 27-stop round over the seeded building', async () => {
+    const { rooms, meterReadings } = repositories();
+    const stops = metersFrom(await rooms.listRooms(), await meterReadings.listReadings());
+
+    expect(stops).toHaveLength(27);
+    expect(stops.filter((s) => s.roomId === 'laundry')).toHaveLength(2);
+    expect(stops.some((s) => s.roomId === 'undercroft')).toBe(false);
+  });
+
+  it('opens the round on 101 and carries each meter its own figures forward', async () => {
+    const { rooms, meterReadings } = repositories();
+    const round = startRound(await rooms.listRooms(), await meterReadings.listReadings());
+    const byKey = new Map(round.stops.map((stop) => [stop.key, stop]));
+
+    expect(round.stops[0]?.roomLabel).toBe('101');
+    expect(round.stops.at(-1)?.roomLabel).toBe('ร้านซักผ้า');
+
+    expect(byKey.get('laundry:electricity')).toMatchObject({ previousReading: 4470, ratePerUnit: 5 });
+    expect(byKey.get('laundry:water')).toMatchObject({ previousReading: 851, ratePerUnit: 15 });
+    // 102's corrected sweep row is the one carried forward, not the mis-keyed 1500.
+    expect(byKey.get('102:electricity')?.previousReading).toBe(1590);
+    // A room nobody has read yet has nothing to continue from.
+    expect(byKey.get('301:electricity')).toMatchObject({ previousReading: null, ratePerUnit: null });
   });
 
   it('parses the พ.ศ. lease dates back to the calendar dates they mean', async () => {
