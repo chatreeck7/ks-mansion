@@ -2,7 +2,7 @@ import { formatThaiDate } from '@/lib/format/thai';
 import { createInMemorySheets, type InMemorySheets } from './in-memory-sheets';
 
 /**
- * The local-dev spreadsheet: the same three tabs `KS_Mansion_DB` carries,
+ * The local-dev spreadsheet: the same tabs `KS_Mansion_DB` carries,
  * as rows rather than as model objects (KS-69).
  *
  * These used to be `Room[]` / `Tenant[]` / `Lease[]` behind a hand-written
@@ -183,6 +183,54 @@ const LEASE_ROWS: (string | number)[][] = [
    2500, 9000, 2500, 1, '', 'l-002', '', 2500, 2500, '', ''],
 ];
 
+// ------------------------------------------------------- meter_readings
+
+const METER_READINGS_HEADER = [
+  'id', 'room_id', 'meter_type', 'read_date', 'previous_reading',
+  'current_reading', 'rate_per_unit', 'note', 'archived',
+];
+
+/**
+ * Two cycles of readings (KS-18), shaped to make the three things this tab
+ * exists to express visible locally without editing the seed.
+ *
+ * **ร้านซักผ้า is read twice per round, not once** — an electricity meter at
+ * ฿5/unit and a water meter at ฿15, the pair the source file encodes inline
+ * as `4215//786` → `4343//816`. Any round or bill built over this seed that
+ * assumes one meter per space will come out visibly wrong here rather than
+ * only in production.
+ *
+ * **A correction is an appended row.** 102's second-cycle reading was keyed
+ * as 1500 and re-read on the sweep as 1590. Both rows stay; the later one
+ * wins, which is what `latestReading` has to get right.
+ *
+ * **An archived row is a row that should never have existed** — a reading
+ * entered against 104, which is out of service. Distinct from a correction,
+ * and the only case rule 7 covers here.
+ *
+ * Rooms are electricity-only at ฿6/unit: ค่าน้ำ for a unit is occupants × 100,
+ * which is why `occupant_count` is a billing input on the lease.
+ */
+const METER_READING_ROWS: (string | number)[][] = [
+  // ---- cycle read 26 ก.พ.
+  ['m-001', '101', 'electricity', thaiDate(2025, 2, 26), 1200, 1256, 6, '', ''],
+  ['m-002', '102', 'electricity', thaiDate(2025, 2, 26), 1400, 1489, 6, '', ''],
+  ['m-003', '103', 'electricity', thaiDate(2025, 2, 26), 980, 1032, 6, '', ''],
+  ['m-004', 'laundry', 'electricity', thaiDate(2025, 2, 26), 4215, 4343, 5, '', ''],
+  ['m-005', 'laundry', 'water', thaiDate(2025, 2, 26), 786, 816, 15, '', ''],
+
+  // ---- cycle read 26 มี.ค.
+  ['m-006', '101', 'electricity', thaiDate(2025, 3, 26), 1256, 1312, 6, '', ''],
+  ['m-007', '102', 'electricity', thaiDate(2025, 3, 26), 1489, 1500, 6, '', ''],
+  ['m-008', '102', 'electricity', thaiDate(2025, 3, 26), 1489, 1590, 6, 'เก็บตก — เลขเดิมจดผิด', ''],
+  ['m-009', '103', 'electricity', thaiDate(2025, 3, 26), 1032, 1090, 6, '', ''],
+  ['m-010', 'laundry', 'electricity', thaiDate(2025, 3, 26), 4343, 4470, 5, '', ''],
+  ['m-011', 'laundry', 'water', thaiDate(2025, 3, 26), 816, 851, 15, '', ''],
+
+  // Entered against the wrong room, so withdrawn rather than corrected.
+  ['m-012', '104', 'electricity', thaiDate(2025, 3, 26), 0, 0, 6, 'บันทึกผิดห้อง', 'TRUE'],
+];
+
 // ---------------------------------------------------------------- build
 
 /**
@@ -194,6 +242,7 @@ export function createSeedSheets(): InMemorySheets {
     rooms: [ROOMS_HEADER, ...ROOM_ROWS],
     tenants: [TENANTS_HEADER, ...TENANT_ROWS],
     leases: [LEASES_HEADER, ...LEASE_ROWS],
+    meter_readings: [METER_READINGS_HEADER, ...METER_READING_ROWS],
   });
 }
 

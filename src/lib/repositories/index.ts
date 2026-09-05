@@ -1,11 +1,13 @@
 import type { RoomRepository } from './room-repository';
 import type { TenantRepository } from './tenant-repository';
 import type { LeaseRepository } from './lease-repository';
+import type { MeterReadingRepository } from './meter-reading-repository';
 import type { SheetsClient } from './sheets/sheets-client';
 import { sharedSeedSheets } from './memory/seed-sheet';
 import { createSheetsRoomRepository } from './sheets/sheets-room-repository';
 import { createSheetsTenantRepository } from './sheets/sheets-tenant-repository';
 import { createSheetsLeaseRepository } from './sheets/sheets-lease-repository';
+import { createSheetsMeterReadingRepository } from './sheets/sheets-meter-reading-repository';
 import { getSheetsClient } from './sheets/client-cache';
 
 /**
@@ -107,4 +109,8 @@ export function getTenantRepository(env?: Record<string, unknown>): TenantReposi
 
 export function getLeaseRepository(env?: Record<string, unknown>): LeaseRepository {
   return createSheetsLeaseRepository(sheetsClientFrom(env));
+}
+
+export function getMeterReadingRepository(env?: Record<string, unknown>): MeterReadingRepository {
+  return createSheetsMeterReadingRepository(sheetsClientFrom(env));
 }

@@ -1,4 +1,5 @@
 import type { Lease } from '@/lib/models/lease';
+import type { MeterReading } from '@/lib/models/meter-reading';
 import type { Room } from '@/lib/models/room';
 import type { Tenant } from '@/lib/models/tenant';
 import { EMPTY_ADDRESS } from '@/lib/models/tenant';
@@ -66,6 +67,27 @@ export function makeLease(overrides: Partial<Lease> = {}): Lease {
     moveInPaid: null,
     moveOutDue: null,
     moveOutPaid: null,
+    archived: false,
+    ...overrides,
+  };
+}
+
+/**
+ * An unremarkable room electricity read: one cycle, ฿6/unit, no note.
+ *
+ * The laundry's second meter is the interesting case, so a test that cares
+ * about it says `meterType: 'water'` explicitly rather than inheriting it.
+ */
+export function makeMeterReading(overrides: Partial<MeterReading> = {}): MeterReading {
+  return {
+    id: 'm-001',
+    roomId: '101',
+    meterType: 'electricity',
+    readDate: new Date(2025, 2, 26),
+    previousReading: 1200,
+    currentReading: 1256,
+    ratePerUnit: 6,
+    note: null,
     archived: false,
     ...overrides,
   };

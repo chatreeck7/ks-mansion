@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { formatThaiDate } from '@/lib/format/thai';
 import { isUnit } from '@/lib/models/room';
 import { createSheetsLeaseRepository } from '../sheets/sheets-lease-repository';
+import { createSheetsMeterReadingRepository } from '../sheets/sheets-meter-reading-repository';
 import { createSheetsRoomRepository } from '../sheets/sheets-room-repository';
 import { createSheetsTenantRepository } from '../sheets/sheets-tenant-repository';
 import { getTenantRepository } from '../index';
@@ -15,6 +16,7 @@ function repositories() {
     rooms: createSheetsRoomRepository(sheets),
     tenants: createSheetsTenantRepository(sheets),
     leases: createSheetsLeaseRepository(sheets),
+    meterReadings: createSheetsMeterReadingRepository(sheets),
   };
 }
 
@@ -91,6 +93,40 @@ describe('the seed sheet reads through the real repositories', () => {
     // Ungraded, sparse address, carries a note.
     expect(tenants[1]).toMatchObject({ evaluationGrade: null, note: '(เลี้ยงแมว)' });
     expect(tenants[1]!.address).toMatchObject({ road: '', province: 'ตัวอย่าง' });
+  });
+
+  /**
+   * The seed exists to make the laundry's two meters visible locally: a round
+   * or a bill that assumes one meter per space comes out wrong here rather
+   * than only against the live sheet.
+   */
+  it('reads ร้านซักผ้า twice per round, at its two different rates', async () => {
+    const readings = await repositories().meterReadings.listReadingsForRoom('laundry');
+
+    expect(readings.filter((r) => r.meterType === 'electricity')).toHaveLength(2);
+    expect(readings.filter((r) => r.meterType === 'water')).toHaveLength(2);
+    expect(new Set(readings.map((r) => r.ratePerUnit))).toEqual(new Set([5, 15]));
+  });
+
+  it('keeps a corrected reading as an appended row, with the later one winning', async () => {
+    const { meterReadings } = repositories();
+
+    // Both rows survive — the mis-keyed 1500 and the sweep's 1590.
+    const forRoom = await meterReadings.listReadingsForRoom('102');
+    expect(forRoom.map((r) => r.currentReading)).toContain(1500);
+    expect(forRoom.map((r) => r.currentReading)).toContain(1590);
+
+    expect(await meterReadings.latestReading('102', 'electricity')).toMatchObject({
+      id: 'm-008',
+      currentReading: 1590,
+    });
+  });
+
+  it('hides the reading entered against the wrong room, but keeps the row', async () => {
+    const { meterReadings } = repositories();
+
+    expect(await meterReadings.listReadingsForRoom('104')).toEqual([]);
+    expect(await meterReadings.getReading('m-012')).toMatchObject({ archived: true });
   });
 
   it('parses the พ.ศ. lease dates back to the calendar dates they mean', async () => {

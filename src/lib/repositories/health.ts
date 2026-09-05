@@ -1,12 +1,14 @@
 import {
   describeDatastore,
   getLeaseRepository,
+  getMeterReadingRepository,
   getRoomRepository,
   getTenantRepository,
   sheetsClientFrom,
   type DatastoreDescription,
 } from './index';
 import { LEASES_TAB } from './sheets/sheets-lease-repository';
+import { METER_READINGS_TAB } from './sheets/sheets-meter-reading-repository';
 import { ROOMS_TAB } from './sheets/sheets-room-repository';
 import { TENANTS_TAB } from './sheets/sheets-tenant-repository';
 import { diagnoseTab, type TabDiagnostic } from './tab-diagnostics';
@@ -97,6 +99,12 @@ export function repositoryProbes(env?: Record<string, unknown>): TabProbe[] {
       label: 'สัญญาเช่า',
       read: () => getLeaseRepository(env).listLeases(),
       inspect: () => diagnoseTab(client(), LEASES_TAB),
+    },
+    {
+      tab: 'meter_readings',
+      label: 'ค่ามิเตอร์',
+      read: () => getMeterReadingRepository(env).listReadings(),
+      inspect: () => diagnoseTab(client(), METER_READINGS_TAB),
     },
   ];
 }

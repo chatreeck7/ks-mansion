@@ -126,7 +126,12 @@ describe('checkDatastoreHealth', () => {
     const health = await checkDatastoreHealth({});
 
     expect(health.datastore.backend).toBe('memory');
-    expect(health.tabs.map((t) => t.tab)).toEqual(['rooms', 'tenants', 'leases']);
+    expect(health.tabs.map((t) => t.tab)).toEqual([
+      'rooms',
+      'tenants',
+      'leases',
+      'meter_readings',
+    ]);
     // Seeds must round-trip through the real parsers, or local dev is
     // demonstrating something production would reject.
     expect(health.tabs.every((t) => t.status === 'ok')).toBe(true);
