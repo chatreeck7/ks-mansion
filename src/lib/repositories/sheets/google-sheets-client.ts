@@ -43,7 +43,16 @@ export interface GoogleSheetsClientOptions {
   now?: () => number;
 }
 
-async function mintAccessToken(
+/**
+ * A service-account access token for the Sheets API.
+ *
+ * Exported for the KS-68 experiment, which has to make a `batchUpdate` call —
+ * creating a tab — that `SheetsClient` deliberately does not offer. Re-doing
+ * the JWT dance in the caller would be a second copy of the auth that could
+ * drift from this one; widening `SheetsClient` to carry an operation only a
+ * one-off setup needs would be worse.
+ */
+export async function mintAccessToken(
   credentialsJson: string,
   fetchImpl: typeof fetch,
   now: () => number,

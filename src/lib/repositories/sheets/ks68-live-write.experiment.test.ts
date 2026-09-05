@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { formatThaiDate } from '@/lib/format/thai';
-import { createGoogleSheetsClient } from './google-sheets-client';
+import { createGoogleSheetsClient, mintAccessToken } from './google-sheets-client';
 import { createSheetsMeterReadingRepository } from './sheets-meter-reading-repository';
 import type { SheetsClient } from './sheets-client';
 
@@ -15,10 +15,9 @@ import type { SheetsClient } from './sheets-client';
  *   GOOGLE_SERVICE_ACCOUNT_JSON="$(cat service-account.json)" \
  *   npx vitest run src/lib/repositories/sheets/ks68-live-write.experiment.test.ts
  *
- * **Prerequisites in the scratch copy**, both one-off:
- *   1. A tab named `ks68 scratch` — note the **space**, which is deliberate —
- *      with the header row `id | note` in A1:B1.
- *   2. The `meter_readings` tab, which the copy already carries.
+ * **No manual setup.** The `ks68 scratch` tab — named with a **space**, which
+ * is the point — is created by `beforeAll` if it is missing. The only
+ * prerequisite is the `meter_readings` tab, which the copy already carries.
  *
  * These tests append rows and overwrite them. They never touch `rooms`,
  * `tenants` or `leases`, but the scratch tab is left dirty on purpose: the
@@ -53,7 +52,7 @@ const runTag = `ks68-${Date.now()}`;
 describe.skipIf(!enabled)('KS-68 — live write experiment (throwaway sheet)', () => {
   let client: SheetsClient;
 
-  beforeAll(() => {
+  beforeAll(async () => {
     if (spreadsheetId === PRODUCTION_SPREADSHEET_ID) {
       throw new Error(
         'KS68_SCRATCH_SPREADSHEET_ID is the live KS_Mansion_DB. This suite writes junk ' +
@@ -61,7 +60,49 @@ describe.skipIf(!enabled)('KS-68 — live write experiment (throwaway sheet)', (
       );
     }
     client = createGoogleSheetsClient({ credentialsJson, spreadsheetId });
+    await ensureScratchTab();
   });
+
+  /**
+   * Creates the scratch tab and its header if they are not there yet.
+   *
+   * Idempotent, so a second run of the suite is not a second setup. Uses
+   * `batchUpdate` directly rather than through `SheetsClient`, which offers
+   * no way to create a tab on purpose: the console never invents tabs, and
+   * this is setup for an experiment rather than something the app does.
+   */
+  async function ensureScratchTab(): Promise<void> {
+    try {
+      const rows = await client.getTabValues(SCRATCH_TAB);
+      if (rows.length >= SCRATCH_HEADER_ROWS) return;
+    } catch {
+      // Absent, or unreadable under the bare range form — either way, try to
+      // create it. A tab that already exists comes back as an error below,
+      // which is the signal that the *read* is what failed, not the tab.
+    }
+
+    const { token } = await mintAccessToken(credentialsJson, fetch, Date.now);
+    const response = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}:batchUpdate`,
+      {
+        method: 'POST',
+        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        body: JSON.stringify({
+          requests: [{ addSheet: { properties: { title: SCRATCH_TAB } } }],
+        }),
+      },
+    );
+
+    if (!response.ok) {
+      const body = (await response.text()).slice(0, 300);
+      // A tab that is already there is fine; anything else is not.
+      if (!body.includes('already exists')) {
+        throw new Error(`Could not create the "${SCRATCH_TAB}" tab (${response.status}): ${body}`);
+      }
+    }
+
+    await client.appendRow(SCRATCH_TAB, ['id', 'note']);
+  }
 
   /**
    * The baseline, and the one that proves `valueInputOption=RAW` against the
