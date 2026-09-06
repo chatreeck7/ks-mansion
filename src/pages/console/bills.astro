@@ -4,6 +4,11 @@ import ConsoleFrame from '@/components/console/ConsoleFrame.astro';
 import ErrorSummary from '@/components/console/ErrorSummary.astro';
 import LedgerTable from '@/components/console/LedgerTable.astro';
 import StatusPill from '@/components/console/StatusPill.astro';
+import {
+  ARREARS_COLUMNS,
+  arrearsUpdatesFromForm,
+  toArrearsGroups,
+} from '@/lib/console/arrears';
 import { draftsFrom, planBillRun, type BillLine } from '@/lib/console/bill-run';
 import { formatBaht } from '@/lib/format/thai';
 import { cycleFor, cycleLabel, rentLabel, utilityLabel } from '@/lib/models/billing-cycle';
@@ -67,7 +72,9 @@ function toGroups(lines: BillLine[], label: string): LedgerGroup[] {
 }
 
 let issued = 0;
+let annotated = 0;
 let errors: string[] = [];
+let submittedNotes: FormData | undefined;
 
 // The cycle is taken from today rather than chosen: a bill run belongs to the
 // cycle you are in, and letting someone pick one invites issuing into a
@@ -85,25 +92,57 @@ async function load() {
 }
 
 if (Astro.request.method === 'POST') {
-  // Re-planned from a fresh read rather than trusting the rendered page: a
-  // reading corrected in another tab must change what is issued.
+  const form = await Astro.request.formData();
   const bills = getBillRepository(env);
-  for (const draft of draftsFrom(await load())) {
-    try {
-      await bills.issueBill(draft);
-      issued += 1;
-    } catch (cause) {
-      // Per room, not aborting: bills are append-only, so the ones already
-      // written are complete and correct on their own.
-      errors.push(`${draft.roomId}: ${cause instanceof Error ? cause.message : String(cause)}`);
+
+  // Two actions on one page, told apart by a hidden field rather than by
+  // which fields happen to be present — issuing a cycle and annotating one
+  // are different enough that guessing between them would eventually guess
+  // wrong, and one of the two writes money figures.
+  if (form.get('action') === 'annotate') {
+    submittedNotes = form;
+    const existing = (await bills.listBills()).filter((bill) => bill.cycle === cycle.id);
+
+    for (const update of arrearsUpdatesFromForm(existing, form)) {
+      try {
+        await bills.annotateArrears(update.billId, update.note);
+        annotated += 1;
+      } catch (cause) {
+        errors.push(`${update.billId}: ${cause instanceof Error ? cause.message : String(cause)}`);
+      }
+    }
+  } else {
+    // Re-planned from a fresh read rather than trusting the rendered page: a
+    // reading corrected in another tab must change what is issued.
+    for (const draft of draftsFrom(await load())) {
+      try {
+        await bills.issueBill(draft);
+        issued += 1;
+      } catch (cause) {
+        // Per room, not aborting: bills are append-only, so the ones already
+        // written are complete and correct on their own.
+        errors.push(`${draft.roomId}: ${cause instanceof Error ? cause.message : String(cause)}`);
+      }
     }
   }
 }
 
-// Reloaded after issuing, so every room that just landed shows as ออกแล้ว.
+// Reloaded after writing, so every room that just landed shows as ออกแล้ว
+// and every note that just saved shows in its field.
 const run = await load();
 const groups = toGroups(run.lines, cycleLabel(cycle));
 const blocked = run.lines.filter((l) => l.problems.length > 0).length;
+
+const issuedBills = (await getBillRepository(env).listBills()).filter(
+  (bill) => bill.cycle === cycle.id,
+);
+// Only re-fill from the submission while something is still wrong; a clean
+// save shows what the sheet now holds.
+const arrearsGroups = toArrearsGroups(
+  issuedBills,
+  `บิลที่ออกแล้ว ${cycleLabel(cycle)}`,
+  errors.length > 0 ? submittedNotes : undefined,
+);
 ---
 
 <ConsoleFrame title="บิล" activeSection="bills">
@@ -122,6 +161,11 @@ const blocked = run.lines.filter((l) => l.problems.length > 0).length;
       ออกบิลแล้ว {issued} ใบ
     </p>
   )}
+  {annotated > 0 && (
+    <p class="mb-4 rounded-sm bg-console-ok-bg px-3 py-2 text-console-ok">
+      บันทึกหมายเหตุแล้ว {annotated} รายการ
+    </p>
+  )}
   <ErrorSummary message={errors.length > 0 ? errors.join('\n') : null} />
 
   {blocked > 0 && (
@@ -133,6 +177,7 @@ const blocked = run.lines.filter((l) => l.problems.length > 0).length;
   <LedgerTable columns={COLUMNS} groups={groups} />
 
   <form method="POST" class="mt-4 flex flex-wrap items-center justify-between gap-3">
+    <input type="hidden" name="action" value="issue" />
     <button
       type="submit"
       disabled={run.issuable.length === 0}
@@ -144,4 +189,28 @@ const blocked = run.lines.filter((l) => l.problems.length > 0).length;
       ยอดที่จะออกรอบนี้ <span class="font-semibold text-console-ink">{formatBaht(run.total)}</span> บาท
     </p>
   </form>
+
+  {issuedBills.length > 0 && (
+    <section class="mt-10">
+      <h2 class="mb-1 text-lg font-semibold text-console-ink">หมายเหตุ / ยอดค้าง</h2>
+      <p class="mb-3 text-sm text-console-ink-soft">
+        เขียนเองทั้งหมด คอนโซลไม่คิดยอดค้างให้ — เว้นว่างไว้คือเคลียร์แล้ว
+        (`ยอดค้าง` กับ `ค้างประกัน` เป็นคนละเรื่องกัน มีแต่คนเท่านั้นที่รู้ว่าอันไหน)
+      </p>
+
+      <form method="POST">
+        <input type="hidden" name="action" value="annotate" />
+        <LedgerTable columns={ARREARS_COLUMNS} groups={arrearsGroups} />
+
+        <div class="mt-4">
+          <button
+            type="submit"
+            class="rounded-sm border border-console-rule/40 px-4 py-2 text-console-ink hover:bg-console-sunk focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
+          >
+            บันทึกหมายเหตุ
+          </button>
+        </div>
+      </form>
+    </section>
+  )}
 </ConsoleFrame>
