@@ -1,4 +1,5 @@
-import { formatBaht, formatThaiDate } from '@/lib/format/thai';
+import { formatBaht } from '@/lib/format/thai';
+import { cycleFor, cycleLabel } from '@/lib/models/billing-cycle';
 import type { LedgerColumn, LedgerGroup, LedgerRow } from '@/lib/models/ledger';
 import {
   activeLeaseFor,
@@ -166,7 +167,7 @@ export function toWaterGroups(
     };
   });
 
-  return [{ label: `รอบวันที่ ${formatThaiDate(cycleDate)}`, rows: ledgerRows }];
+  return [{ label: cycleLabel(cycleFor(cycleDate)), rows: ledgerRows }];
 }
 
 export interface OccupantUpdate {

@@ -1,4 +1,4 @@
-import { formatThaiDate } from '@/lib/format/thai';
+import { cycleFor, cycleLabel } from '@/lib/models/billing-cycle';
 import { meterTypeLabel, type MeterReadingDraft } from '@/lib/models/meter-reading';
 import type { LedgerColumn, LedgerGroup, LedgerRow } from '@/lib/models/ledger';
 import type { Round, RoundStop } from './meter-round';
@@ -126,7 +126,10 @@ export function toMeterGridGroups(
     };
   });
 
-  return [{ label: `รอบวันที่ ${formatThaiDate(cycleDate)}`, rows }];
+  // Named by the collection cycle the reading falls in, not by today's
+  // date: a round walked on the 25th and finished on the 26th is one round,
+  // and two different day labels would say otherwise.
+  return [{ label: cycleLabel(cycleFor(cycleDate)), rows }];
 }
 
 /** A row that parsed, and the stop it came from. */

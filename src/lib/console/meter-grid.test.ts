@@ -48,8 +48,13 @@ describe('toMeterGridGroups', () => {
     expect(group!.rows.filter((r) => r.id.startsWith('laundry'))).toHaveLength(2);
   });
 
-  it('labels the group with the cycle it is recording', () => {
-    expect(toMeterGridGroups(round, MAR)[0]!.label).toBe('รอบวันที่ 26 มี.ค. 2568');
+  it('labels the group with the collection cycle, not the day it was opened', () => {
+    expect(toMeterGridGroups(round, MAR)[0]!.label).toBe('รอบ 26 มี.ค. 2568 – 10 เม.ย. 2568');
+  });
+
+  it('gives the 25th and the 26th the same label, because it is one round', () => {
+    const eve = toMeterGridGroups(round, new Date(2025, 2, 25))[0]!.label;
+    expect(eve).toBe(toMeterGridGroups(round, new Date(2025, 1, 26))[0]!.label);
   });
 
   it('supplies a cell for every declared column, as LedgerTable requires', () => {
