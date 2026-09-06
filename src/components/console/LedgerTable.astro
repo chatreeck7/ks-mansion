@@ -63,10 +63,26 @@ const { columns, groups } = Astro.props;
                     class:list={[
                       'px-3 py-2',
                       column.align === 'right' && 'text-right',
-                      cell.kind === 'figure' && 'font-figure tabular-nums',
+                      (cell.kind === 'figure' || cell.kind === 'input') &&
+                        'font-figure tabular-nums',
                     ]}
                   >
                     {cell.kind === 'figure' && formatFigure(cell.value)}
+                    {cell.kind === 'input' && (
+                      <input
+                        type="text"
+                        inputmode="decimal"
+                        name={cell.name}
+                        value={cell.value}
+                        aria-label={cell.label}
+                        placeholder={cell.placeholder}
+                        class:list={[
+                          'w-full min-w-20 rounded-sm border border-console-rule/30 bg-console-paper px-2 py-1',
+                          'font-figure tabular-nums focus:border-console-rule focus:outline-none',
+                          column.align === 'right' && 'text-right',
+                        ]}
+                      />
+                    )}
                     {cell.kind === 'pill' && <StatusPill tone={cell.tone} label={cell.label} />}
                     {cell.kind === 'text' && (
                       index === 0 && row.href ? (

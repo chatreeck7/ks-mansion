@@ -16,6 +16,9 @@ import { getMeterReadingRepository, getRoomRepository } from '@/lib/repositories
  * half-finished. The ✕ in the stepper is the only way out, and it is at the
  * top where a mis-tap does not reach.
  *
+ * The ✕ returns to the desk grid — the meter section's home — rather than
+ * to the room list, so leaving a round lands where the round started.
+ *
  * The round is built here, on the server, so the browser is handed a stop
  * list rather than the whole registry and every reading in it. The state
  * machine then lives in the island; each reading posts to ./reading as it is
@@ -46,7 +49,7 @@ const readDateIso = new Date().toISOString();
     client:load
     initialRound={round}
     readDateIso={readDateIso}
-    exitHref={consolePath('console/rooms')}
+    exitHref={consolePath('console/meter-round/grid')}
     postUrl={consolePath('console/meter-round/reading')}
   />
 </ConsoleLayout>
