@@ -23,6 +23,7 @@ export const CONSOLE_SECTIONS: ConsoleSection[] = [
   // screen nobody can find is a screen that does not exist — the complaint
   // KS-67 came from.
   { id: 'water', label: 'ค่าน้ำ', href: consolePath('console/water') },
+  { id: 'bills', label: 'บิล', href: consolePath('console/bills') },
   // Not a daily section, but a diagnostic nobody can find is the same as one
   // that does not exist — which was the whole complaint KS-67 came from.
   { id: 'health', label: 'สถานะระบบ', href: consolePath('console/health') },

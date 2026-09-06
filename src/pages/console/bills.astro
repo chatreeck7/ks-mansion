@@ -1,0 +1,147 @@
+---
+// src/pages/console/bills.astro
+import ConsoleFrame from '@/components/console/ConsoleFrame.astro';
+import ErrorSummary from '@/components/console/ErrorSummary.astro';
+import LedgerTable from '@/components/console/LedgerTable.astro';
+import StatusPill from '@/components/console/StatusPill.astro';
+import { draftsFrom, planBillRun, type BillLine } from '@/lib/console/bill-run';
+import { formatBaht } from '@/lib/format/thai';
+import { cycleFor, cycleLabel, rentLabel, utilityLabel } from '@/lib/models/billing-cycle';
+import type { LedgerColumn, LedgerGroup } from '@/lib/models/ledger';
+import {
+  getBillRepository,
+  getLeaseRepository,
+  getMeterReadingRepository,
+  getRoomRepository,
+} from '@/lib/repositories';
+
+/**
+ * Issue a cycle's bills (KS-21).
+ *
+ * **The whole cycle at once, behind a preview** — owner's call, and it
+ * matches the paper it replaces: แบบฟอร์มเก็บเงินค่าห้อง is one sheet for the
+ * whole building, not 27 slips. The preview shows the working rather than
+ * only the amounts, because the ค่าไฟ row of the real bill prints previous
+ * reading, current reading, units and rate, and a screen that showed less
+ * would be harder to check than the form it replaces.
+ *
+ * Nothing is written until the button is pressed, and the plan is recomputed
+ * on POST from fresh reads — so what gets issued is what the sheet supports at
+ * that moment, not what the page happened to show a minute ago.
+ */
+
+const env = Astro.locals.runtime?.env;
+
+const COLUMNS: LedgerColumn[] = [
+  { key: 'room', header: 'ห้อง' },
+  { key: 'rent', header: 'ค่าเช่า', align: 'right' },
+  { key: 'electricity', header: 'ค่าไฟ', align: 'right' },
+  { key: 'working', header: 'คิดจาก' },
+  { key: 'water', header: 'ค่าน้ำ', align: 'right' },
+  { key: 'total', header: 'รวม', align: 'right' },
+  { key: 'state', header: 'สถานะ' },
+];
+
+function toGroups(lines: BillLine[], label: string): LedgerGroup[] {
+  return [
+    {
+      label,
+      rows: lines.map((line) => ({
+        id: line.roomId,
+        cells: {
+          room: { kind: 'text', value: line.roomLabel },
+          rent: { kind: 'figure', value: line.rentAmount },
+          electricity: { kind: 'figure', value: line.electricityAmount },
+          working: { kind: 'text', value: line.electricityBasis, muted: true },
+          water: { kind: 'figure', value: line.waterAmount },
+          total: { kind: 'figure', value: line.total },
+          state: line.alreadyIssued
+            ? { kind: 'pill', tone: 'mute', label: 'ออกแล้ว' }
+            : line.problems.length > 0
+              ? { kind: 'pill', tone: 'crit', label: line.problems[0]! }
+              : { kind: 'pill', tone: 'ok', label: 'พร้อมออก' },
+        },
+      })),
+    },
+  ];
+}
+
+let issued = 0;
+let errors: string[] = [];
+
+// The cycle is taken from today rather than chosen: a bill run belongs to the
+// cycle you are in, and letting someone pick one invites issuing into a
+// closed month by accident.
+const cycle = cycleFor(new Date());
+
+async function load() {
+  const [rooms, leases, readings, existing] = await Promise.all([
+    getRoomRepository(env).listRooms(),
+    getLeaseRepository(env).listLeases(),
+    getMeterReadingRepository(env).listReadings(),
+    getBillRepository(env).listBills(),
+  ]);
+  return planBillRun({ cycle, rooms, leases, readings, existing });
+}
+
+if (Astro.request.method === 'POST') {
+  // Re-planned from a fresh read rather than trusting the rendered page: a
+  // reading corrected in another tab must change what is issued.
+  const bills = getBillRepository(env);
+  for (const draft of draftsFrom(await load())) {
+    try {
+      await bills.issueBill(draft);
+      issued += 1;
+    } catch (cause) {
+      // Per room, not aborting: bills are append-only, so the ones already
+      // written are complete and correct on their own.
+      errors.push(`${draft.roomId}: ${cause instanceof Error ? cause.message : String(cause)}`);
+    }
+  }
+}
+
+// Reloaded after issuing, so every room that just landed shows as ออกแล้ว.
+const run = await load();
+const groups = toGroups(run.lines, cycleLabel(cycle));
+const blocked = run.lines.filter((l) => l.problems.length > 0).length;
+---
+
+<ConsoleFrame title="บิล" activeSection="bills">
+  <div class="mb-4">
+    <h1 class="mb-1 text-xl font-semibold text-console-ink">ออกบิลประจำรอบ</h1>
+    <p class="mb-0 text-sm text-console-ink-soft">
+      {cycleLabel(cycle)} — เก็บ{rentLabel(cycle)} และ{utilityLabel(cycle)}
+    </p>
+    <p class="mb-0 text-sm text-console-ink-faint">
+      ห้องว่างไม่ออกบิล · บิลที่ออกแล้วจะไม่ออกซ้ำ · ตรวจตัวเลขก่อนกดออกบิล
+    </p>
+  </div>
+
+  {issued > 0 && (
+    <p class="mb-4 rounded-sm bg-console-ok-bg px-3 py-2 text-console-ok">
+      ออกบิลแล้ว {issued} ใบ
+    </p>
+  )}
+  <ErrorSummary message={errors.length > 0 ? errors.join('\n') : null} />
+
+  {blocked > 0 && (
+    <p class="mb-4 rounded-sm bg-console-warn-bg px-3 py-2 text-sm text-console-warn">
+      มี {blocked} ห้องที่ยังออกบิลไม่ได้ — ดูคอลัมน์สถานะ ห้องเหล่านี้จะถูกข้ามไป
+    </p>
+  )}
+
+  <LedgerTable columns={COLUMNS} groups={groups} />
+
+  <form method="POST" class="mt-4 flex flex-wrap items-center justify-between gap-3">
+    <button
+      type="submit"
+      disabled={run.issuable.length === 0}
+      class="rounded-sm bg-console-ink px-4 py-2 font-semibold text-console-paper disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-console-rule"
+    >
+      {run.issuable.length === 0 ? 'ไม่มีบิลให้ออก' : `ออกบิล ${run.issuable.length} ใบ`}
+    </button>
+    <p class="mb-0 font-figure text-console-ink-soft tabular-nums">
+      ยอดที่จะออกรอบนี้ <span class="font-semibold text-console-ink">{formatBaht(run.total)}</span> บาท
+    </p>
+  </form>
+</ConsoleFrame>
