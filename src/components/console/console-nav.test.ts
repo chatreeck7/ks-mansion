@@ -12,6 +12,7 @@ describe('CONSOLE_SECTIONS', () => {
       'rooms',
       'tenants',
       'meter-round',
+      'water',
       'health',
     ]);
   });

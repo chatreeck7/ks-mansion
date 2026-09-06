@@ -1,0 +1,113 @@
+---
+// src/pages/console/water.astro
+import ConsoleFrame from '@/components/console/ConsoleFrame.astro';
+import ErrorSummary from '@/components/console/ErrorSummary.astro';
+import LedgerTable from '@/components/console/LedgerTable.astro';
+import { formatBaht } from '@/lib/format/thai';
+import {
+  occupantUpdatesFromForm,
+  toWaterGroups,
+  waterRows,
+  waterTotal,
+  WATER_COLUMNS,
+} from '@/lib/console/water-ledger';
+import {
+  getLeaseRepository,
+  getMeterReadingRepository,
+  getRoomRepository,
+} from '@/lib/repositories';
+
+/**
+ * ค่าน้ำ for the cycle (KS-19).
+ *
+ * The card corrected what AC-1.4 implies: water is not a free amount typed
+ * per room, it is `จำนวนผู้พัก × 100`. So this screen edits the **count** and
+ * shows the charge it produces, rather than offering an amount field that
+ * would let the two drift apart.
+ *
+ * Step 3.3 of the source spreadsheet's own instructions is a *check* — "เช็ค
+ * ค่าน้ำเหมา สำหรับแต่ละห้องว่าถูกต้องไหม" — so the screen is laid out to be
+ * checked down a column, with the basis of each figure spelled out beside it.
+ */
+
+const env = Astro.locals.runtime?.env;
+
+let errors: string[] = [];
+let saved = 0;
+let submitted: FormData | undefined;
+
+/** The day the charges are worked out for; decides which lease is in force. */
+const cycleDate = new Date();
+
+if (Astro.request.method === 'POST') {
+  submitted = await Astro.request.formData();
+}
+
+const [rooms, leases, readings] = await Promise.all([
+  getRoomRepository(env).listRooms(),
+  getLeaseRepository(env).listLeases(),
+  getMeterReadingRepository(env).listReadings(),
+]);
+
+let rows = waterRows(rooms, leases, readings, cycleDate);
+
+if (submitted) {
+  const submission = occupantUpdatesFromForm(rows, submitted);
+  errors = [...submission.errors];
+
+  const repository = getLeaseRepository(env);
+  for (const update of submission.updates) {
+    try {
+      await repository.updateLease(update.leaseId, { occupantCount: update.occupantCount });
+      saved += 1;
+    } catch (cause) {
+      errors.push(
+        `${update.leaseId}: ${cause instanceof Error ? cause.message : String(cause)}`,
+      );
+    }
+  }
+
+  if (saved > 0) {
+    // Re-read so the charges beside each count are the ones now on the sheet.
+    rows = waterRows(rooms, await repository.listLeases(), readings, cycleDate);
+  }
+}
+
+// Keep what was typed only while something is still wrong; a clean save shows
+// the sheet's own figures back.
+const groups = toWaterGroups(rows, cycleDate, errors.length > 0 ? submitted : undefined);
+const total = waterTotal(rows);
+---
+
+<ConsoleFrame title="ค่าน้ำ" activeSection="water">
+  <div class="mb-4">
+    <h1 class="mb-1 text-xl font-semibold text-console-ink">ค่าน้ำประจำรอบ</h1>
+    <p class="mb-0 text-sm text-console-ink-soft">
+      ค่าน้ำคิดจากจำนวนผู้พัก ห้องละ 100 บาทต่อคน — แก้ที่จำนวนผู้พัก ไม่ใช่ที่ยอดเงิน
+      ร้านซักผ้ามีมิเตอร์น้ำของตัวเอง คิดตามหน่วยที่ใช้จริง
+    </p>
+  </div>
+
+  {saved > 0 && (
+    <p class="mb-4 rounded-sm bg-console-ok-bg px-3 py-2 text-console-ok">
+      แก้จำนวนผู้พักแล้ว {saved} ห้อง
+    </p>
+  )}
+  <ErrorSummary message={errors.length > 0 ? errors.join('\n') : null} />
+
+  <form method="POST">
+    <LedgerTable columns={WATER_COLUMNS} groups={groups} />
+
+    <div class="mt-4 flex flex-wrap items-center justify-between gap-3">
+      <button
+        type="submit"
+        class="rounded-sm bg-console-ink px-4 py-2 font-semibold text-console-paper focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-console-rule"
+      >
+        บันทึกจำนวนผู้พัก
+      </button>
+      <p class="mb-0 font-figure text-console-ink-soft tabular-nums">
+        รวมค่าน้ำทั้งหมด <span class="font-semibold text-console-ink">{formatBaht(total)}</span> บาท
+      </p>
+    </div>
+  </form>
+</ConsoleFrame>

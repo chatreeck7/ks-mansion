@@ -141,6 +141,13 @@ const TENANT_ROWS: string[][] = [
   ['t-003', 'สมศักดิ์ ตัวอย่าง', 'ศักดิ์', '9012', '',
    '', 'C', '',
    '', '', '', '', '', '', ''],
+
+  // Rents ร้านซักผ้า. Exists so the water screen (KS-19) has a metered row
+  // locally — without a tenancy on the laundry, the one space billed by
+  // meter rather than by headcount is invisible until production.
+  ['t-004', 'สมปอง ตัวอย่าง', 'ปอง', '3456', '080-000-0004',
+   'ร้านซักรีด', 'B', '',
+   '4', '', '', '', 'ตัวอย่าง', '', ''],
 ];
 
 // --------------------------------------------------------------- leases
@@ -181,6 +188,12 @@ const LEASE_ROWS: (string | number)[][] = [
   ['l-004', '105', 't-002',
    thaiDate(2026, 3, 1), '', thaiDate(2026, 2, 20),
    2500, 9000, 2500, 1, '', 'l-002', '', 2500, 2500, '', ''],
+
+  // The shop. `occupant_count` is 0 and that is correct rather than missing:
+  // nobody lives there, and its water comes off a meter, not a headcount.
+  ['l-005', 'laundry', 't-004',
+   thaiDate(2025, 6, 1), '', thaiDate(2025, 5, 25),
+   1800, 5000, 1800, 0, '', '', '', 6800, 6800, '', ''],
 ];
 
 // ------------------------------------------------------- meter_readings

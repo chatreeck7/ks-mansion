@@ -6,6 +6,7 @@ import { createSheetsMeterReadingRepository } from '../sheets/sheets-meter-readi
 import { createSheetsRoomRepository } from '../sheets/sheets-room-repository';
 import { createSheetsTenantRepository } from '../sheets/sheets-tenant-repository';
 import { metersFrom, startRound } from '@/lib/console/meter-round';
+import { waterRows } from '@/lib/console/water-ledger';
 import { getTenantRepository } from '../index';
 import { createSeedSheets } from './seed-sheet';
 
@@ -88,7 +89,7 @@ describe('the seed sheet reads through the real repositories', () => {
   it('covers the tenant profiles the empty states need', async () => {
     const tenants = await repositories().tenants.listTenants();
 
-    expect(tenants.map((t) => t.id)).toEqual(['t-001', 't-002', 't-003']);
+    expect(tenants.map((t) => t.id)).toEqual(['t-001', 't-002', 't-003', 't-004']);
     // Graded, with a full address.
     expect(tenants[0]).toMatchObject({ evaluationGrade: 'A', nickname: 'ชาย' });
     // Ungraded, sparse address, carries a note.
@@ -164,6 +165,27 @@ describe('the seed sheet reads through the real repositories', () => {
     expect(byKey.get('301:electricity')).toMatchObject({ previousReading: null, ratePerUnit: null });
   });
 
+  /**
+   * KS-19's whole point is that water has two bases, and the metered one is
+   * a single space. Without a tenancy on ร้านซักผ้า it would be invisible
+   * locally and first appear in production.
+   */
+  it('bills rooms by headcount and ร้านซักผ้า by its meter', async () => {
+    const { rooms, leases, meterReadings } = repositories();
+    const rows = waterRows(
+      await rooms.listRooms(),
+      await leases.listLeases(),
+      await meterReadings.listReadings(),
+      new Date(2026, 8, 6),
+    );
+    const byRoom = new Map(rows.map((row) => [row.roomId, row]));
+
+    expect(byRoom.get('101')).toMatchObject({ basis: 'occupancy', occupantCount: 2, charge: 200 });
+    expect(byRoom.get('laundry')).toMatchObject({ basis: 'metered', occupantCount: null });
+    // A room nobody rents on that day is not billed for water at all.
+    expect(byRoom.has('301')).toBe(false);
+  });
+
   it('parses the พ.ศ. lease dates back to the calendar dates they mean', async () => {
     const lease = await repositories().leases.getLease('l-001');
 
@@ -174,10 +196,10 @@ describe('the seed sheet reads through the real repositories', () => {
     expect(lease!.endDate).toBeNull();
   });
 
-  it('covers the four lease shapes worth seeing locally', async () => {
+  it('covers the lease shapes worth seeing locally', async () => {
     const leases = await repositories().leases.listLeases();
 
-    expect(leases.map((l) => l.id)).toEqual(['l-001', 'l-002', 'l-003', 'l-004']);
+    expect(leases.map((l) => l.id)).toEqual(['l-001', 'l-002', 'l-003', 'l-004', 'l-005']);
     expect(leases[0]!.endDate).toBeNull();
     expect(leases[1]!.endReason).toBe('normal');
     expect(leases[2]!.endReason).toBe('absconded');
@@ -225,7 +247,7 @@ describe('the seed store refuses what Sheets would refuse', () => {
     ).rejects.toThrow();
 
     expect(sheets.writeCount()).toBe(before);
-    expect(await tenants.listTenants()).toHaveLength(3);
+    expect(await tenants.listTenants()).toHaveLength(4);
   });
 
   it('rejects a lease that ended for a reason but has no end date', async () => {
@@ -257,8 +279,8 @@ describe('the seed store refuses what Sheets would refuse', () => {
     const { tenants } = repositories();
 
     const created = await tenants.createTenant(draft);
-    expect(created.id).toBe('t-004');
-    expect(await tenants.listTenants()).toHaveLength(4);
+    expect(created.id).toBe('t-005');
+    expect(await tenants.listTenants()).toHaveLength(5);
   });
 
   /** Soft delete, schema rule 7 — the row stays, the flag goes on. */
@@ -267,7 +289,7 @@ describe('the seed store refuses what Sheets would refuse', () => {
 
     await tenants.archiveTenant('t-002');
 
-    expect((await tenants.listTenants()).map((t) => t.id)).toEqual(['t-001', 't-003']);
+    expect((await tenants.listTenants()).map((t) => t.id)).toEqual(['t-001', 't-003', 't-004']);
     expect(await tenants.getTenant('t-002')).toMatchObject({ id: 't-002', archived: true });
   });
 
@@ -277,7 +299,7 @@ describe('the seed store refuses what Sheets would refuse', () => {
     await tenants.archiveTenant('t-003');
     const created = await tenants.createTenant(draft);
 
-    expect(created.id).toBe('t-004');
+    expect(created.id).toBe('t-005');
   });
 
   it('leaves columns it does not model untouched', async () => {

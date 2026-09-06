@@ -204,16 +204,34 @@ describe.skipIf(!enabled)('KS-68 — live write experiment (throwaway sheet)', (
   });
 
   /**
-   * `updateRow` addresses a row by number. Writing past the end of the tab is
-   * a bug in the caller, and the in-memory fake throws on it — so the real
-   * client must not quietly pad the sheet with blank rows instead, or local
-   * tests would be proving something production does not do.
+   * **The one thing this experiment found** (run 2026-09-06).
+   *
+   * This test was written asserting the opposite — that the real client would
+   * refuse an update past the end of the tab, the way the in-memory fake
+   * does. It does not. Google accepts the write and grows the sheet, silently
+   * padding everything in between with blank rows.
+   *
+   * So the fake is **stricter than production**, which is a divergence worth
+   * naming given KS-69 spent a card making the two agree. It is left standing
+   * deliberately, because the strictness runs in the safe direction: a caller
+   * that computes a row number too large fails loudly on a laptop instead of
+   * quietly appending 500 blank rows to an occupied building's records.
+   *
+   * Nothing in the console can currently produce such a number — every write
+   * goes through `sheets-crud`, which re-finds its row by id immediately
+   * before writing, and appends through `appendRow`. This is a guard against
+   * a future caller, not a live bug.
    */
-  it('refuses an update aimed past the end of the tab, the way the fake does', async () => {
+  it('accepts an update past the end of the tab, where the fake refuses', async () => {
     const rows = await client.getTabValues(SCRATCH_TAB);
-    const wellPastTheEnd = rows.length + 500;
+    // Modest, because this really does grow the tab by that many rows.
+    const pastTheEnd = rows.length + 25;
 
-    await expect(client.updateRow(SCRATCH_TAB, wellPastTheEnd, ['x', 'y'])).rejects.toThrow();
+    await expect(client.updateRow(SCRATCH_TAB, pastTheEnd, ['past-the-end', 'padded'])).resolves
+      .toBeUndefined();
+
+    const after = await client.getTabValues(SCRATCH_TAB);
+    expect(after.length).toBeGreaterThan(rows.length);
   });
 
   /**
