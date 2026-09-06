@@ -71,14 +71,15 @@ const { columns, groups } = Astro.props;
                     {cell.kind === 'input' && (
                       <input
                         type="text"
-                        inputmode="decimal"
+                        inputmode={cell.mode === 'text' ? undefined : 'decimal'}
                         name={cell.name}
                         value={cell.value}
                         aria-label={cell.label}
                         placeholder={cell.placeholder}
                         class:list={[
                           'w-full min-w-20 rounded-sm border border-console-rule/30 bg-console-paper px-2 py-1',
-                          'font-figure tabular-nums focus:border-console-rule focus:outline-none',
+                          'focus:border-console-rule focus:outline-none',
+                          cell.mode === 'text' ? 'font-sans' : 'font-figure tabular-nums',
                           column.align === 'right' && 'text-right',
                         ]}
                       />

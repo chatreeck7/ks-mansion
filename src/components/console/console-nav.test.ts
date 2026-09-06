@@ -14,6 +14,7 @@ describe('CONSOLE_SECTIONS', () => {
       'meter-round',
       'water',
       'bills',
+      'payments',
       'health',
     ]);
   });

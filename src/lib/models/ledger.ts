@@ -30,6 +30,12 @@ export interface LedgerInputCell {
    */
   label: string;
   placeholder?: string;
+  /**
+   * What is typed here. Figures are the common case and stay the default;
+   * `text` exists because a note is not a number and a phone offering a
+   * numeric keypad for `ค้างประกัน 1,000` is offering the wrong keyboard.
+   */
+  mode?: 'figure' | 'text';
 }
 
 export interface LedgerColumn {

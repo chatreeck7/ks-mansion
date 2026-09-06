@@ -3,6 +3,7 @@ import {
   getBillRepository,
   getLeaseRepository,
   getMeterReadingRepository,
+  getPaymentRepository,
   getRoomRepository,
   getTenantRepository,
   sheetsClientFrom,
@@ -11,6 +12,7 @@ import {
 import { BILLS_TAB } from './sheets/sheets-bill-repository';
 import { LEASES_TAB } from './sheets/sheets-lease-repository';
 import { METER_READINGS_TAB } from './sheets/sheets-meter-reading-repository';
+import { PAYMENTS_TAB } from './sheets/sheets-payment-repository';
 import { ROOMS_TAB } from './sheets/sheets-room-repository';
 import { TENANTS_TAB } from './sheets/sheets-tenant-repository';
 import { diagnoseTab, type TabDiagnostic } from './tab-diagnostics';
@@ -113,6 +115,12 @@ export function repositoryProbes(env?: Record<string, unknown>): TabProbe[] {
       label: 'บิล',
       read: () => getBillRepository(env).listBills(),
       inspect: () => diagnoseTab(client(), BILLS_TAB),
+    },
+    {
+      tab: 'payments',
+      label: 'การรับเงิน',
+      read: () => getPaymentRepository(env).listPayments(),
+      inspect: () => diagnoseTab(client(), PAYMENTS_TAB),
     },
   ];
 }

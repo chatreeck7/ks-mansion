@@ -1,0 +1,215 @@
+---
+// src/pages/console/receipts/[payment].astro
+import ConsoleLayout from '@/layouts/ConsoleLayout.astro';
+import { consolePath } from '@/lib/console/paths';
+import { receiptFor, receiptPeriodLabel } from '@/lib/console/receipt';
+import { formatBaht } from '@/lib/format/thai';
+import { getBillRepository, getPaymentRepository, getRoomRepository } from '@/lib/repositories';
+
+/**
+ * ใบเสร็จ for one payment (KS-23).
+ *
+ * **Laid out as the paper slip, because the paper slip is the receipt.**
+ * ใบแจ้งค่าห้องพัก carries `ผู้รับเงิน` and `ผู้ชำระเงิน` signature lines at
+ * its foot; signed, it is what the building hands over today. So this is that
+ * document with the payment on it, and the signature block is kept and left
+ * blank — the console has no signature to put there, and a receipt that
+ * silently dropped the line would be a weaker document than the one it
+ * replaces.
+ *
+ * Rendered outside `ConsoleFrame` on purpose: the nav rail and tab bar are
+ * not part of a document that gets printed and handed to someone. The PDF
+ * export engine is KS-24's; this is the screen and its print stylesheet.
+ */
+
+const env = Astro.locals.runtime?.env;
+
+/**
+ * Cancelling a receipt is the *only* correction an append-only tab allows: a
+ * mis-keyed payment is withdrawn and recorded again, never edited. POST, and
+ * behind a disclosure so it takes two deliberate actions — a money record
+ * that a stray click removes is worse than one that takes a moment.
+ */
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  if (form.get('action') === 'void') {
+    await getPaymentRepository(env).voidPayment(Astro.params.payment!);
+  }
+}
+
+// `getPayment` rather than a list filter, so a voided receipt still resolves
+// — someone holding a printed slip must land on something that says it was
+// withdrawn, not on a 404.
+const payment = await getPaymentRepository(env).getPayment(Astro.params.payment!);
+
+if (!payment) {
+  return new Response(null, { status: 404, statusText: 'Not Found' });
+}
+
+const bill = await getBillRepository(env).getBill(payment.billId);
+
+if (!bill) {
+  // A payment whose bill has vanished is a broken reference, not an empty
+  // page: say which one, because only the sheet can explain it.
+  return new Response(`ใบเสร็จ ${payment.id} อ้างถึงบิล ${payment.billId} ที่ไม่มีอยู่`, {
+    status: 500,
+  });
+}
+
+const [room, billPayments] = await Promise.all([
+  getRoomRepository(env).getRoom(bill.roomId),
+  getPaymentRepository(env).listPaymentsForBill(bill.id),
+]);
+
+// The payment being printed is included even when it has been voided, so a
+// voided slip still shows what it once claimed.
+const known = billPayments.some((other) => other.id === payment.id);
+const receipt = receiptFor(payment, bill, room, known ? billPayments : [...billPayments, payment]);
+---
+
+<ConsoleLayout title={`ใบเสร็จ ${receipt.reference}`}>
+  <main class="mx-auto max-w-2xl px-4 py-6 print:max-w-none print:px-0 print:py-0">
+    <div class="mb-4 flex flex-wrap items-center justify-between gap-3 print:hidden">
+      <a
+        href={consolePath('console/payments')}
+        class="text-sm text-console-ink-soft underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
+      >
+        ← กลับไปหน้ารับเงิน
+      </a>
+      <button
+        type="button"
+        data-print
+        class="rounded-sm border border-console-rule/40 px-3 py-1.5 text-sm text-console-ink hover:bg-console-sunk focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
+      >
+        พิมพ์ใบเสร็จ
+      </button>
+    </div>
+
+    {payment.archived && (
+      <p class="mb-4 rounded-sm bg-console-crit-bg px-3 py-2 font-semibold text-console-crit">
+        ใบเสร็จนี้ถูกยกเลิกแล้ว — ไม่ใช่หลักฐานการชำระเงิน
+      </p>
+    )}
+
+    <article class="border border-console-rule/30 bg-console-card p-6 print:border-0 print:p-0">
+      <header class="mb-5 flex flex-wrap justify-between gap-4 border-b border-console-rule/25 pb-4">
+        <div>
+          <p class="mb-0 text-lg font-semibold text-console-ink">KS MANSION</p>
+          <p class="mb-0 text-sm text-console-ink-soft">167 ถ.สุขสวัสดิ์ 1 ตำบลพระบาท</p>
+          <p class="mb-0 text-sm text-console-ink-soft">อ.เมือง จ.ลำปาง 52100</p>
+        </div>
+        <div class="text-right">
+          <p class="mb-1 text-lg font-semibold text-console-ink">ใบเสร็จรับเงิน</p>
+          <dl class="mb-0 grid grid-cols-[auto_auto] justify-end gap-x-3 text-sm">
+            <dt class="text-console-ink-soft">ห้อง</dt>
+            <dd class="mb-0 font-figure font-semibold text-console-ink">{receipt.roomLabel}</dd>
+            <dt class="text-console-ink-soft">ยอดชำระเดือน</dt>
+            <dd class="mb-0 text-console-ink">{receiptPeriodLabel(bill)}</dd>
+            <dt class="text-console-ink-soft">วันที่รับเงิน</dt>
+            <dd class="mb-0 font-figure tabular-nums text-console-ink">{receipt.paidOnLabel}</dd>
+            <dt class="text-console-ink-soft">เลขที่อ้างอิง</dt>
+            <dd class="mb-0 font-figure text-console-ink">{receipt.reference}</dd>
+          </dl>
+        </div>
+      </header>
+
+      <table class="mb-4 w-full border-collapse text-sm">
+        <thead>
+          <tr>
+            <th scope="col" class="border-b border-console-rule/25 px-2 py-1.5 text-left text-xs font-semibold text-console-ink-faint">
+              รายการ
+            </th>
+            <th scope="col" class="border-b border-console-rule/25 px-2 py-1.5 text-left text-xs font-semibold text-console-ink-faint">
+              สำหรับ
+            </th>
+            <th scope="col" class="border-b border-console-rule/25 px-2 py-1.5 text-right text-xs font-semibold text-console-ink-faint">
+              จำนวนเงิน
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {receipt.lines.map((line) => (
+            <tr class="border-b border-console-rule/10">
+              <td class="px-2 py-1.5 text-console-ink">{line.label}</td>
+              <td class="px-2 py-1.5 text-console-ink-faint">{line.detail}</td>
+              <td class="px-2 py-1.5 text-right font-figure tabular-nums text-console-ink">
+                {formatBaht(line.amount)}
+              </td>
+            </tr>
+          ))}
+          <tr class="border-b border-console-rule/25">
+            <td class="px-2 py-1.5 font-semibold text-console-ink" colspan="2">รวมยอดบิล</td>
+            <td class="px-2 py-1.5 text-right font-figure font-semibold tabular-nums text-console-ink">
+              {formatBaht(receipt.billTotal)}
+            </td>
+          </tr>
+          <tr>
+            <td class="px-2 py-1.5 font-semibold text-console-ink" colspan="2">
+              รับเงินครั้งนี้ ({receipt.methodLabel})
+            </td>
+            <td class="px-2 py-1.5 text-right font-figure text-base font-semibold tabular-nums text-console-ink">
+              {formatBaht(payment.amount)}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      {payment.note && (
+        <p class="mb-3 text-sm text-console-ink-soft">หมายเหตุ: {payment.note}</p>
+      )}
+
+      <p
+        class:list={[
+          'mb-6 rounded-sm px-3 py-2 text-sm',
+          receipt.partial ? 'bg-console-warn-bg text-console-warn' : 'bg-console-ok-bg text-console-ok',
+        ]}
+      >
+        {receipt.standingLabel}
+        {receipt.settlement.payments.length > 1 && (
+          <span class="text-console-ink-soft">
+            {' '}· รับมาแล้วทั้งหมด {formatBaht(receipt.settlement.paid)} บาท จาก{' '}
+            {receipt.settlement.payments.length} ครั้ง
+          </span>
+        )}
+      </p>
+
+      <!-- Kept and left blank: the signature is what makes the paper slip a
+           receipt, and the console has none to print. -->
+      <div class="grid grid-cols-2 gap-8 pt-6 text-sm">
+        {['ผู้รับเงิน', 'ผู้ชำระเงิน'].map((role) => (
+          <div>
+            <p class="mb-0 border-b border-console-rule/40 pb-6"></p>
+            <p class="mb-0 pt-1 text-center text-console-ink-soft">({role})</p>
+          </div>
+        ))}
+      </div>
+    </article>
+
+    {!payment.archived && (
+      <details class="mt-6 text-sm print:hidden">
+        <summary class="cursor-pointer text-console-ink-faint">
+          บันทึกผิด? ยกเลิกใบเสร็จนี้
+        </summary>
+        <form method="POST" class="mt-2">
+          <input type="hidden" name="action" value="void" />
+          <p class="mb-2 text-console-ink-soft">
+            ใบเสร็จแก้ไขไม่ได้ — ยกเลิกใบนี้แล้วบันทึกการรับเงินใหม่
+            เลขที่ {receipt.reference} จะไม่ถูกนำกลับมาใช้ซ้ำ
+          </p>
+          <button
+            type="submit"
+            class="rounded-sm border border-console-crit/40 px-3 py-1.5 text-console-crit hover:bg-console-crit-bg focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-crit"
+          >
+            ยกเลิกใบเสร็จ {receipt.reference}
+          </button>
+        </form>
+      </details>
+    )}
+  </main>
+</ConsoleLayout>
+
+<script>
+  // Progressive enhancement only: the page is a complete document without
+  // this, and Ctrl-P still prints it.
+  document.querySelector('[data-print]')?.addEventListener('click', () => window.print());
+</script>

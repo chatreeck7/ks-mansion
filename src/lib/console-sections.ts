@@ -24,6 +24,7 @@ export const CONSOLE_SECTIONS: ConsoleSection[] = [
   // KS-67 came from.
   { id: 'water', label: 'ค่าน้ำ', href: consolePath('console/water') },
   { id: 'bills', label: 'บิล', href: consolePath('console/bills') },
+  { id: 'payments', label: 'รับเงิน', href: consolePath('console/payments') },
   // Not a daily section, but a diagnostic nobody can find is the same as one
   // that does not exist — which was the whole complaint KS-67 came from.
   { id: 'health', label: 'สถานะระบบ', href: consolePath('console/health') },

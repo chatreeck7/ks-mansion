@@ -340,6 +340,32 @@ const BILL_ROWS: (string | number)[][] = [
    1800, 635, 525, 2960, '', ''],
 ];
 
+// -------------------------------------------------------------- payments
+
+const PAYMENTS_HEADER = ['id', 'bill_id', 'paid_on', 'amount', 'method', 'note', 'archived'];
+
+/**
+ * Money received against those bills, shaped to show every state a bill can
+ * be in — because a screen that only ever sees "paid" locally is a screen
+ * whose partial and unpaid rendering nobody has looked at.
+ *
+ * `b-001` settled in full, `b-002` **แบ่งจ่าย** in two instalments that do
+ * not yet cover it, `b-003` untouched. The note on the first instalment is
+ * the real reconciliation problem in miniature: the collection form's own
+ * footer is a list of nicknames against transfer handles, because a transfer
+ * arrives under a name that is not the tenant's.
+ */
+const PAYMENT_ROWS: (string | number)[][] = [
+  ['p-001', 'b-001', thaiDate(2025, 3, 28), 2736, 'transfer', '', ''],
+
+  ['p-002', 'b-002', thaiDate(2025, 3, 30), 2000, 'transfer', 'โอนในชื่อ Frame', ''],
+  ['p-003', 'b-002', thaiDate(2025, 4, 4), 1000, 'cash', 'รับที่ออฟฟิศ', ''],
+
+  // Keyed against the wrong bill and withdrawn rather than edited: a receipt
+  // is history, so a correction is a void and a new row (rule 6).
+  ['p-004', 'b-003', thaiDate(2025, 4, 2), 2960, 'transfer', 'บันทึกผิดห้อง', 'TRUE'],
+];
+
 // ---------------------------------------------------------------- build
 
 /**
@@ -353,6 +379,7 @@ export function createSeedSheets(): InMemorySheets {
     leases: [LEASES_HEADER, ...LEASE_ROWS],
     meter_readings: [METER_READINGS_HEADER, ...METER_READING_ROWS],
     bills: [BILLS_HEADER, ...BILL_ROWS],
+    payments: [PAYMENTS_HEADER, ...PAYMENT_ROWS],
   });
 }
 

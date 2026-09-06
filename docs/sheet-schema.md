@@ -59,7 +59,7 @@ This isn't hypothetical. Two things happened this cycle, on the real
 
 ### 1. One tab per entity
 
-`rooms`, `tenants`, `leases`, `bills`, `meter_readings`, `assets`. No tab
+`rooms`, `tenants`, `leases`, `bills`, `payments`, `meter_readings`, `assets`. No tab
 holds more than one entity type, and no entity's rows are split across tabs.
 
 ### 2. The header row is the schema contract — read by name, not position
@@ -112,7 +112,7 @@ directly can tell "data I own" from "output the console owns."
 
 ### 6. Append-only where it matters
 
-`bills` and `meter_readings` are history, not current state. A correction is
+`bills`, `payments` and `meter_readings` are history, not current state. A correction is
 a new row, not an edit to an old one. This directly shapes KS-18 (meter
 entry): a corrected reading should append, not overwrite — worth having this
 rule on record before KS-18's persistence design gets improvised ad hoc.
@@ -340,9 +340,63 @@ Identity: `id`, `room_id`, `cycle`.
   25th–26th, issue 26th, due 10th — and this column is what it writes.
 - **`arrears_note`** is KS-22's manual annotation. Free text, never auto-flagged:
   ค้าง is something an admin asserts, not something the console infers.
-- **Payments are deliberately not here.** Recording a payment against a bill row
-  would be an edit to append-only history. KS-23 should get its own `payments`
-  tab; that is that card's decision to make, not this schema's to pre-empt.
+- **Payments are not here** — they are their own tab, below. Recording one
+  against a bill row would be an edit to append-only history, and a bill takes
+  more than one payment (แบ่งจ่าย), so there is no single set of columns for
+  them to occupy.
+
+### `payments`
+
+```
+id, bill_id, paid_on, amount, method, note, archived
+```
+
+Identity: `id`, `bill_id`, `paid_on`, `amount`.
+
+**Append-only (rule 6).** A receipt handed to a tenant is history. There is no
+`updatePayment` at all — not even the narrow exception `bills.arrears_note`
+gets — because every field here is part of the claim "this amount arrived on
+this day". A mis-keyed payment is **voided** (`archived`) and recorded again,
+which is what tearing a page out of a carbon-copy receipt book already is.
+
+- **`bill_id` is required, and there is no `room_id`.** The room is the bill's.
+  A copy here could not be checked against anything — every other derived value
+  in this schema is verified on read (`bills.total_amount` against its parts),
+  and one that cannot be verified is one that will eventually be wrong and
+  still believed. The console shows the room on every screen because it holds
+  the bill; a person reading the tab by hand joins on `bill_id`.
+- **Deposits and advance rent are not payments in this sense.** They are
+  `move_in_paid` / `move_out_paid` on the lease, because exactly one of each
+  exists per tenancy (see §leases). Routing them here as well would put the
+  same baht in two places.
+- **`amount` must be greater than zero.** Zero is the absence of a payment, and
+  a row asserting one would make a bill read as part-settled by nothing.
+  Negative is a refund, which already has a home *and a documented sign
+  convention* in `move_out_due` / `move_out_paid`.
+- **More than the bill's total is accepted, not refused.** The collection form
+  shows room 306 billed 3,900 with `ยอดค้าง 4,327` written beside it, and one
+  transfer clears both. A rule capping a payment at its own bill would make the
+  commonest way a debt gets settled unrecordable.
+- **`method`** is `transfer` or `cash` — the two the building has. The bill
+  prints a bank account to transfer into, and the same slip carries a
+  `ผู้รับเงิน` signature line for money handed over at the desk.
+- **`note`** is free text and earns its place: the collection form's own footer
+  is a list of nicknames against transfer handles (`หลิว - Frame`,
+  `จูน - Mueng`), because a transfer arrives under a name that is not the
+  tenant's. Without somewhere to write that, the reconciliation lives only in
+  an admin's head.
+- `paid_on` is the day the **money arrived**, not the day it was keyed in, and
+  is Thai Buddhist-era text in a **plain-text** column like every other date
+  here. It is the column of the collection form — `26 27 28 … 10` — so a
+  payment recorded two days late still lands in the right cell of it.
+
+**There is no receipt number, on purpose.** The building has never had one:
+`สำเนาของ ใบเสร็จ หอพัก.xlsx` is named for a receipt and contains none — what
+it holds is ใบแจ้งค่าห้องพัก, the *bill*, whose footer carries `ผู้รับเงิน` and
+`ผู้ชำระเงิน` signature lines. Signed, that slip **is** the receipt. Inventing
+`RE-2569-0001` would be inventing data; the payment's `id` is the reference
+printed on the slip, and a real series can be appended as a column the day
+someone decides what it looks like.
 
 ## Pending sheet migration
 
@@ -395,6 +449,20 @@ signed_date, occupant_count, end_reason, previous_lease_id
 
 `occupant_count` must be filled for every existing lease row. `signed_date`,
 `end_reason` and `previous_lease_id` may be left blank.
+
+**`payments`** — a **new tab**, which the console cannot create for itself
+(nothing in `SheetsClient` adds a sheet, deliberately: the console never
+invents tabs). Create it with the header above, then leave it empty — it
+fills as payments are recorded. The one-command form is
+`src/lib/repositories/sheets/payments-tab.migration.test.ts`, which takes the
+header from the repository's own contract so the two cannot drift:
+
+```
+KS_MANSION_DB_SPREADSHEET_ID=<the live id> \
+GOOGLE_SERVICE_ACCOUNT_JSON="$(cat ~/.secrets/ks-mansion-service-account.json)" \
+KS23_CREATE_PAYMENTS_TAB=yes \
+npx vitest run src/lib/repositories/sheets/payments-tab.migration.test.ts
+```
 
 **One data correction, separate from the columns:** the `rent_rate` on lease
 `l-001` reads `2636`, which is the old month-total figure. Room 101's rent is

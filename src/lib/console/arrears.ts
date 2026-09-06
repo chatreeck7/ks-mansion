@@ -52,6 +52,7 @@ export function toArrearsGroups(
           // The two shapes the real sheet actually holds, offered as a hint
           // rather than as options — the admin writes the sentence.
           placeholder: 'เช่น ยอดค้าง 1,169 หรือ ค้างประกัน 1,000',
+          mode: 'text',
         },
       },
     };
