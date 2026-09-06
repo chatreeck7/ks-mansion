@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { formatThaiDate } from '@/lib/format/thai';
 import { isUnit } from '@/lib/models/room';
 import { createSheetsLeaseRepository } from '../sheets/sheets-lease-repository';
+import { createSheetsBillRepository } from '../sheets/sheets-bill-repository';
 import { createSheetsMeterReadingRepository } from '../sheets/sheets-meter-reading-repository';
 import { createSheetsRoomRepository } from '../sheets/sheets-room-repository';
 import { createSheetsTenantRepository } from '../sheets/sheets-tenant-repository';
 import { metersFrom, startRound } from '@/lib/console/meter-round';
 import { waterRows } from '@/lib/console/water-ledger';
+import { billTotal, hasArrears } from '@/lib/models/bill';
 import { getTenantRepository } from '../index';
 import { createSeedSheets } from './seed-sheet';
 
@@ -18,6 +20,7 @@ function repositories() {
     rooms: createSheetsRoomRepository(sheets),
     tenants: createSheetsTenantRepository(sheets),
     leases: createSheetsLeaseRepository(sheets),
+    bills: createSheetsBillRepository(sheets),
     meterReadings: createSheetsMeterReadingRepository(sheets),
   };
 }
@@ -184,6 +187,29 @@ describe('the seed sheet reads through the real repositories', () => {
     expect(byRoom.get('laundry')).toMatchObject({ basis: 'metered', occupantCount: null });
     // A room nobody rents on that day is not billed for water at all.
     expect(byRoom.has('301')).toBe(false);
+  });
+
+  /**
+   * The seeded cycle proves the stored total agrees with the parts on
+   * well-formed data — the check the reader applies to every row.
+   */
+  it('carries one issued cycle whose totals reconcile', async () => {
+    const bills = await repositories().bills.listBillsForCycle('2025-03');
+
+    expect(bills.map((b) => b.roomId)).toEqual(['101', '102', 'laundry']);
+    for (const bill of bills) {
+      expect(billTotal(bill)).toBeGreaterThan(0);
+    }
+    // 101: two occupants at ฿100, and 56 units at ฿6.
+    expect(bills[0]).toMatchObject({ rentAmount: 2200, electricityAmount: 336, waterAmount: 200 });
+    // ร้านซักผ้า is metered for water, not charged by headcount.
+    expect(bills[2]).toMatchObject({ roomId: 'laundry', waterAmount: 525 });
+  });
+
+  it('carries an arrears note as text, on one bill only', async () => {
+    const bills = await repositories().bills.listBillsForCycle('2025-03');
+
+    expect(bills.filter(hasArrears).map((b) => b.arrearsNote)).toEqual(['ยอดค้าง 1,169']);
   });
 
   it('parses the พ.ศ. lease dates back to the calendar dates they mean', async () => {

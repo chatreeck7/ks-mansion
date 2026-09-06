@@ -1,5 +1,6 @@
 import {
   describeDatastore,
+  getBillRepository,
   getLeaseRepository,
   getMeterReadingRepository,
   getRoomRepository,
@@ -7,6 +8,7 @@ import {
   sheetsClientFrom,
   type DatastoreDescription,
 } from './index';
+import { BILLS_TAB } from './sheets/sheets-bill-repository';
 import { LEASES_TAB } from './sheets/sheets-lease-repository';
 import { METER_READINGS_TAB } from './sheets/sheets-meter-reading-repository';
 import { ROOMS_TAB } from './sheets/sheets-room-repository';
@@ -105,6 +107,12 @@ export function repositoryProbes(env?: Record<string, unknown>): TabProbe[] {
       label: 'ค่ามิเตอร์',
       read: () => getMeterReadingRepository(env).listReadings(),
       inspect: () => diagnoseTab(client(), METER_READINGS_TAB),
+    },
+    {
+      tab: 'bills',
+      label: 'บิล',
+      read: () => getBillRepository(env).listBills(),
+      inspect: () => diagnoseTab(client(), BILLS_TAB),
     },
   ];
 }
