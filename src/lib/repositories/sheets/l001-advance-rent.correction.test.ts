@@ -42,6 +42,24 @@ const spreadsheetId = process.env.KS_MANSION_DB_SPREADSHEET_ID?.trim() ?? '';
 const credentialsJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON?.trim() ?? '';
 const applying = process.env.KS68_APPLY_L001_FIX?.trim() === 'yes';
 const enabled = applying && spreadsheetId !== '' && credentialsJson !== '';
+/** Asked for the correction, but something it needs came through empty. */
+const halfConfigured = applying && !enabled;
+
+/** Same reasoning as the experiment suite: a half-configured run must not
+ * report "skipped", which reads like a pass. */
+describe.runIf(halfConfigured)('l-001 correction configuration', () => {
+  it('has everything the correction needs', () => {
+    const missing = [
+      spreadsheetId === '' ? 'KS_MANSION_DB_SPREADSHEET_ID' : null,
+      credentialsJson === '' ? 'GOOGLE_SERVICE_ACCOUNT_JSON' : null,
+    ].filter((name): name is string => name !== null);
+
+    throw new Error(
+      `KS68_APPLY_L001_FIX is set but ${missing.join(' and ')} came through empty, ` +
+        `so nothing was written. If you passed it as "$(cat <path>)", check that path exists.`,
+    );
+  });
+});
 
 describe.skipIf(!enabled)(`correction: ${LEASE_ID} advance_rent → ${CORRECT_VALUE}`, () => {
   it('corrects the month-total figure to one month of rent, and leaves the rest alone', async () => {

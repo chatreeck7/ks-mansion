@@ -45,6 +45,33 @@ const SCRATCH_HEADER_ROWS = 1;
 const spreadsheetId = process.env.KS68_SCRATCH_SPREADSHEET_ID?.trim() ?? '';
 const credentialsJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON?.trim() ?? '';
 const enabled = spreadsheetId !== '' && credentialsJson !== '';
+/** One set and the other not — an attempt to run this, not a decision to skip. */
+const halfConfigured = !enabled && (spreadsheetId !== '' || credentialsJson !== '');
+
+/**
+ * A half-configured run must fail, not skip.
+ *
+ * `skipIf` is right when nothing is set — that is `npm test` on an ordinary
+ * checkout, and it should say nothing. It is wrong when someone is plainly
+ * trying to run this and one variable came through empty: the suite then
+ * reports "7 skipped", which reads like a pass, and the actual cause is a
+ * `cat` that failed several lines earlier in the scrollback. Ask how this is
+ * known: it happened, and cost a round trip.
+ */
+describe.runIf(halfConfigured)('KS-68 experiment configuration', () => {
+  it('has both environment variables set', () => {
+    const missing = [
+      spreadsheetId === '' ? 'KS68_SCRATCH_SPREADSHEET_ID' : null,
+      credentialsJson === '' ? 'GOOGLE_SERVICE_ACCOUNT_JSON' : null,
+    ].filter((name): name is string => name !== null);
+
+    throw new Error(
+      `${missing.join(' and ')} came through empty, so the experiment did not run. ` +
+        `If you passed it as "$(cat <path>)", check that path exists — a failed cat ` +
+        `substitutes an empty string and the suite would otherwise skip silently.`,
+    );
+  });
+});
 
 /** A tag that makes this run's rows findable in the sheet afterwards. */
 const runTag = `ks68-${Date.now()}`;
