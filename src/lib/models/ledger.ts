@@ -3,7 +3,16 @@ import type { PillTone } from './pill-tone';
 /** One cell. The union keeps figure alignment and empty states consistent. */
 export type LedgerCell =
   | { kind: 'text'; value: string; muted?: boolean }
-  | { kind: 'figure'; value: number | null }
+  /**
+   * A number, right-aligned with the rest of its column.
+   *
+   * `measured` marks a figure that is **not money**: a meter dial, a unit
+   * count, anything read off an instrument. Money prints without decimals
+   * because satang are not tracked, and that same rounding on a dial figure
+   * shows an admin a different number than the cell they copied it from —
+   * so a quantity that can hold a fraction has to say so here.
+   */
+  | { kind: 'figure'; value: number | null; measured?: boolean }
   | { kind: 'pill'; tone: PillTone; label: string }
   | LedgerInputCell;
 

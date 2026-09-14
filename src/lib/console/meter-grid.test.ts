@@ -67,12 +67,35 @@ describe('toMeterGridGroups', () => {
     }
   });
 
-  it('shows a recorded previous figure and rate as figures, not inputs', () => {
+  /**
+   * Both read-only columns are marked `measured`, which is what keeps the
+   * table from printing a dial the admin cannot reconcile with the sheet:
+   * money drops its decimals, a meter figure must not.
+   */
+  it('shows a recorded previous figure and rate as measured figures, not inputs', () => {
     const row = toMeterGridGroups(round, MAR)[0]!.rows.find((r) => r.id === '101:electricity')!;
 
-    expect(row.cells.previous).toEqual({ kind: 'figure', value: 1256 });
-    expect(row.cells.rate).toEqual({ kind: 'figure', value: 6 });
+    expect(row.cells.previous).toEqual({ kind: 'figure', value: 1256, measured: true });
+    expect(row.cells.rate).toEqual({ kind: 'figure', value: 6, measured: true });
     expect(row.cells.current!.kind).toBe('input');
+  });
+
+  it('keeps a fractional dial figure on the row rather than rounding it', () => {
+    const fractional = startRound(ROOMS, [
+      makeMeterReading({
+        id: 'm-101',
+        roomId: '101',
+        previousReading: 1594,
+        currentReading: 1677.5,
+        ratePerUnit: 6,
+        readDate: FEB,
+      }),
+    ]);
+    const row = toMeterGridGroups(fractional, MAR)[0]!.rows.find(
+      (r) => r.id === '101:electricity',
+    )!;
+
+    expect(row.cells.previous).toEqual({ kind: 'figure', value: 1677.5, measured: true });
   });
 
   /** On the building's first round this is every row, not an odd one. */

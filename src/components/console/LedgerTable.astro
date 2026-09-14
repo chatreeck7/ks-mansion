@@ -1,7 +1,7 @@
 ---
 // src/components/console/LedgerTable.astro
 import type { LedgerColumn, LedgerGroup } from '@/lib/models/ledger';
-import { formatFigure } from '@/lib/format/thai';
+import { formatFigure, formatReadingFigure } from '@/lib/format/thai';
 import StatusPill from './StatusPill.astro';
 
 interface Props {
@@ -67,7 +67,8 @@ const { columns, groups } = Astro.props;
                         'font-figure tabular-nums',
                     ]}
                   >
-                    {cell.kind === 'figure' && formatFigure(cell.value)}
+                    {cell.kind === 'figure' &&
+                      (cell.measured ? formatReadingFigure(cell.value) : formatFigure(cell.value))}
                     {cell.kind === 'input' && (
                       <input
                         type="text"

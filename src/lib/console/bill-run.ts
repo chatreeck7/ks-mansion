@@ -1,4 +1,4 @@
-import { formatBaht, formatUnits } from '@/lib/format/thai';
+import { formatBaht, formatReading, formatUnits } from '@/lib/format/thai';
 import type { Bill, BillDraft } from '@/lib/models/bill';
 import {
   chargeFor,
@@ -187,8 +187,8 @@ export function planBillRun({
       waterAmount,
       total: rentAmount + electricityAmount + waterAmount,
       electricityBasis: reading
-        ? `${formatBaht(reading.previousReading)} → ${formatBaht(reading.currentReading)} = ` +
-          `${formatUnits(units)} × ${formatBaht(reading.ratePerUnit)} บาท`
+        ? `${formatReading(reading.previousReading)} → ${formatReading(reading.currentReading)} = ` +
+          `${formatUnits(units)} × ${formatReading(reading.ratePerUnit)} บาท`
         : '—',
       waterBasis: waterLine?.basis ?? '—',
       problems,
