@@ -1,4 +1,4 @@
-import { formatBaht, formatUnits } from '@/lib/format/thai';
+import { formatReading, formatUnits } from '@/lib/format/thai';
 import { meterTypeLabel } from '@/lib/models/meter-reading';
 import type { RoundProgress, RoundStop } from './meter-round';
 
@@ -37,8 +37,8 @@ export function describeStop(stop: RoundStop): StopView {
   return {
     roomLabel: stop.roomLabel,
     meterLabel: meterTypeLabel(stop.meterType),
-    previousText: stop.previousReading === null ? null : formatBaht(stop.previousReading),
-    rateText: stop.ratePerUnit === null ? null : `${formatBaht(stop.ratePerUnit)} บาท/หน่วย`,
+    previousText: stop.previousReading === null ? null : formatReading(stop.previousReading),
+    rateText: stop.ratePerUnit === null ? null : `${formatReading(stop.ratePerUnit)} บาท/หน่วย`,
     needsPreviousReading: stop.previousReading === null,
     needsRate: stop.ratePerUnit === null,
     deferredNote: stop.state === 'skipped' ? stop.note : null,
@@ -124,7 +124,7 @@ export function previewEntry(stop: RoundStop, fields: EntryFields): EntryPreview
       status: 'invalid',
       // Same rule the repository refuses on write. Said here first, because
       // the person is still standing in front of the meter.
-      message: `น้อยกว่าครั้งก่อน (${formatBaht(previousReading)}) — มิเตอร์ไม่เดินถอยหลัง`,
+      message: `น้อยกว่าครั้งก่อน (${formatReading(previousReading)}) — มิเตอร์ไม่เดินถอยหลัง`,
     };
   }
 
@@ -148,6 +148,6 @@ export function previewEntry(stop: RoundStop, fields: EntryFields): EntryPreview
         ? ''
         : charge === null
           ? `ใช้ไป ${formatUnits(units)}`
-          : `ใช้ไป ${formatUnits(units)} = ${formatBaht(charge)} บาท`,
+          : `ใช้ไป ${formatUnits(units)} = ${formatReading(charge)} บาท`,
   };
 }

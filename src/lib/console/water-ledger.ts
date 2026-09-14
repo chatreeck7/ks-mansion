@@ -1,4 +1,4 @@
-import { formatBaht } from '@/lib/format/thai';
+import { formatBaht, formatReading } from '@/lib/format/thai';
 import { cycleFor, cycleLabel } from '@/lib/models/billing-cycle';
 import type { LedgerColumn, LedgerGroup, LedgerRow } from '@/lib/models/ledger';
 import {
@@ -146,7 +146,7 @@ export function toWaterGroups(
           // Says *why* the number is what it is, which a bare amount cannot.
           value:
             row.basis === 'metered'
-              ? `มิเตอร์น้ำ${row.units === null ? '' : ` ${formatBaht(row.units)} หน่วย`}`
+              ? `มิเตอร์น้ำ${row.units === null ? '' : ` ${formatReading(row.units)} หน่วย`}`
               : `เหมา ${formatBaht(WATER_RATE_PER_OCCUPANT)}/คน`,
           muted: true,
         },

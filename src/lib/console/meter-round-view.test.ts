@@ -57,6 +57,15 @@ describe('describeStop', () => {
   });
 });
 
+describe('describeStop and a fractional dial', () => {
+  it('prints the figure the sheet holds rather than rounding it up', () => {
+    expect(describeStop(stop({ previousReading: 4215.6, ratePerUnit: 5 }))).toMatchObject({
+      previousText: '4,215.6',
+      rateText: '5 บาท/หน่วย',
+    });
+  });
+});
+
 describe('describeProgress', () => {
   it('counts stops, not rooms', () => {
     const view = describeProgress({
@@ -119,6 +128,31 @@ describe('previewEntry', () => {
     expect(previewEntry(stop(), { currentReading: '1200' })).toMatchObject({
       status: 'invalid',
       message: expect.stringContaining('1,256'),
+    });
+  });
+
+  /**
+   * The message has to quote the figure the reading is actually compared
+   * against. It used to quote a *rounded* one, so a dial at 1677.5 refused
+   * 1677 while telling the reader the previous figure was 1,678 — a reason
+   * that cannot be acted on, and the one that stopped a real round.
+   */
+  it('names the stored figure, not a rounded one, when it refuses', () => {
+    const preview = previewEntry(stop({ previousReading: 1677.5 }), {
+      currentReading: '1677',
+    });
+    expect(preview).toMatchObject({ status: 'invalid' });
+    expect(preview).toMatchObject({ message: expect.stringContaining('1,677.5') });
+    expect(preview).not.toMatchObject({ message: expect.stringContaining('1,678') });
+  });
+
+  it('carries a fractional dial through units and the charge it comes to', () => {
+    expect(
+      previewEntry(stop({ previousReading: 1677.5, ratePerUnit: 6 }), { currentReading: '1761' }),
+    ).toMatchObject({
+      status: 'ok',
+      units: 83.5,
+      summary: expect.stringContaining('83.5 หน่วย'),
     });
   });
 

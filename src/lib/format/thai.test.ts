@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { formatBaht, formatFigure, formatThaiDate, formatUnits, toBuddhistYear } from './thai';
+import {
+  formatBaht,
+  formatFigure,
+  formatReading,
+  formatReadingFigure,
+  formatThaiDate,
+  formatUnits,
+  toBuddhistYear,
+} from './thai';
 
 describe('toBuddhistYear', () => {
   it('adds 543 to the Gregorian year', () => {
@@ -44,6 +52,14 @@ describe('formatBaht', () => {
     expect(formatBaht(3456)).toBe('3,456');
     expect(formatBaht(0)).toBe('0');
   });
+
+  // Stated as a test rather than only in a comment: this rounding is correct
+  // for money and is exactly what must not reach a meter dial, so the two
+  // functions are pinned side by side.
+  it('rounds rather than truncates, which is why readings must not use it', () => {
+    expect(formatBaht(4215.6)).toBe('4,216');
+    expect(formatBaht(4215.4)).toBe('4,215');
+  });
 });
 
 describe('formatFigure', () => {
@@ -56,8 +72,41 @@ describe('formatFigure', () => {
   });
 });
 
+describe('formatReading', () => {
+  it('keeps the fraction the sheet holds instead of rounding it away', () => {
+    expect(formatReading(4215.6)).toBe('4,215.6');
+    expect(formatReading(1677.5)).toBe('1,677.5');
+  });
+
+  it('prints a whole dial figure without a trailing decimal point', () => {
+    expect(formatReading(4215)).toBe('4,215');
+    expect(formatReading(0)).toBe('0');
+  });
+
+  it('caps precision so a float subtraction does not print its own noise', () => {
+    // 1677.4 - 0 style arithmetic produces 1677.4000000000001 in binary
+    // floating point; a dial has no such precision and neither should the
+    // screen.
+    expect(formatReading(1677.4000000000001)).toBe('1,677.4');
+  });
+});
+
+describe('formatReadingFigure', () => {
+  it('renders an em dash for null so empty ledger cells align', () => {
+    expect(formatReadingFigure(null)).toBe('—');
+  });
+
+  it('keeps the fraction otherwise', () => {
+    expect(formatReadingFigure(1677.5)).toBe('1,677.5');
+  });
+});
+
 describe('formatUnits', () => {
   it('appends the Thai unit word', () => {
     expect(formatUnits(108)).toBe('108 หน่วย');
+  });
+
+  it('keeps a fractional consumption, which a dial difference can be', () => {
+    expect(formatUnits(83.5)).toBe('83.5 หน่วย');
   });
 });

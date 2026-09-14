@@ -106,7 +106,7 @@ export function toMeterGridGroups(
                 value: typed.previous,
                 label: `เลขครั้งก่อน ${where}`,
               }
-            : { kind: 'figure', value: stop.previousReading },
+            : { kind: 'figure', value: stop.previousReading, measured: true },
         current: {
           kind: 'input',
           name: fieldName(stop, 'current'),
@@ -121,7 +121,7 @@ export function toMeterGridGroups(
                 value: typed.rate,
                 label: `บาทต่อหน่วย ${where}`,
               }
-            : { kind: 'figure', value: stop.ratePerUnit },
+            : { kind: 'figure', value: stop.ratePerUnit, measured: true },
       },
     };
   });
