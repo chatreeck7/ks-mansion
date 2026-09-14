@@ -98,6 +98,96 @@ describe('toMeterGridGroups', () => {
     expect(row.cells.previous).toEqual({ kind: 'figure', value: 1677.5, measured: true });
   });
 
+  /**
+   * The bug this column exists for, stated as a test.
+   *
+   * Saving turns the figure into the row's ครั้งก่อน and clears the input, so
+   * without a status the row is byte-identical to one nobody has touched —
+   * which reads as the entry having been discarded, and is what stopped a
+   * real round: the same meter was typed again and again because the screen
+   * never said it had landed.
+   */
+  describe('the จดล่าสุด column', () => {
+    it('says so when a meter has never been read', () => {
+      const row = toMeterGridGroups(
+        startRound(ROOMS, []),
+        MAR,
+        undefined,
+        new Set(),
+        [],
+      )[0]!.rows[0]!;
+
+      expect(row.cells.status).toEqual({ kind: 'pill', tone: 'mute', label: 'ยังไม่เคยจด' });
+    });
+
+    it('shows the date and the derivation of the last reading', () => {
+      const row = toMeterGridGroups(round, MAR, undefined, new Set(), HISTORY)[0]!.rows.find(
+        (r) => r.id === '101:electricity',
+      )!;
+
+      expect(row.cells.status).toEqual({
+        kind: 'text',
+        value: '26 ก.พ. 2568 · 1,200 → 1,256 = 56 หน่วย',
+      });
+    });
+
+    /**
+     * Exactly the post-save render, and the whole point of the column: the
+     * round is rebuilt from the sheet, so the stop is `unread` again and the
+     * figure just recorded has become its ครั้งก่อน. The row must still say
+     * it was read, from the sheet rather than from the round.
+     */
+    it('still reports the reading once its figure has moved into ครั้งก่อน', () => {
+      const recorded = [
+        ...HISTORY,
+        makeMeterReading({
+          id: 'm-101-mar',
+          roomId: '101',
+          previousReading: 1256,
+          currentReading: 1312,
+          ratePerUnit: 6,
+          readDate: MAR,
+        }),
+      ];
+      const rebuilt = startRound(ROOMS, recorded);
+      const stop = rebuilt.stops.find((candidate) => candidate.key === '101:electricity')!;
+      expect(stop.state).toBe('unread');
+      expect(stop.previousReading).toBe(1312);
+
+      const row = toMeterGridGroups(rebuilt, MAR, undefined, new Set(), recorded)[0]!.rows.find(
+        (r) => r.id === '101:electricity',
+      )!;
+      expect(row.cells.status).toEqual({
+        kind: 'text',
+        value: '26 มี.ค. 2568 · 1,256 → 1,312 = 56 หน่วย',
+      });
+    });
+
+    it('keeps a fractional dial readable in the status too', () => {
+      const recorded = [
+        makeMeterReading({
+          id: 'm-101-frac',
+          roomId: '101',
+          previousReading: 1594,
+          currentReading: 1677.5,
+          ratePerUnit: 6,
+          readDate: MAR,
+        }),
+      ];
+      const row = toMeterGridGroups(
+        startRound(ROOMS, recorded),
+        MAR,
+        undefined,
+        new Set(),
+        recorded,
+      )[0]!.rows.find((r) => r.id === '101:electricity')!;
+
+      expect(row.cells.status).toMatchObject({
+        value: expect.stringContaining('1,594 → 1,677.5 = 83.5 หน่วย'),
+      });
+    });
+  });
+
   /** On the building's first round this is every row, not an odd one. */
   it('asks for the starting figure and rate when a meter has no history', () => {
     const fresh = toMeterGridGroups(startRound(ROOMS, []), MAR)[0]!.rows[0]!;

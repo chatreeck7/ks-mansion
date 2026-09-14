@@ -48,6 +48,14 @@ const [rooms, history] = await Promise.all([
   getMeterReadingRepository(env).listReadings(),
 ]);
 let round = startRound(rooms, history);
+/**
+ * What the sheet holds *now*, which after a save is not `history` any more.
+ *
+ * The รอบนี้ column is read off this rather than off the round: a saved
+ * reading turns into the row's ครั้งก่อน and clears the input, so without it
+ * a recorded stop is indistinguishable from an untouched one.
+ */
+let known = history;
 
 if (submitted) {
   const submission = draftsFromForm(round, submitted, readDate);
@@ -70,8 +78,10 @@ if (submitted) {
 
   if (savedKeys.size > 0) {
     // Rebuild from the sheet so each saved row now shows its new figure as
-    // the one the next reading continues from.
-    round = startRound(rooms, await readings.listReadings());
+    // the one the next reading continues from — and so the รอบนี้ column is
+    // answered by what was actually written, not by what was submitted.
+    known = await readings.listReadings();
+    round = startRound(rooms, known);
   }
 }
 
@@ -84,6 +94,7 @@ const groups = toMeterGridGroups(
   readDate,
   errors.length > 0 ? submitted : undefined,
   savedKeys,
+  known,
 );
 ---
 
@@ -93,7 +104,8 @@ const groups = toMeterGridGroups(
       <h1 class="mb-1 text-xl font-semibold text-console-ink">จดมิเตอร์แบบตาราง</h1>
       <p class="mb-0 text-sm text-console-ink-soft">
         กรอกเฉพาะแถวที่ต้องการ แถวที่เว้นว่างจะไม่ถูกบันทึก — การแก้ไขจะบันทึกเป็นรายการใหม่
-        ไม่ทับของเดิม
+        ไม่ทับของเดิม · ช่อง <strong>รอบนี้</strong> บอกว่าจดไปแล้วหรือยัง เลขที่บันทึกแล้วจะ
+        ย้ายไปอยู่ช่อง ครั้งก่อน
       </p>
     </div>
     <a
