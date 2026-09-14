@@ -1,0 +1,130 @@
+---
+// src/pages/console/meter-round/grid.astro
+import ConsoleFrame from '@/components/console/ConsoleFrame.astro';
+import ErrorSummary from '@/components/console/ErrorSummary.astro';
+import LedgerTable from '@/components/console/LedgerTable.astro';
+import { draftsFromForm, METER_GRID_COLUMNS, toMeterGridGroups } from '@/lib/console/meter-grid';
+import { startRound } from '@/lib/console/meter-round';
+import { consolePath } from '@/lib/console/paths';
+import { getMeterReadingRepository, getRoomRepository } from '@/lib/repositories';
+
+/**
+ * The desk-side meter grid (KS-60).
+ *
+ * Unlike the stepper this keeps the ordinary console chrome: someone here is
+ * sitting down, has noticed one wrong figure, and will want to go somewhere
+ * else afterwards. It is the same stop list in a different input register.
+ *
+ * A plain `<form>` with no island, deliberately. "Tab down the rooms, correct
+ * a reading, save" is what a form already does — reimplementing focus order
+ * in JavaScript would be strictly worse at it, and this screen has no need to
+ * hold state between keystrokes the way the stepper does.
+ */
+
+const env = Astro.locals.runtime?.env;
+
+let errors: string[] = [];
+/** Stops whose reading actually landed, so their inputs can be cleared. */
+const savedKeys = new Set<string>();
+let submitted: FormData | undefined;
+
+/**
+ * The cycle every reading in this submission is filed under.
+ *
+ * Recomputed on POST rather than carried in a hidden field: the sheet is the
+ * record, and a stale date posted from a tab left open overnight would file a
+ * correction into the wrong cycle.
+ */
+const readDate = new Date();
+
+if (Astro.request.method === 'POST') {
+  submitted = await Astro.request.formData();
+}
+
+// Read after the form, so a save is followed by a fresh view of what the
+// sheet now holds rather than by what it held when the page was opened.
+const [rooms, history] = await Promise.all([
+  getRoomRepository(env).listRooms(),
+  getMeterReadingRepository(env).listReadings(),
+]);
+let round = startRound(rooms, history);
+
+if (submitted) {
+  const submission = draftsFromForm(round, submitted, readDate);
+  errors = [...submission.errors];
+
+  const readings = getMeterReadingRepository(env);
+  for (const { stopKey, draft } of submission.entries) {
+    try {
+      await readings.recordReading(draft);
+      savedKeys.add(stopKey);
+    } catch (cause) {
+      // Reported per row rather than aborting the rest. Readings are
+      // append-only, so the ones already written are correct and complete on
+      // their own — stopping would leave the admin unable to tell which of
+      // the 27 had landed.
+      const reason = cause instanceof Error ? cause.message : String(cause);
+      errors.push(`${draft.roomId} (${draft.meterType}): ${reason}`);
+    }
+  }
+
+  if (savedKeys.size > 0) {
+    // Rebuild from the sheet so each saved row now shows its new figure as
+    // the one the next reading continues from.
+    round = startRound(rooms, await readings.listReadings());
+  }
+}
+
+// Put back only what still needs attention. A row that saved clears — its
+// figure is on the sheet now, and leaving it in the field invites a second
+// submit that appends the same reading again as zero units against itself.
+const saved = savedKeys.size;
+const groups = toMeterGridGroups(
+  round,
+  readDate,
+  errors.length > 0 ? submitted : undefined,
+  savedKeys,
+);
+---
+
+<ConsoleFrame title="จดมิเตอร์ (ตาราง)" activeSection="meter-round">
+  <div class="mb-4 flex flex-wrap items-baseline justify-between gap-2">
+    <div>
+      <h1 class="mb-1 text-xl font-semibold text-console-ink">จดมิเตอร์แบบตาราง</h1>
+      <p class="mb-0 text-sm text-console-ink-soft">
+        กรอกเฉพาะแถวที่ต้องการ แถวที่เว้นว่างจะไม่ถูกบันทึก — การแก้ไขจะบันทึกเป็นรายการใหม่
+        ไม่ทับของเดิม
+      </p>
+    </div>
+    <a
+      href={consolePath('console/meter-round')}
+      class="rounded-sm border border-console-rule/40 px-3 py-2 text-sm text-console-ink hover:bg-console-sunk focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
+      >เดินจดด้วยมือถือ →</a
+    >
+  </div>
+
+  {saved > 0 && errors.length === 0 && (
+    <p class="mb-4 rounded-sm bg-console-ok-bg px-3 py-2 text-console-ok">
+      บันทึกแล้ว {saved} รายการ
+    </p>
+  )}
+  {saved > 0 && errors.length > 0 && (
+    <p class="mb-4 rounded-sm bg-console-warn-bg px-3 py-2 text-console-warn">
+      บันทึกแล้ว {saved} รายการ ส่วนที่เหลือยังไม่ผ่าน — ดูด้านล่าง
+    </p>
+  )}
+  <ErrorSummary message={errors.length > 0 ? errors.join('\n') : null} />
+
+  <form method="POST">
+    <LedgerTable columns={METER_GRID_COLUMNS} groups={groups} />
+
+    <div class="mt-4">
+      <button
+        type="submit"
+        class="rounded-sm bg-console-ink px-4 py-2 font-semibold text-console-paper focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-console-rule"
+      >
+        บันทึก
+      </button>
+    </div>
+  </form>
+</ConsoleFrame>

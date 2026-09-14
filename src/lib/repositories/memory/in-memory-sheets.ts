@@ -56,9 +56,16 @@ export function createInMemorySheets(tabs: Record<string, unknown[][]>): InMemor
     },
 
     async updateRow(tabName, rowNumber, values: CellValue[]) {
-      // Mirrors the real client's guards rather than trusting callers to be
-      // well-behaved: a test that writes over the header should fail here
-      // too, not only in production.
+      // Refuses more than the real API does, on purpose.
+      //
+      // KS-68's live experiment (2026-09-06) established that Google
+      // *accepts* an update aimed past the end of a tab and grows the sheet,
+      // padding everything in between with blank rows. This throws instead.
+      // The divergence is deliberate and runs in the safe direction: a caller
+      // that computes a row number too large fails on a laptop rather than
+      // silently padding an occupied building's records. Do not relax this to
+      // "match production" — matching it would only make the bug harder to
+      // find.
       if (!Number.isInteger(rowNumber) || rowNumber <= 1) {
         throw new Error(`Refusing to write row ${rowNumber} of tab "${tabName}".`);
       }

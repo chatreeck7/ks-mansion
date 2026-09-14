@@ -1,12 +1,18 @@
 import {
   describeDatastore,
+  getBillRepository,
   getLeaseRepository,
+  getMeterReadingRepository,
+  getPaymentRepository,
   getRoomRepository,
   getTenantRepository,
   sheetsClientFrom,
   type DatastoreDescription,
 } from './index';
+import { BILLS_TAB } from './sheets/sheets-bill-repository';
 import { LEASES_TAB } from './sheets/sheets-lease-repository';
+import { METER_READINGS_TAB } from './sheets/sheets-meter-reading-repository';
+import { PAYMENTS_TAB } from './sheets/sheets-payment-repository';
 import { ROOMS_TAB } from './sheets/sheets-room-repository';
 import { TENANTS_TAB } from './sheets/sheets-tenant-repository';
 import { diagnoseTab, type TabDiagnostic } from './tab-diagnostics';
@@ -97,6 +103,24 @@ export function repositoryProbes(env?: Record<string, unknown>): TabProbe[] {
       label: 'สัญญาเช่า',
       read: () => getLeaseRepository(env).listLeases(),
       inspect: () => diagnoseTab(client(), LEASES_TAB),
+    },
+    {
+      tab: 'meter_readings',
+      label: 'ค่ามิเตอร์',
+      read: () => getMeterReadingRepository(env).listReadings(),
+      inspect: () => diagnoseTab(client(), METER_READINGS_TAB),
+    },
+    {
+      tab: 'bills',
+      label: 'บิล',
+      read: () => getBillRepository(env).listBills(),
+      inspect: () => diagnoseTab(client(), BILLS_TAB),
+    },
+    {
+      tab: 'payments',
+      label: 'การรับเงิน',
+      read: () => getPaymentRepository(env).listPayments(),
+      inspect: () => diagnoseTab(client(), PAYMENTS_TAB),
     },
   ];
 }

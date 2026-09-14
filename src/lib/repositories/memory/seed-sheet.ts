@@ -1,8 +1,9 @@
 import { formatThaiDate } from '@/lib/format/thai';
+import { cycleFor, previousCycle } from '@/lib/models/billing-cycle';
 import { createInMemorySheets, type InMemorySheets } from './in-memory-sheets';
 
 /**
- * The local-dev spreadsheet: the same three tabs `KS_Mansion_DB` carries,
+ * The local-dev spreadsheet: the same tabs `KS_Mansion_DB` carries,
  * as rows rather than as model objects (KS-69).
  *
  * These used to be `Room[]` / `Tenant[]` / `Lease[]` behind a hand-written
@@ -141,7 +142,28 @@ const TENANT_ROWS: string[][] = [
   ['t-003', 'สมศักดิ์ ตัวอย่าง', 'ศักดิ์', '9012', '',
    '', 'C', '',
    '', '', '', '', '', '', ''],
+
+  // Rents ร้านซักผ้า. Exists so the water screen (KS-19) has a metered row
+  // locally — without a tenancy on the laundry, the one space billed by
+  // meter rather than by headcount is invisible until production.
+  ['t-004', 'สมปอง ตัวอย่าง', 'ปอง', '3456', '080-000-0004',
+   'ร้านซักรีด', 'B', '',
+   '4', '', '', '', 'ตัวอย่าง', '', ''],
 ];
+
+/**
+ * The rooms that are occupied but have no hand-written tenancy above.
+ *
+ * The seed used to mark 22 units occupied while supplying five leases, which
+ * was harmless until a bill run asked every occupied room for its rent and
+ * found twenty with no tenancy behind them. A registry that says a room is
+ * occupied and a lease table that disagrees is not a shape production would
+ * ever be in, so local dev should not be in it either.
+ */
+const UNTENANTED: string[] = Object.keys(RENT_RATE)
+  .filter((room) => !UNDER_MAINTENANCE.has(room))
+  .filter((room) => room !== '101' && room !== '105')
+  .sort();
 
 // --------------------------------------------------------------- leases
 
@@ -181,6 +203,167 @@ const LEASE_ROWS: (string | number)[][] = [
   ['l-004', '105', 't-002',
    thaiDate(2026, 3, 1), '', thaiDate(2026, 2, 20),
    2500, 9000, 2500, 1, '', 'l-002', '', 2500, 2500, '', ''],
+
+  // The shop. `occupant_count` is 0 and that is correct rather than missing:
+  // nobody lives there, and its water comes off a meter, not a headcount.
+  ['l-005', 'laundry', 't-004',
+   thaiDate(2025, 6, 1), '', thaiDate(2025, 5, 25),
+   1800, 5000, 1800, 0, '', '', '', 6800, 6800, '', ''],
+
+  // The matching tenancies. Open-ended and started well in the past, so they
+  // are active whenever the seed is loaded. Occupant counts alternate between
+  // one and two, which is what the real sheet's ค่าน้ำ column only ever shows.
+  ...UNTENANTED.map((room, i) => [
+    `l-${String(i + 6).padStart(3, '0')}`, room, `t-${String(i + 5).padStart(3, '0')}`,
+    thaiDate(2025, 2, 1), '', thaiDate(2025, 1, 20),
+    RENT_RATE[room] ?? 2500, 5000, RENT_RATE[room] ?? 2500, (i % 2) + 1,
+    '', '', '', '', '', '', '',
+  ]),
+];
+
+// ------------------------------------------------------- meter_readings
+
+const METER_READINGS_HEADER = [
+  'id', 'room_id', 'meter_type', 'read_date', 'previous_reading',
+  'current_reading', 'rate_per_unit', 'note', 'archived',
+];
+
+/**
+ * Two cycles of readings (KS-18), dated **relative to today**.
+ *
+ * They used to be fixed 2568 dates, which was fine until a bill run asked
+ * whether the current cycle had been read and the answer was "not for a
+ * year". A seed whose usefulness expires is a seed that quietly stops
+ * demonstrating the thing it exists to demonstrate.
+ *
+ * Three things stay visible on purpose:
+ *
+ * **ร้านซักผ้า is read twice per round** — electricity at ฿5 and water at
+ * ฿15, the pair the source file encodes inline as `4215//786` → `4343//816`.
+ * Any round or bill that assumes one meter per space comes out visibly wrong
+ * here rather than only in production.
+ *
+ * **A correction is an appended row.** 102's current-cycle reading was keyed
+ * once and re-read on the sweep. Both rows stay; the later one wins.
+ *
+ * **An archived row is one that should never have existed** — a reading
+ * entered against 104, which is out of service.
+ */
+const THIS_CYCLE = cycleFor(new Date());
+const LAST_CYCLE = previousCycle(THIS_CYCLE);
+
+/** Rooms are electricity-only at ฿6; ค่าน้ำ for a unit is occupants × 100. */
+const ROOM_RATE = 6;
+
+/** A plausible month of consumption, varied per room but not random. */
+function usageFor(room: string, cycle: number): number {
+  const seed = [...room].reduce((sum, ch) => sum + ch.charCodeAt(0), 0);
+  return 40 + ((seed + cycle * 17) % 60);
+}
+
+function meterRows(): (string | number)[][] {
+  const rows: (string | number)[][] = [];
+  let n = 0;
+  const id = () => `m-${String(++n).padStart(3, '0')}`;
+
+  // A room out of service is not walked, which is what leaves 104 carrying
+  // nothing but the archived mis-entry below.
+  const metered = Object.keys(RENT_RATE)
+    .filter((room) => !UNDER_MAINTENANCE.has(room))
+    .sort();
+
+  for (const [cycleIndex, cycle] of [LAST_CYCLE, THIS_CYCLE].entries()) {
+    const readDate = formatThaiDate(cycle.issueDate);
+
+    for (const room of metered) {
+      // A dial that has been running for years, so the figures look like a
+      // meter rather than like a counter starting at zero.
+      const base = 1000 + usageFor(room, 0) * 8;
+      const previous = base + (cycleIndex === 0 ? 0 : usageFor(room, 0));
+      rows.push([id(), room, 'electricity', readDate, previous,
+                 previous + usageFor(room, cycleIndex), ROOM_RATE, '', '']);
+    }
+
+    const laundryElectricity = cycleIndex === 0 ? [4215, 4343] : [4343, 4470];
+    const laundryWater = cycleIndex === 0 ? [786, 816] : [816, 851];
+    rows.push([id(), 'laundry', 'electricity', readDate, ...laundryElectricity, 5, '', '']);
+    rows.push([id(), 'laundry', 'water', readDate, ...laundryWater, 15, '', '']);
+  }
+
+  // 102 re-read on this cycle's sweep: both rows stay, the later one wins.
+  const corrected = rows.find(
+    (row) => row[1] === '102' && row[3] === formatThaiDate(THIS_CYCLE.issueDate),
+  )!;
+  rows.push([id(), '102', 'electricity', formatThaiDate(THIS_CYCLE.issueDate),
+             corrected[4]!, Number(corrected[5]) + 90, ROOM_RATE, 'เก็บตก — เลขเดิมจดผิด', '']);
+
+  // Entered against the wrong room, so withdrawn rather than corrected.
+  rows.push([id(), '104', 'electricity', formatThaiDate(THIS_CYCLE.issueDate),
+             0, 0, ROOM_RATE, 'บันทึกผิดห้อง', 'TRUE']);
+
+  return rows;
+}
+
+const METER_READING_ROWS: (string | number)[][] = meterRows();
+
+// ----------------------------------------------------------------- bills
+
+const BILLS_HEADER = [
+  'id', 'room_id', 'lease_id', 'cycle', 'issue_date', 'due_date',
+  'rent_amount', 'electricity_amount', 'water_amount', 'total_amount',
+  'arrears_note', 'archived',
+];
+
+/**
+ * One issued cycle, shaped to show the three cases a bill can be.
+ *
+ * Cycle `2025-03` — read and issued 26 มี.ค., due 10 เม.ย. Electricity comes
+ * from that round's readings; water is จำนวนผู้พัก × 100 for a room, metered
+ * for ร้านซักผ้า.
+ *
+ * `total_amount` is written out because the tab is summed by people, but the
+ * reader checks it against the parts rather than trusting it — these three
+ * rows are what proves that check passes on well-formed data.
+ */
+const BILL_ROWS: (string | number)[][] = [
+  // 101: an ordinary room. 1312 − 1256 = 56 units at ฿6, two occupants.
+  ['b-001', '101', 'l-001', '2025-03', thaiDate(2025, 3, 26), thaiDate(2025, 4, 10),
+   2200, 336, 200, 2736, '', ''],
+
+  // 102: an arrears note an admin wrote, in the register's own wording.
+  // The note changes no figure and is not part of the total.
+  ['b-002', '102', 'l-002', '2025-03', thaiDate(2025, 3, 26), thaiDate(2025, 4, 10),
+   3000, 606, 100, 3706, 'ยอดค้าง 1,169', ''],
+
+  // ร้านซักผ้า: metered water at ฿15, and its own electricity rate of ฿5.
+  ['b-003', 'laundry', 'l-005', '2025-03', thaiDate(2025, 3, 26), thaiDate(2025, 4, 10),
+   1800, 635, 525, 2960, '', ''],
+];
+
+// -------------------------------------------------------------- payments
+
+const PAYMENTS_HEADER = ['id', 'bill_id', 'paid_on', 'amount', 'method', 'note', 'archived'];
+
+/**
+ * Money received against those bills, shaped to show every state a bill can
+ * be in — because a screen that only ever sees "paid" locally is a screen
+ * whose partial and unpaid rendering nobody has looked at.
+ *
+ * `b-001` settled in full, `b-002` **แบ่งจ่าย** in two instalments that do
+ * not yet cover it, `b-003` untouched. The note on the first instalment is
+ * the real reconciliation problem in miniature: the collection form's own
+ * footer is a list of nicknames against transfer handles, because a transfer
+ * arrives under a name that is not the tenant's.
+ */
+const PAYMENT_ROWS: (string | number)[][] = [
+  ['p-001', 'b-001', thaiDate(2025, 3, 28), 2736, 'transfer', '', ''],
+
+  ['p-002', 'b-002', thaiDate(2025, 3, 30), 2000, 'transfer', 'โอนในชื่อ Frame', ''],
+  ['p-003', 'b-002', thaiDate(2025, 4, 4), 1000, 'cash', 'รับที่ออฟฟิศ', ''],
+
+  // Keyed against the wrong bill and withdrawn rather than edited: a receipt
+  // is history, so a correction is a void and a new row (rule 6).
+  ['p-004', 'b-003', thaiDate(2025, 4, 2), 2960, 'transfer', 'บันทึกผิดห้อง', 'TRUE'],
 ];
 
 // ---------------------------------------------------------------- build
@@ -194,6 +377,9 @@ export function createSeedSheets(): InMemorySheets {
     rooms: [ROOMS_HEADER, ...ROOM_ROWS],
     tenants: [TENANTS_HEADER, ...TENANT_ROWS],
     leases: [LEASES_HEADER, ...LEASE_ROWS],
+    meter_readings: [METER_READINGS_HEADER, ...METER_READING_ROWS],
+    bills: [BILLS_HEADER, ...BILL_ROWS],
+    payments: [PAYMENTS_HEADER, ...PAYMENT_ROWS],
   });
 }
 

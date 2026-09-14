@@ -22,6 +22,17 @@ export function formatThaiDate(date: Date): string {
   return `${day} ${month} ${year}`;
 }
 
+/**
+ * 'ก.ค. 2568' — a month without a day.
+ *
+ * The billing cycle names two different months on one bill (rent for the
+ * month ahead, utilities for the one just ended), and a full date would
+ * imply a precision neither of them has.
+ */
+export function formatThaiMonth(date: Date): string {
+  return `${THAI_MONTHS_SHORT[date.getMonth()]} ${toBuddhistYear(date.getFullYear())}`;
+}
+
 /** Thousands-grouped, no decimals — satang are not tracked. */
 export function formatBaht(amount: number): string {
   return amount.toLocaleString('en-US', { maximumFractionDigits: 0 });

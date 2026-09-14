@@ -1,5 +1,5 @@
 import type { LedgerColumn, LedgerGroup, LedgerRow } from '@/lib/models/ledger';
-import { isUnit, statusLabel, statusTone, type Room } from '@/lib/models/room';
+import { inWalkingOrder, isUnit, statusLabel, statusTone, type Room } from '@/lib/models/room';
 import { consolePath } from './paths';
 
 export const ROOM_COLUMNS: LedgerColumn[] = [
@@ -33,18 +33,18 @@ function toRow(room: Room): LedgerRow {
  * rather than shown as empty headings.
  */
 export function toRoomGroups(rooms: Room[]): LedgerGroup[] {
-  const units = rooms.filter(isUnit);
-  const floors = [...new Set(units.map((room) => room.floor))].sort((a, b) => a - b);
+  // The sequence itself is `inWalkingOrder`, shared with the meter round.
+  // This function only decides where the floor headings fall in it.
+  const ordered = inWalkingOrder(rooms);
+  const units = ordered.filter(isUnit);
+  const floors = [...new Set(units.map((room) => room.floor))];
 
   const groups: LedgerGroup[] = floors.map((floor) => ({
     label: `ชั้น ${floor}`,
-    rows: units
-      .filter((room) => room.floor === floor)
-      .sort((a, b) => a.label.localeCompare(b.label))
-      .map(toRow),
+    rows: units.filter((room) => room.floor === floor).map(toRow),
   }));
 
-  const common = rooms.filter((room) => !isUnit(room));
+  const common = ordered.filter((room) => !isUnit(room));
   if (common.length > 0) {
     groups.push({ label: 'พื้นที่ส่วนกลาง', rows: common.map(toRow) });
   }

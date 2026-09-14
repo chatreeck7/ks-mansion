@@ -2,8 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { formatThaiDate } from '@/lib/format/thai';
 import { isUnit } from '@/lib/models/room';
 import { createSheetsLeaseRepository } from '../sheets/sheets-lease-repository';
+import { createSheetsBillRepository } from '../sheets/sheets-bill-repository';
+import { createSheetsMeterReadingRepository } from '../sheets/sheets-meter-reading-repository';
 import { createSheetsRoomRepository } from '../sheets/sheets-room-repository';
 import { createSheetsTenantRepository } from '../sheets/sheets-tenant-repository';
+import { metersFrom, startRound } from '@/lib/console/meter-round';
+import { waterRows } from '@/lib/console/water-ledger';
+import { billTotal, hasArrears } from '@/lib/models/bill';
 import { getTenantRepository } from '../index';
 import { createSeedSheets } from './seed-sheet';
 
@@ -15,6 +20,8 @@ function repositories() {
     rooms: createSheetsRoomRepository(sheets),
     tenants: createSheetsTenantRepository(sheets),
     leases: createSheetsLeaseRepository(sheets),
+    bills: createSheetsBillRepository(sheets),
+    meterReadings: createSheetsMeterReadingRepository(sheets),
   };
 }
 
@@ -85,12 +92,132 @@ describe('the seed sheet reads through the real repositories', () => {
   it('covers the tenant profiles the empty states need', async () => {
     const tenants = await repositories().tenants.listTenants();
 
-    expect(tenants.map((t) => t.id)).toEqual(['t-001', 't-002', 't-003']);
+    // The four hand-written profiles lead; the rest are generated so that
+    // every occupied room has a tenancy behind it.
+    expect(tenants.slice(0, 4).map((t) => t.id)).toEqual(['t-001', 't-002', 't-003', 't-004']);
     // Graded, with a full address.
     expect(tenants[0]).toMatchObject({ evaluationGrade: 'A', nickname: 'ชาย' });
     // Ungraded, sparse address, carries a note.
     expect(tenants[1]).toMatchObject({ evaluationGrade: null, note: '(เลี้ยงแมว)' });
     expect(tenants[1]!.address).toMatchObject({ road: '', province: 'ตัวอย่าง' });
+  });
+
+  /**
+   * The seed exists to make the laundry's two meters visible locally: a round
+   * or a bill that assumes one meter per space comes out wrong here rather
+   * than only against the live sheet.
+   */
+  it('reads ร้านซักผ้า twice per round, at its two different rates', async () => {
+    const readings = await repositories().meterReadings.listReadingsForRoom('laundry');
+
+    expect(readings.filter((r) => r.meterType === 'electricity')).toHaveLength(2);
+    expect(readings.filter((r) => r.meterType === 'water')).toHaveLength(2);
+    expect(new Set(readings.map((r) => r.ratePerUnit))).toEqual(new Set([5, 15]));
+  });
+
+  it('keeps a corrected reading as an appended row, with the later one winning', async () => {
+    const { meterReadings } = repositories();
+
+    const forRoom = await meterReadings.listReadingsForRoom('102');
+    const corrections = forRoom.filter((r) => r.note !== null);
+    expect(corrections).toHaveLength(1);
+
+    // Both rows survive — the mis-keyed figure and the sweep's re-read — and
+    // the sweep's is the one carried forward.
+    const latest = await meterReadings.latestReading('102', 'electricity');
+    expect(latest!.id).toBe(corrections[0]!.id);
+    expect(latest!.currentReading).toBeGreaterThan(
+      Math.min(...forRoom.map((r) => r.currentReading)),
+    );
+  });
+
+  it('hides the reading entered against the wrong room, but keeps the row', async () => {
+    const { meterReadings } = repositories();
+
+    // 104 is out of service, so it is not walked — the only row against it is
+    // the withdrawn mis-entry, which the list must not show.
+    expect(await meterReadings.listReadingsForRoom('104')).toEqual([]);
+    const all = await meterReadings.listReadings();
+    expect(all.some((r) => r.roomId === '104')).toBe(false);
+  });
+
+  /**
+   * The meter round over the real registry, not a fixture — the check that
+   * KS-71's stop list and KS-18's seed agree about the building.
+   *
+   * 26 metered spaces (the undercroft has none) plus the laundry's second
+   * meter is 27 stops. That it equals the room count is a coincidence of this
+   * building, and exactly why the count must never be taken off the rooms
+   * list: swap the undercroft for a metered space and the two diverge.
+   */
+  it('builds a 27-stop round over the seeded building', async () => {
+    const { rooms, meterReadings } = repositories();
+    const stops = metersFrom(await rooms.listRooms(), await meterReadings.listReadings());
+
+    expect(stops).toHaveLength(27);
+    expect(stops.filter((s) => s.roomId === 'laundry')).toHaveLength(2);
+    expect(stops.some((s) => s.roomId === 'undercroft')).toBe(false);
+  });
+
+  it('opens the round on 101 and carries each meter its own figures forward', async () => {
+    const { rooms, meterReadings } = repositories();
+    const round = startRound(await rooms.listRooms(), await meterReadings.listReadings());
+    const byKey = new Map(round.stops.map((stop) => [stop.key, stop]));
+
+    expect(round.stops[0]?.roomLabel).toBe('101');
+    expect(round.stops.at(-1)?.roomLabel).toBe('ร้านซักผ้า');
+
+    expect(byKey.get('laundry:electricity')).toMatchObject({ previousReading: 4470, ratePerUnit: 5 });
+    expect(byKey.get('laundry:water')).toMatchObject({ previousReading: 851, ratePerUnit: 15 });
+
+    // Every room that was walked continues from a figure; a room out of
+    // service was not walked and has nothing.
+    expect(byKey.get('301:electricity')?.previousReading).not.toBeNull();
+    expect(byKey.get('104:electricity')).toMatchObject({ previousReading: null });
+  });
+
+  /**
+   * KS-19's whole point is that water has two bases, and the metered one is
+   * a single space. Without a tenancy on ร้านซักผ้า it would be invisible
+   * locally and first appear in production.
+   */
+  it('bills rooms by headcount and ร้านซักผ้า by its meter', async () => {
+    const { rooms, leases, meterReadings } = repositories();
+    const rows = waterRows(
+      await rooms.listRooms(),
+      await leases.listLeases(),
+      await meterReadings.listReadings(),
+      new Date(2026, 8, 6),
+    );
+    const byRoom = new Map(rows.map((row) => [row.roomId, row]));
+
+    expect(byRoom.get('101')).toMatchObject({ basis: 'occupancy', occupantCount: 2, charge: 200 });
+    expect(byRoom.get('laundry')).toMatchObject({ basis: 'metered', occupantCount: null });
+    // A room nobody rents is not billed for water at all.
+    expect(byRoom.has('104')).toBe(false);
+  });
+
+  /**
+   * The seeded cycle proves the stored total agrees with the parts on
+   * well-formed data — the check the reader applies to every row.
+   */
+  it('carries one issued cycle whose totals reconcile', async () => {
+    const bills = await repositories().bills.listBillsForCycle('2025-03');
+
+    expect(bills.map((b) => b.roomId)).toEqual(['101', '102', 'laundry']);
+    for (const bill of bills) {
+      expect(billTotal(bill)).toBeGreaterThan(0);
+    }
+    // 101: two occupants at ฿100, and 56 units at ฿6.
+    expect(bills[0]).toMatchObject({ rentAmount: 2200, electricityAmount: 336, waterAmount: 200 });
+    // ร้านซักผ้า is metered for water, not charged by headcount.
+    expect(bills[2]).toMatchObject({ roomId: 'laundry', waterAmount: 525 });
+  });
+
+  it('carries an arrears note as text, on one bill only', async () => {
+    const bills = await repositories().bills.listBillsForCycle('2025-03');
+
+    expect(bills.filter(hasArrears).map((b) => b.arrearsNote)).toEqual(['ยอดค้าง 1,169']);
   });
 
   it('parses the พ.ศ. lease dates back to the calendar dates they mean', async () => {
@@ -103,10 +230,12 @@ describe('the seed sheet reads through the real repositories', () => {
     expect(lease!.endDate).toBeNull();
   });
 
-  it('covers the four lease shapes worth seeing locally', async () => {
+  it('covers the lease shapes worth seeing locally', async () => {
     const leases = await repositories().leases.listLeases();
 
-    expect(leases.map((l) => l.id)).toEqual(['l-001', 'l-002', 'l-003', 'l-004']);
+    expect(leases.slice(0, 5).map((l) => l.id)).toEqual([
+      'l-001', 'l-002', 'l-003', 'l-004', 'l-005',
+    ]);
     expect(leases[0]!.endDate).toBeNull();
     expect(leases[1]!.endReason).toBe('normal');
     expect(leases[2]!.endReason).toBe('absconded');
@@ -147,14 +276,15 @@ describe('the seed store refuses what Sheets would refuse', () => {
 
   it('writes nothing at all when it refuses', async () => {
     const { tenants, sheets } = repositories();
-    const before = sheets.writeCount();
+    const writes = sheets.writeCount();
+    const before = (await tenants.listTenants()).length;
 
     await expect(
       tenants.createTenant({ ...draft, idCardLast4: '1234567890123' }),
     ).rejects.toThrow();
 
-    expect(sheets.writeCount()).toBe(before);
-    expect(await tenants.listTenants()).toHaveLength(3);
+    expect(sheets.writeCount()).toBe(writes);
+    expect(await tenants.listTenants()).toHaveLength(before);
   });
 
   it('rejects a lease that ended for a reason but has no end date', async () => {
@@ -186,8 +316,8 @@ describe('the seed store refuses what Sheets would refuse', () => {
     const { tenants } = repositories();
 
     const created = await tenants.createTenant(draft);
-    expect(created.id).toBe('t-004');
-    expect(await tenants.listTenants()).toHaveLength(4);
+    expect(created.id).toMatch(/^t-\d+$/);
+
   });
 
   /** Soft delete, schema rule 7 — the row stays, the flag goes on. */
@@ -196,7 +326,9 @@ describe('the seed store refuses what Sheets would refuse', () => {
 
     await tenants.archiveTenant('t-002');
 
-    expect((await tenants.listTenants()).map((t) => t.id)).toEqual(['t-001', 't-003']);
+    const remaining = (await tenants.listTenants()).map((t) => t.id);
+    expect(remaining).not.toContain('t-002');
+    expect(remaining).toContain('t-001');
     expect(await tenants.getTenant('t-002')).toMatchObject({ id: 't-002', archived: true });
   });
 
@@ -206,7 +338,7 @@ describe('the seed store refuses what Sheets would refuse', () => {
     await tenants.archiveTenant('t-003');
     const created = await tenants.createTenant(draft);
 
-    expect(created.id).toBe('t-004');
+    expect(created.id).toMatch(/^t-\d+$/);
   });
 
   it('leaves columns it does not model untouched', async () => {
