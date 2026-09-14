@@ -34,16 +34,26 @@ export function formatThaiMonth(date: Date): string {
 }
 
 /**
- * Money. Thousands-grouped, no decimals — satang are not tracked.
+ * Money. Thousands-grouped, and satang are kept — owner-decided.
  *
- * **Only for baht.** `maximumFractionDigits: 0` does not truncate, it
- * *rounds*: `4215.6` prints as `4,216`. That is correct for a bill total and
- * wrong for anything measured, so a meter dial, a unit count or any other
- * quantity that can hold a fraction must use `formatReading` instead — see
- * the note on that function for what showing a rounded dial figure cost.
+ * This used to round to whole baht on the stated grounds that satang are not
+ * tracked. They are: a fractional meter dial makes the charge fractional
+ * (`83.5 หน่วย × 6`), and rounding it away meant the bill's own derivation
+ * line did not add up to its own total.
+ *
+ * A whole amount prints whole — `2,898`, not `2,898.00` — so the ordinary
+ * bill reads exactly as it did, and satang appear only where they exist.
+ * Never a bare one decimal: `501.2` is a quantity, `501.20` is money, and
+ * a column of amounts that mixes the two is a column nobody can scan.
  */
 export function formatBaht(amount: number): string {
-  return amount.toLocaleString('en-US', { maximumFractionDigits: 0 });
+  // Guard against binary-float noise before deciding whether it is whole:
+  // 83.5 × 6 is 501.00000000000006, which is 501 baht and not a satang more.
+  const satang = Math.round(amount * 100) / 100;
+  return satang.toLocaleString('en-US', {
+    minimumFractionDigits: Number.isInteger(satang) ? 0 : 2,
+    maximumFractionDigits: 2,
+  });
 }
 
 /**

@@ -53,12 +53,21 @@ describe('formatBaht', () => {
     expect(formatBaht(0)).toBe('0');
   });
 
-  // Stated as a test rather than only in a comment: this rounding is correct
-  // for money and is exactly what must not reach a meter dial, so the two
-  // functions are pinned side by side.
-  it('rounds rather than truncates, which is why readings must not use it', () => {
-    expect(formatBaht(4215.6)).toBe('4,216');
-    expect(formatBaht(4215.4)).toBe('4,215');
+  it('keeps satang, and shows two of them or none', () => {
+    expect(formatBaht(501.2)).toBe('501.20');
+    expect(formatBaht(2898.75)).toBe('2,898.75');
+    expect(formatBaht(2898)).toBe('2,898');
+  });
+
+  // 83.5 units at ฿6 is 501.00000000000006 in binary floating point. That is
+  // 501 baht; printing it as 501.00 would be the arithmetic showing through.
+  it('does not turn float noise into a satang', () => {
+    expect(formatBaht(83.5 * 6)).toBe('501');
+  });
+
+  it('rounds to the satang, never past it', () => {
+    expect(formatBaht(100.005)).toBe('100.01');
+    expect(formatBaht(100.004)).toBe('100');
   });
 });
 

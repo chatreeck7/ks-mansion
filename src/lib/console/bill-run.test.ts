@@ -73,7 +73,9 @@ describe('the reconciliation from the real documents', () => {
   it('shows the working the paper bill shows, not just an amount', () => {
     // previous → current = units × rate, because that is what the ค่าไฟ row
     // of ใบแจ้งค่าห้องพัก prints.
-    expect(lineFor('101').electricityBasis).toBe('1,256 → 1,312 = 56 หน่วย × 6 บาท');
+    expect(lineFor('101').electricityBasis).toBe(
+      '26 มี.ค. 2568 · 1,256 → 1,312 = 56 หน่วย × 6 บาท',
+    );
     expect(lineFor('101').waterBasis).toBe('1 คน × 100');
   });
 });
@@ -114,11 +116,11 @@ describe('which rooms get a line at all', () => {
 });
 
 describe('what stops a room being billed', () => {
-  it('refuses a room whose meter was not read this cycle', () => {
+  it('refuses a room whose meter has never been read', () => {
     const readings = READINGS.filter((r) => r.roomId !== '101');
     const line = run({ readings }).lines.find((l) => l.roomId === '101')!;
 
-    expect(line.problems).toContain('ยังไม่ได้จดมิเตอร์ไฟรอบนี้');
+    expect(line.problems).toContain('ยังไม่ได้จดมิเตอร์ไฟ');
     expect(run({ readings }).issuable.map((l) => l.roomId)).toEqual(['102']);
   });
 
@@ -142,17 +144,77 @@ describe('what stops a room being billed', () => {
     expect(planned.total).toBe(4563);
   });
 
-  it('ignores a reading from a different cycle', () => {
-    // Read in February — that is the previous cycle's round, already billed.
+  /**
+   * The rule the date window used to enforce, restated the way the owner
+   * actually works: **when** a meter was read decides nothing, but a figure
+   * that has already been charged must not be charged again.
+   */
+  it('bills an out-of-month reading normally when no bill has consumed it', () => {
+    // Walked on the 30th, a week after the nominal round. Under the old date
+    // window this produced "ยังไม่ได้จดมิเตอร์ไฟรอบนี้" and could not be billed.
+    const readings = [
+      makeMeterReading({ id: 'm-late', roomId: '101', previousReading: 1256,
+                         currentReading: 1312, ratePerUnit: 6, readDate: new Date(2025, 2, 30) }),
+      ...READINGS.filter((r) => r.roomId !== '101'),
+    ];
+    const line = run({ readings }).lines.find((l) => l.roomId === '101')!;
+
+    expect(line.problems).toEqual([]);
+    expect(line.electricityAmount).toBe(336);
+  });
+
+  it('bills a reading taken on the 25th, the scheduled reading day', () => {
+    // The case that sent a real round in circles: cycleFor puts the 25th in
+    // the previous cycle, so the window this replaced refused it.
+    const readings = [
+      makeMeterReading({ id: 'm-25th', roomId: '101', previousReading: 1256,
+                         currentReading: 1312, ratePerUnit: 6, readDate: new Date(2025, 2, 25) }),
+      ...READINGS.filter((r) => r.roomId !== '101'),
+    ];
+
+    expect(run({ readings }).lines.find((l) => l.roomId === '101')!.problems).toEqual([]);
+  });
+
+  it('refuses a reading an earlier bill already charged, so a missed round is caught', () => {
+    // February's round, and February's bill went out on the 26th. Nothing has
+    // been read since, so there is nothing new to charge — the units would
+    // otherwise be billed a second time.
     const readings = [
       makeMeterReading({ id: 'm-old', roomId: '101', previousReading: 1200,
                          currentReading: 1256, ratePerUnit: 6, readDate: new Date(2025, 1, 26) }),
       ...READINGS.filter((r) => r.roomId !== '101'),
     ];
+    const februaryBill: Bill = {
+      id: 'b-feb', roomId: '101', leaseId: 'l-101', cycle: '2025-02',
+      issueDate: new Date(2025, 1, 26), dueDate: new Date(2025, 2, 10),
+      rentAmount: 2200, electricityAmount: 336, waterAmount: 100,
+      arrearsNote: null, archived: false,
+    };
+    const line = run({ readings, existing: [februaryBill] }).lines.find(
+      (l) => l.roomId === '101',
+    )!;
 
-    expect(run({ readings }).lines.find((l) => l.roomId === '101')!.problems).toContain(
-      'ยังไม่ได้จดมิเตอร์ไฟรอบนี้',
+    expect(line.problems).toContain(
+      'เลขมิเตอร์ล่าสุด (26 ก.พ. 2568) ออกบิลไปแล้ว — ยังไม่ได้จดรอบใหม่',
     );
+    expect(line.electricityAmount).toBe(0);
+    expect(run({ readings, existing: [februaryBill] }).issuable.map((l) => l.roomId)).toEqual([
+      '102',
+    ]);
+  });
+
+  it('does not call a reading stale just because an older bill exists', () => {
+    const februaryBill: Bill = {
+      id: 'b-feb', roomId: '101', leaseId: 'l-101', cycle: '2025-02',
+      issueDate: new Date(2025, 1, 26), dueDate: new Date(2025, 2, 10),
+      rentAmount: 2200, electricityAmount: 336, waterAmount: 100,
+      arrearsNote: null, archived: false,
+    };
+
+    // March's round happened; February's bill predates it.
+    expect(
+      run({ existing: [februaryBill] }).lines.find((l) => l.roomId === '101')!.problems,
+    ).toEqual([]);
   });
 
   it('takes the later of two readings in the same cycle, as a correction should', () => {
@@ -186,7 +248,12 @@ describe('not issuing the same cycle twice', () => {
   });
 
   it('ignores a bill from another cycle', () => {
-    const planned = run({ existing: [{ ...issued, cycle: '2025-02' }] });
+    // Dated when a February bill would actually have gone out. The issue date
+    // matters now, not only the cycle label: it is what says whether this
+    // cycle's reading has already been charged.
+    const planned = run({
+      existing: [{ ...issued, cycle: '2025-02', issueDate: new Date(2025, 1, 26) }],
+    });
     expect(planned.issuable.map((l) => l.roomId)).toEqual(['101', '102']);
   });
 });
