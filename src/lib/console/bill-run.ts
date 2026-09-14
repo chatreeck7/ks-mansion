@@ -1,8 +1,7 @@
-import { formatBaht, formatReading, formatUnits } from '@/lib/format/thai';
+import { formatBaht, formatReading, formatThaiDate, formatUnits } from '@/lib/format/thai';
 import type { Bill, BillDraft } from '@/lib/models/bill';
 import {
   chargeFor,
-  previousCycle,
   type BillingCycle,
   type CycleCharge,
 } from '@/lib/models/billing-cycle';
@@ -83,30 +82,58 @@ export interface BillRunInput {
 }
 
 /**
- * The electricity reading this cycle bills.
+ * The electricity reading this cycle bills: simply the latest one on record.
  *
- * Taken from the window between the previous issue and this one rather than
- * strictly the 25th–26th: a round is sometimes walked a day early, and
- * refusing to bill over that would be the console being pedantic about a
- * detail the building does not care about. The latest reading in the window
- * wins, which is how a เก็บตก correction supersedes the figure it corrects.
+ * **No date window** — owner-decided, and it replaces one. The reading used
+ * to have to fall between the previous issue date and this one, which sounds
+ * right and is not how the building works: a round is walked whenever it is
+ * walked, `26–30` for a month's meters is normal, and which calendar month a
+ * figure lands in is an accident of when somebody had time to climb the
+ * stairs. Worse, the window put the **25th** — a scheduled reading day — in
+ * the cycle whose bill had already gone out a month earlier, so a round
+ * walked on time produced "ยังไม่ได้จดมิเตอร์ไฟรอบนี้".
+ *
+ * So the rule is the one the admin already uses on paper: bill the newest
+ * figure. It is also what `latestWaterReading` has always done, so the two
+ * utilities now answer the same way.
+ *
+ * What the window *was* quietly protecting against is handled by
+ * `alreadyBilled` below, and handled better — by asking whether the figure
+ * has been charged before rather than which month it fell in.
  */
-function electricityReading(
-  readings: MeterReading[],
-  roomId: string,
-  cycle: BillingCycle,
-): MeterReading | null {
-  const opensAfter = previousCycle(cycle).issueDate.getTime();
-  const closesOn = cycle.issueDate.getTime();
-
+function electricityReading(readings: MeterReading[], roomId: string): MeterReading | null {
   let latest: MeterReading | null = null;
   for (const reading of readings) {
     if (reading.roomId !== roomId || reading.meterType !== 'electricity') continue;
-    const at = reading.readDate.getTime();
-    if (at <= opensAfter || at > closesOn) continue;
-    if (!latest || at >= latest.readDate.getTime()) latest = reading;
+    if (!latest || reading.readDate.getTime() >= latest.readDate.getTime()) latest = reading;
   }
   return latest;
+}
+
+/**
+ * Whether this figure has already been charged on a bill that went out.
+ *
+ * Dropping the date window means a missed round no longer fails loudly — the
+ * newest reading is simply last month's, and its units would be billed a
+ * second time. This is the guard that replaces it, and it asks the question
+ * that actually matters: **has a bill already gone out that this reading
+ * predates?** If the room's most recent issued bill is dated on or after the
+ * reading, that bill charged this figure (or a newer one) and there is
+ * nothing new to charge.
+ *
+ * It does not constrain *when* a meter may be read, which is the point. A
+ * round walked on the 25th, on the 30th, or in two halves across a weekend
+ * all bill normally; only a round that was never walked at all is caught.
+ */
+function alreadyBilled(reading: MeterReading, roomBills: Bill[], cycleId: string): boolean {
+  const readAt = reading.readDate.getTime();
+  return roomBills.some(
+    // This cycle's own bill is excluded: `alreadyIssued` already keeps that
+    // room out of the run, and counting it here would add a second, wronger
+    // reason — a round walked on the 26th and billed the same evening is not
+    // a stale reading.
+    (bill) => bill.cycle !== cycleId && bill.issueDate.getTime() >= readAt,
+  );
 }
 
 function waterLineFor(row: WaterRow | undefined): { amount: number; basis: string } | null {
@@ -140,6 +167,14 @@ export function planBillRun({
   const issuedThisCycle = new Map(
     existing.filter((bill) => bill.cycle === cycle.id).map((bill) => [bill.roomId, bill]),
   );
+  // Every cycle's bills, not just this one's: `alreadyBilled` asks what has
+  // gone out before, which is exactly the history this cycle's map drops.
+  const billsFor = new Map<string, Bill[]>();
+  for (const bill of existing) {
+    const forRoom = billsFor.get(bill.roomId);
+    if (forRoom) forRoom.push(bill);
+    else billsFor.set(bill.roomId, [bill]);
+  }
 
   const lines: BillLine[] = [];
 
@@ -167,10 +202,17 @@ export function planBillRun({
       }
     }
 
-    const reading = electricityReading(readings, room.id, cycle);
+    const reading = electricityReading(readings, room.id);
+    const stale =
+      reading !== null && alreadyBilled(reading, billsFor.get(room.id) ?? [], cycle.id);
     const units = reading ? reading.currentReading - reading.previousReading : 0;
-    const electricityAmount = reading ? units * reading.ratePerUnit : 0;
-    if (!reading) problems.push('ยังไม่ได้จดมิเตอร์ไฟรอบนี้');
+    const electricityAmount = reading && !stale ? units * reading.ratePerUnit : 0;
+    if (!reading) problems.push('ยังไม่ได้จดมิเตอร์ไฟ');
+    else if (stale) {
+      problems.push(
+        `เลขมิเตอร์ล่าสุด (${formatThaiDate(reading.readDate)}) ออกบิลไปแล้ว — ยังไม่ได้จดรอบใหม่`,
+      );
+    }
 
     const waterLine = waterLineFor(water.get(room.id));
     if (!waterLine) problems.push('คิดค่าน้ำไม่ได้ — ไม่มีสัญญาเช่าหรือยังไม่ได้จดมิเตอร์น้ำ');
@@ -186,8 +228,12 @@ export function planBillRun({
       electricityAmount,
       waterAmount,
       total: rentAmount + electricityAmount + waterAmount,
+      // The date is part of the basis now that no window constrains which
+      // reading is used: it is the only thing on the row that says whether
+      // this figure is from the round just walked or from one before it.
       electricityBasis: reading
-        ? `${formatReading(reading.previousReading)} → ${formatReading(reading.currentReading)} = ` +
+        ? `${formatThaiDate(reading.readDate)} · ` +
+          `${formatReading(reading.previousReading)} → ${formatReading(reading.currentReading)} = ` +
           `${formatUnits(units)} × ${formatReading(reading.ratePerUnit)} บาท`
         : '—',
       waterBasis: waterLine?.basis ?? '—',
