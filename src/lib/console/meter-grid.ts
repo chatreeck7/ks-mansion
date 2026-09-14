@@ -1,6 +1,13 @@
 import { cycleFor, cycleLabel } from '@/lib/models/billing-cycle';
-import { meterTypeLabel, type MeterReadingDraft } from '@/lib/models/meter-reading';
-import type { LedgerColumn, LedgerGroup, LedgerRow } from '@/lib/models/ledger';
+import {
+  isSameMeter,
+  meterTypeLabel,
+  unitsUsed,
+  type MeterReading,
+  type MeterReadingDraft,
+} from '@/lib/models/meter-reading';
+import { formatReading, formatThaiDate, formatUnits } from '@/lib/format/thai';
+import type { LedgerCell, LedgerColumn, LedgerGroup, LedgerRow } from '@/lib/models/ledger';
 import type { Round, RoundStop } from './meter-round';
 import { previewEntry } from './meter-round-view';
 
@@ -26,6 +33,7 @@ export const METER_GRID_COLUMNS: LedgerColumn[] = [
   { key: 'previous', header: 'ครั้งก่อน', align: 'right' },
   { key: 'current', header: 'เลขล่าสุด', align: 'right' },
   { key: 'rate', header: 'บาท/หน่วย', align: 'right' },
+  { key: 'status', header: 'จดล่าสุด', align: 'left' },
 ];
 
 /**
@@ -66,6 +74,49 @@ export function submittedRow(form: SubmittedForm, stop: RoundStop): SubmittedRow
 }
 
 /**
+ * The last reading on record for this meter, as the row's own receipt.
+ *
+ * The screen needs this because **saving makes a row look untouched**. A
+ * recorded figure becomes the row's ครั้งก่อน on the next render and the
+ * input clears, so a stop that has just been read renders identically to one
+ * nobody has touched. That reads as the entry having been thrown away, and
+ * invites typing it again — which is legal here (a correction is an appended
+ * row, schema rule 6) and therefore exactly what the screen has to stop
+ * happening by accident.
+ *
+ * Deliberately *not* driven by `RoundStop.state`: the page rebuilds the round
+ * from the sheet after every save, so every stop comes back `unread`. The
+ * sheet is the record, so the sheet is what this asks.
+ *
+ * **Phrased as "last read on <date>", not "read this cycle."** A cycle-shaped
+ * answer would need this screen to decide which cycle a round feeds, and
+ * `cycleFor` answers a different question — it puts the 25th, a legitimate
+ * reading day, in the cycle whose bill went out a month earlier. Rather than
+ * settle that here, where the consequence would be a screen quietly
+ * disagreeing with the bill, the date is shown and the reader judges. The
+ * attribution question is real and is open; it belongs to billing, not to a
+ * status pill.
+ */
+function statusCell(stop: RoundStop, history: MeterReading[]): LedgerCell {
+  let latest: MeterReading | null = null;
+  for (const reading of history) {
+    if (!isSameMeter(reading, stop)) continue;
+    if (!latest || reading.readDate.getTime() >= latest.readDate.getTime()) latest = reading;
+  }
+
+  if (!latest) return { kind: 'pill', tone: 'mute', label: 'ยังไม่เคยจด' };
+
+  // The whole derivation, not a tick: the figure is the thing being checked,
+  // and the date is what tells you whether it is this round's or last one's.
+  return {
+    kind: 'text',
+    value:
+      `${formatThaiDate(latest.readDate)} · ${formatReading(latest.previousReading)} → ` +
+      `${formatReading(latest.currentReading)} = ${formatUnits(unitsUsed(latest))}`,
+  };
+}
+
+/**
  * The grid as a ledger, with an input where a figure would normally sit.
  *
  * `submitted` puts back what was typed when a POST comes back with errors —
@@ -83,7 +134,9 @@ export function toMeterGridGroups(
   cycleDate: Date,
   submitted?: SubmittedForm,
   saved: ReadonlySet<string> = new Set(),
+  history: MeterReading[] = [],
 ): LedgerGroup[] {
+  const cycle = cycleFor(cycleDate);
   const rows: LedgerRow[] = round.stops.map((stop): LedgerRow => {
     const typed =
       submitted && !saved.has(stop.key)
@@ -122,6 +175,7 @@ export function toMeterGridGroups(
                 label: `บาทต่อหน่วย ${where}`,
               }
             : { kind: 'figure', value: stop.ratePerUnit, measured: true },
+        status: statusCell(stop, history),
       },
     };
   });
@@ -129,7 +183,7 @@ export function toMeterGridGroups(
   // Named by the collection cycle the reading falls in, not by today's
   // date: a round walked on the 25th and finished on the 26th is one round,
   // and two different day labels would say otherwise.
-  return [{ label: cycleLabel(cycleFor(cycleDate)), rows }];
+  return [{ label: cycleLabel(cycle), rows }];
 }
 
 /** A row that parsed, and the stop it came from. */
