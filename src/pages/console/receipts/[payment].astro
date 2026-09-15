@@ -3,6 +3,7 @@
 import ConsoleLayout from '@/layouts/ConsoleLayout.astro';
 import { consolePath } from '@/lib/console/paths';
 import { receiptFor, receiptPeriodLabel } from '@/lib/console/receipt';
+import { letterheadFrom } from '@/lib/console/letterhead';
 import { formatBaht } from '@/lib/format/thai';
 import { getBillRepository, getPaymentRepository, getRoomRepository } from '@/lib/repositories';
 
@@ -65,6 +66,9 @@ const [room, billPayments] = await Promise.all([
 // voided slip still shows what it once claimed.
 const known = billPayments.some((other) => other.id === payment.id);
 const receipt = receiptFor(payment, bill, room, known ? billPayments : [...billPayments, payment]);
+// Shared with ใบแจ้งค่าห้องพัก (KS-24) rather than transcribed twice: the
+// two documents are the same slip at two moments and must not drift.
+const letterhead = letterheadFrom(env);
 ---
 
 <ConsoleLayout title={`ใบเสร็จ ${receipt.reference}`}>
@@ -94,9 +98,13 @@ const receipt = receiptFor(payment, bill, room, known ? billPayments : [...billP
     <article class="border border-console-rule/30 bg-console-card p-6 print:border-0 print:p-0">
       <header class="mb-5 flex flex-wrap justify-between gap-4 border-b border-console-rule/25 pb-4">
         <div>
-          <p class="mb-0 text-lg font-semibold text-console-ink">KS MANSION</p>
-          <p class="mb-0 text-sm text-console-ink-soft">167 ถ.สุขสวัสดิ์ 1 ตำบลพระบาท</p>
-          <p class="mb-0 text-sm text-console-ink-soft">อ.เมือง จ.ลำปาง 52100</p>
+          <p class="mb-0 text-lg font-semibold text-console-ink">{letterhead.name}</p>
+          {letterhead.addressLines.map((line) => (
+            <p class="mb-0 text-sm text-console-ink-soft">{line}</p>
+          ))}
+          {letterhead.phone && (
+            <p class="mb-0 text-sm text-console-ink-soft">โทร. {letterhead.phone}</p>
+          )}
         </div>
         <div class="text-right">
           <p class="mb-1 text-lg font-semibold text-console-ink">ใบเสร็จรับเงิน</p>

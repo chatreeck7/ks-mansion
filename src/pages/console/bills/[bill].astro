@@ -1,0 +1,207 @@
+---
+// src/pages/console/bills/[bill].astro
+import ConsoleLayout from '@/layouts/ConsoleLayout.astro';
+import { billDocumentFor } from '@/lib/console/bill-document';
+import { letterheadFrom, payeeFrom, PAYEE_KEYS } from '@/lib/console/letterhead';
+import { consolePath } from '@/lib/console/paths';
+import { formatBaht } from '@/lib/format/thai';
+import { getBillRepository, getPaymentRepository, getRoomRepository } from '@/lib/repositories';
+
+/**
+ * ใบแจ้งค่าห้องพัก, the document the tenant is actually handed (KS-24).
+ *
+ * **Printed from the browser rather than generated as a PDF server-side.**
+ * The card is titled "PDF export" and this is deliberately not that: a print
+ * stylesheet gives a real PDF through Ctrl-P / Save as PDF on every device
+ * the admin uses, needs no rendering engine in a Worker, and keeps the
+ * document as selectable text rather than an image. KS-30's combined
+ * multi-page export is where a real engine earns its place — one file with a
+ * section per document type is not something a browser dialog can assemble.
+ *
+ * Rendered outside `ConsoleFrame` for the same reason the receipt is: the nav
+ * rail is not part of a document somebody hands over.
+ */
+
+const env = Astro.locals.runtime?.env;
+
+// `getBill` rather than a list filter: an archived bill must still resolve,
+// so a tenant holding an old slip lands on what it said instead of a 404.
+const bill = await getBillRepository(env).getBill(Astro.params.bill!);
+
+if (!bill) {
+  return new Response(null, { status: 404, statusText: 'Not Found' });
+}
+
+const [room, payments] = await Promise.all([
+  getRoomRepository(env).getRoom(bill.roomId),
+  getPaymentRepository(env).listPaymentsForBill(bill.id),
+]);
+
+const doc = billDocumentFor(bill, room, payments);
+const letterhead = letterheadFrom(env);
+const payee = payeeFrom(env);
+---
+
+<ConsoleLayout title={`ใบแจ้งค่าห้องพัก ${doc.reference}`}>
+  <main class="mx-auto max-w-2xl px-4 py-6 print:max-w-none print:px-0 print:py-0">
+    <div class="mb-4 flex flex-wrap items-center justify-between gap-3 print:hidden">
+      <a
+        href={consolePath('console/bills')}
+        class="text-sm text-console-ink-soft underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
+      >
+        ← กลับไปหน้าบิล
+      </a>
+      <button
+        type="button"
+        data-print
+        class="rounded-sm border border-console-rule/40 px-3 py-1.5 text-sm text-console-ink hover:bg-console-sunk focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
+      >
+        พิมพ์ / บันทึกเป็น PDF
+      </button>
+    </div>
+
+    {bill.archived && (
+      <p class="mb-4 rounded-sm bg-console-crit-bg px-3 py-2 font-semibold text-console-crit">
+        บิลใบนี้ถูกยกเลิกแล้ว — ไม่ใช่ใบแจ้งหนี้ที่ใช้ได้
+      </p>
+    )}
+
+    <article class="border border-console-rule/30 bg-console-card p-6 print:border-0 print:p-0">
+      <header class="mb-5 flex flex-wrap justify-between gap-4 border-b border-console-rule/25 pb-4">
+        <div>
+          <p class="mb-0 text-lg font-semibold text-console-ink">{letterhead.name}</p>
+          {letterhead.addressLines.map((line) => (
+            <p class="mb-0 text-sm text-console-ink-soft">{line}</p>
+          ))}
+          {letterhead.phone && (
+            <p class="mb-0 text-sm text-console-ink-soft">โทร. {letterhead.phone}</p>
+          )}
+        </div>
+        <div class="text-right">
+          <p class="mb-1 text-lg font-semibold text-console-ink">ใบแจ้งค่าห้องพัก</p>
+          <dl class="mb-0 grid grid-cols-[auto_auto] justify-end gap-x-3 text-sm">
+            <dt class="text-console-ink-soft">ห้อง</dt>
+            <dd class="mb-0 font-figure font-semibold text-console-ink">{doc.roomLabel}</dd>
+            <dt class="text-console-ink-soft">ประจำเดือน</dt>
+            <dd class="mb-0 text-console-ink">{doc.periodLabel}</dd>
+            <dt class="text-console-ink-soft">วันที่ออกบิล</dt>
+            <dd class="mb-0 font-figure tabular-nums text-console-ink">{doc.issuedOnLabel}</dd>
+            <dt class="text-console-ink-soft">เลขที่อ้างอิง</dt>
+            <dd class="mb-0 font-figure text-console-ink">{doc.reference}</dd>
+          </dl>
+        </div>
+      </header>
+
+      <table class="mb-4 w-full border-collapse text-sm">
+        <thead>
+          <tr>
+            <th scope="col" class="border-b border-console-rule/25 px-2 py-1.5 text-left text-xs font-semibold text-console-ink-faint">
+              รายการ
+            </th>
+            <th scope="col" class="border-b border-console-rule/25 px-2 py-1.5 text-left text-xs font-semibold text-console-ink-faint">
+              สำหรับ
+            </th>
+            <th scope="col" class="border-b border-console-rule/25 px-2 py-1.5 text-right text-xs font-semibold text-console-ink-faint">
+              จำนวนเงิน
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {doc.lines.map((line) => (
+            <tr class="border-b border-console-rule/10">
+              <td class="px-2 py-1.5 text-console-ink">{line.label}</td>
+              <td class="px-2 py-1.5 text-console-ink-faint">{line.detail}</td>
+              <td class="px-2 py-1.5 text-right font-figure tabular-nums text-console-ink">
+                {formatBaht(line.amount)}
+              </td>
+            </tr>
+          ))}
+          <tr>
+            <td class="px-2 py-1.5 font-semibold text-console-ink" colspan="2">รวมเป็นเงิน</td>
+            <td class="px-2 py-1.5 text-right font-figure text-base font-semibold tabular-nums text-console-ink">
+              {formatBaht(doc.total)}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p class="mb-4 rounded-sm bg-console-sunk px-3 py-2 text-sm text-console-ink">
+        กรุณาชำระภายในวันที่{' '}
+        <span class="font-figure font-semibold tabular-nums">{doc.dueOnLabel}</span>
+      </p>
+
+      {/* ค้าง is an admin's assertion about the bill, never a computed
+          balance (KS-22), so it prints as the sentence they wrote and is kept
+          out of the total. */}
+      {doc.arrearsNote && (
+        <p class="mb-4 rounded-sm bg-console-warn-bg px-3 py-2 text-sm text-console-warn">
+          หมายเหตุ: {doc.arrearsNote}
+        </p>
+      )}
+
+      {/* A reprint must not ask again for money already received. Normally
+          absent — a bill is printed before anything is paid. */}
+      {doc.partlyPaid && (
+        <p class="mb-4 rounded-sm bg-console-warn-bg px-3 py-2 text-sm text-console-warn">
+          รับเงินแล้ว {formatBaht(doc.settlement.paid)} บาท — ยังค้างอีก{' '}
+          <span class="font-semibold">{formatBaht(doc.settlement.outstanding)}</span> บาท
+        </p>
+      )}
+      {doc.settled && (
+        <p class="mb-4 rounded-sm bg-console-ok-bg px-3 py-2 text-sm text-console-ok">
+          ชำระครบแล้วเมื่อ {formatBaht(doc.settlement.paid)} บาท — ใบนี้เป็นสำเนา
+        </p>
+      )}
+
+      <section class="mb-6 border-t border-console-rule/25 pt-4 text-sm">
+        <p class="mb-2 font-semibold text-console-ink">ช่องทางชำระเงิน</p>
+        {payee.configured ? (
+          <dl class="mb-0 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
+            <dt class="text-console-ink-soft">ธนาคาร</dt>
+            <dd class="mb-0 text-console-ink">{payee.payee.bank}</dd>
+            <dt class="text-console-ink-soft">ชื่อบัญชี</dt>
+            <dd class="mb-0 text-console-ink">{payee.payee.accountName}</dd>
+            <dt class="text-console-ink-soft">เลขที่บัญชี</dt>
+            <dd class="mb-0 font-figure tabular-nums text-console-ink">
+              {payee.payee.accountNumber}
+            </dd>
+          </dl>
+        ) : (
+          /* Said on the document rather than silently omitted: NFR-1.1 wants
+             the bill to show payment instructions, and a bill handed over
+             without them looks complete and cannot be paid from. */
+          <p class="mb-0 rounded-sm bg-console-crit-bg px-3 py-2 text-console-crit">
+            ยังไม่ได้ตั้งค่าบัญชีรับโอน — ตั้งค่า {payee.missing.join(', ')} ก่อนส่งบิลให้ผู้เช่า
+          </p>
+        )}
+        <p class="mb-0 mt-2 text-console-ink-soft">
+          โอนแล้วส่งสลิปทาง LINE OA ของหอพัก
+        </p>
+      </section>
+
+      {/* Kept because it is what makes the signed slip the building's receipt
+          — the finding KS-23 was built on. */}
+      <div class="grid grid-cols-2 gap-8 pt-6 text-sm">
+        {['ผู้รับเงิน', 'ผู้ชำระเงิน'].map((role) => (
+          <div>
+            <p class="mb-0 border-b border-console-rule/40 pb-6"></p>
+            <p class="mb-0 pt-1 text-center text-console-ink-soft">({role})</p>
+          </div>
+        ))}
+      </div>
+    </article>
+
+    {!payee.configured && (
+      <p class="mt-4 text-sm text-console-ink-faint print:hidden">
+        ตัวแปรที่ยังไม่ได้ตั้ง: {PAYEE_KEYS.join(', ')} — ตั้งใน Cloudflare Pages
+        แล้วบิลทุกใบจะแสดงช่องทางโอนทันที ไม่ต้องออกบิลใหม่
+      </p>
+    )}
+  </main>
+</ConsoleLayout>
+
+<script>
+  // Progressive enhancement only: the page is a complete document without it,
+  // and Ctrl-P still prints.
+  document.querySelector('[data-print]')?.addEventListener('click', () => window.print());
+</script>
