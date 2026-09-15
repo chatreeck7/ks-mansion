@@ -10,6 +10,7 @@ import {
   toArrearsGroups,
 } from '@/lib/console/arrears';
 import { draftsFrom, planBillRun, type BillLine } from '@/lib/console/bill-run';
+import { consolePath } from '@/lib/console/paths';
 import { formatBaht } from '@/lib/format/thai';
 import { cycleFor, cycleLabel, rentLabel, utilityLabel } from '@/lib/models/billing-cycle';
 import type { LedgerColumn, LedgerGroup } from '@/lib/models/ledger';
@@ -53,6 +54,11 @@ function toGroups(lines: BillLine[], label: string): LedgerGroup[] {
       label,
       rows: lines.map((line) => ({
         id: line.roomId,
+        // Only an issued bill links anywhere: a planned line is a preview of
+        // a document that does not exist yet, and a link to it would 404.
+        ...(line.alreadyIssued
+          ? { href: consolePath(`console/bills/${line.alreadyIssued.id}`) }
+          : {}),
         cells: {
           room: { kind: 'text', value: line.roomLabel },
           rent: { kind: 'figure', value: line.rentAmount },
@@ -61,7 +67,7 @@ function toGroups(lines: BillLine[], label: string): LedgerGroup[] {
           water: { kind: 'figure', value: line.waterAmount },
           total: { kind: 'figure', value: line.total },
           state: line.alreadyIssued
-            ? { kind: 'pill', tone: 'mute', label: 'ออกแล้ว' }
+            ? { kind: 'pill', tone: 'mute', label: 'ออกแล้ว · เปิดใบแจ้ง' }
             : line.problems.length > 0
               ? { kind: 'pill', tone: 'crit', label: line.problems[0]! }
               : { kind: 'pill', tone: 'ok', label: 'พร้อมออก' },
