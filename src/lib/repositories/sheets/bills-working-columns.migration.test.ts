@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createGoogleSheetsClient } from './google-sheets-client';
+import { createGoogleSheetsClient, mintAccessToken } from './google-sheets-client';
 import { BILLS_TAB, createSheetsBillRepository } from './sheets-bill-repository';
 
 /**
@@ -36,6 +36,15 @@ import { BILLS_TAB, createSheetsBillRepository } from './sheets-bill-repository'
  * repository's contract rather than being retyped; a tab already carrying the
  * columns is left completely alone; and it finishes by reading the tab back
  * **through the repository**, so a pass means the console can use it.
+ *
+ * **The header is written through the API directly, not through
+ * `SheetsClient`.** `updateRow` refuses row 1 on purpose — the header is the
+ * contract every other read resolves against, and a caller that overwrote it
+ * would silently re-point every column. That guard is right and stays; a
+ * migration whose whole job is to change the header goes around it, exactly
+ * as the payments migration goes around the client to create a tab. The first
+ * attempt at this card called `updateRow(tab, 1, …)` and was correctly
+ * refused, which is the guard doing its job.
  */
 
 const TAB_NAME = BILLS_TAB.tabName;
@@ -68,6 +77,47 @@ describe.runIf(halfConfigured)('bills working-columns migration configuration', 
   });
 });
 
+/**
+ * Writes row 1. Straight to the API, for the reason in the header comment:
+ * `SheetsClient.updateRow` refuses row 1 by design, and that guard protects
+ * every other read in the console.
+ *
+ * Only ever called with the sheet's existing header plus names appended at
+ * the end, so no column a row already holds can change position.
+ */
+function columnLetter(oneBasedIndex: number): string {
+  let letters = '';
+  let n = oneBasedIndex;
+  while (n > 0) {
+    const remainder = (n - 1) % 26;
+    letters = String.fromCharCode(65 + remainder) + letters;
+    n = Math.floor((n - 1) / 26);
+  }
+  return letters;
+}
+
+async function writeHeader(values: string[]): Promise<void> {
+  const { token } = await mintAccessToken(credentialsJson, fetch, Date.now);
+  // Spelled out to the last column rather than anchored at A1 and left to the
+  // API to widen: the one write this file makes should say exactly which
+  // cells it touches.
+  const range = `'${TAB_NAME.replace(/'/g, "''")}'!A1:${columnLetter(values.length)}1`;
+  const response = await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}` +
+      `/values/${encodeURIComponent(range)}?valueInputOption=RAW`,
+    {
+      method: 'PUT',
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ values: [values] }),
+    },
+  );
+
+  if (!response.ok) {
+    const body = (await response.text()).slice(0, 300);
+    throw new Error(`Could not write the "${TAB_NAME}" header (${response.status}): ${body}`);
+  }
+}
+
 describe.skipIf(!enabled)(`migration: add the working columns to "${TAB_NAME}"`, () => {
   it('appends the missing headers and leaves every existing row alone', async () => {
     const client = createGoogleSheetsClient({ credentialsJson, spreadsheetId });
@@ -92,7 +142,7 @@ describe.skipIf(!enabled)(`migration: add the working columns to "${TAB_NAME}"`,
     // contract does not are left exactly where they are: the sheet is
     // admin-owned and carries columns the console deliberately does not model.
     const updated = [...header!, ...missing];
-    await client.updateRow(TAB_NAME, 1, updated);
+    await writeHeader(updated);
 
     // Read back through the repository. A run that passes has to mean the
     // console can use the tab, not that the API returned 200.
