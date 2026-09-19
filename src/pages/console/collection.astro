@@ -1,0 +1,135 @@
+---
+// src/pages/console/collection.astro
+import ConsoleFrame from '@/components/console/ConsoleFrame.astro';
+import LedgerTable from '@/components/console/LedgerTable.astro';
+import {
+  collectionColumns,
+  collectionSheetFor,
+  toCollectionGroups,
+} from '@/lib/console/collection-sheet';
+import { consolePath } from '@/lib/console/paths';
+import { formatBaht } from '@/lib/format/thai';
+import { cycleFor, cycleLabel, previousCycle } from '@/lib/models/billing-cycle';
+import { getBillRepository, getPaymentRepository, getRoomRepository } from '@/lib/repositories';
+
+/**
+ * แบบฟอร์มเก็บเงินค่าห้อง — the collection sheet (KS-25).
+ *
+ * Read-only, and that is the point. `/console/payments` records what
+ * arrived; this is the sheet an admin looks *at* — one row per room, one
+ * column per day of the 26→10 window, the amount in the cell for the day it
+ * came in. The question it answers is "who has not paid yet", and the paper
+ * answers it by having an empty run of cells.
+ *
+ * Prints, because the paper version gets carried around the building. Same
+ * approach as the bill and the receipt: a print stylesheet rather than a
+ * rendering engine, and the nav rail is not part of what comes out.
+ */
+
+const env = Astro.locals.runtime?.env;
+
+/**
+ * Which cycle to show. Defaults to the one being collected now.
+ *
+ * `?cycle=previous` rather than a free date: the sheet either is this
+ * round's or the one before it, and the collection window runs into the next
+ * month — on the 3rd, "last cycle" is the one an admin is still chasing.
+ * A general cycle picker is worth building when there is a reason to look
+ * back further than that, and inventing one now would be guessing at it.
+ */
+const wantsPrevious = Astro.url.searchParams.get('cycle') === 'previous';
+const current = cycleFor(new Date());
+const cycle = wantsPrevious ? previousCycle(current) : current;
+
+const [bills, payments, rooms] = await Promise.all([
+  getBillRepository(env).listBillsForCycle(cycle.id),
+  getPaymentRepository(env).listPayments(),
+  getRoomRepository(env).listRooms(),
+]);
+
+const sheet = collectionSheetFor(cycle, bills, payments, rooms);
+const columns = collectionColumns(sheet);
+const groups = toCollectionGroups(sheet, cycleLabel(cycle));
+const unpaid = sheet.rows.filter((row) => row.settlement.paid === 0).length;
+---
+
+<ConsoleFrame title="ใบเก็บเงิน" activeSection="collection">
+  <div class="mb-4 flex flex-wrap items-baseline justify-between gap-2 print:hidden">
+    <div>
+      <h1 class="mb-1 text-xl font-semibold text-console-ink">ใบเก็บเงิน</h1>
+      <p class="mb-0 text-sm text-console-ink-soft">
+        {cycleLabel(cycle)} — ช่องว่างคือยังไม่ได้รับเงิน · บันทึกการรับเงินที่หน้า{' '}
+        <a
+          href={consolePath('console/payments')}
+          class="underline underline-offset-2 hover:no-underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
+          >รับเงิน</a
+        >
+      </p>
+    </div>
+    <div class="flex flex-wrap items-center gap-2">
+      <a
+        href={wantsPrevious ? consolePath('console/collection') : `${consolePath('console/collection')}?cycle=previous`}
+        class="rounded-sm border border-console-rule/40 px-3 py-2 text-sm text-console-ink hover:bg-console-sunk focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
+        >{wantsPrevious ? 'รอบปัจจุบัน →' : '← รอบก่อนหน้า'}</a
+      >
+      <button
+        type="button"
+        data-print
+        class="rounded-sm border border-console-rule/40 px-3 py-2 text-sm text-console-ink hover:bg-console-sunk focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
+      >
+        พิมพ์
+      </button>
+    </div>
+  </div>
+
+  {sheet.rows.length === 0 ? (
+    /* Not an error. Before the 26th of a month nothing has been issued yet,
+       which is the ordinary state for a third of every cycle. */
+    <p class="rounded-sm bg-console-sunk px-3 py-2 text-sm text-console-ink-soft">
+      รอบนี้ยังไม่ได้ออกบิล — ออกบิลที่หน้า{' '}
+      <a
+        href={consolePath('console/bills')}
+        class="underline underline-offset-2 hover:no-underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
+        >บิล</a
+      >{' '}แล้วรายการจะขึ้นที่นี่
+    </p>
+  ) : (
+    <Fragment>
+      <LedgerTable columns={columns} groups={groups} />
+
+      <div class="mt-4 flex flex-wrap gap-x-8 gap-y-2 text-sm">
+        <p class="mb-0 text-console-ink-soft">
+          ออกบิลทั้งหมด{' '}
+          <span class="font-figure font-semibold tabular-nums text-console-ink">
+            {formatBaht(sheet.billed)}
+          </span>{' '}บาท
+        </p>
+        <p class="mb-0 text-console-ink-soft">
+          รับแล้ว{' '}
+          <span class="font-figure font-semibold tabular-nums text-console-ok">
+            {formatBaht(sheet.collected)}
+          </span>{' '}บาท
+        </p>
+        <p class="mb-0 text-console-ink-soft">
+          คงเหลือ{' '}
+          <span
+            class:list={[
+              'font-figure font-semibold tabular-nums',
+              sheet.outstanding > 0 ? 'text-console-warn' : 'text-console-ink',
+            ]}
+          >
+            {formatBaht(sheet.outstanding)}
+          </span>{' '}บาท
+        </p>
+        {unpaid > 0 && (
+          <p class="mb-0 text-console-warn">ยังไม่ได้จ่ายเลย {unpaid} ห้อง</p>
+        )}
+      </div>
+    </Fragment>
+  )}
+</ConsoleFrame>
+
+<script>
+  // Progressive enhancement only: Ctrl-P prints the same thing.
+  document.querySelector('[data-print]')?.addEventListener('click', () => window.print());
+</script>

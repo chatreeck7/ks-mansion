@@ -11,10 +11,19 @@ interface Props {
 const { title, activeSection } = Astro.props;
 ---
 
+<!--
+  The nav is chrome, and chrome is never part of a printed page. The bill and
+  the receipt sidestep this by rendering outside the frame entirely; the
+  collection sheet (KS-25) is an ordinary console screen that also gets
+  carried around the building on paper, so the frame itself has to know.
+  Harmless on the screens nobody prints.
+-->
 <ConsoleLayout title={title}>
-  <div class="flex min-h-screen">
-    <ConsoleNav activeSection={activeSection} />
-    <main class="min-w-0 flex-1 px-4 py-4 pb-20 md:pb-4">
+  <div class="flex min-h-screen print:block print:min-h-0">
+    <div class="print:hidden">
+      <ConsoleNav activeSection={activeSection} />
+    </div>
+    <main class="min-w-0 flex-1 px-4 py-4 pb-20 md:pb-4 print:p-0">
       <slot />
     </main>
   </div>
