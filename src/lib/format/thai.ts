@@ -4,6 +4,24 @@ export const THAI_MONTHS_SHORT = [
   'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.',
 ] as const;
 
+/**
+ * Full month names, for the one field that uses them.
+ *
+ * ใบแจ้งค่าห้องพัก heads itself `ยอดชำระเดือน : สิงหาคม`, spelled out, while
+ * every other date on the same slip is abbreviated. That is the document's
+ * own convention and it is reproduced rather than tidied — a tenant checking
+ * this month's bill against last month's should find the same words.
+ */
+export const THAI_MONTHS_FULL = [
+  'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+  'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม',
+] as const;
+
+/** 'สิงหาคม' — the month alone, as ใบแจ้งค่าห้องพัก heads it. */
+export function formatThaiMonthName(date: Date): string {
+  return THAI_MONTHS_FULL[date.getMonth()]!;
+}
+
 /** The Buddhist calendar runs 543 years ahead of the Gregorian one. */
 export function toBuddhistYear(gregorianYear: number): number {
   return gregorianYear + 543;

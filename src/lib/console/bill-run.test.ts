@@ -188,6 +188,7 @@ describe('what stops a room being billed', () => {
       id: 'b-feb', roomId: '101', leaseId: 'l-101', cycle: '2025-02',
       issueDate: new Date(2025, 1, 26), dueDate: new Date(2025, 2, 10),
       rentAmount: 2200, electricityAmount: 336, waterAmount: 100,
+      electricityPrevious: null, electricityCurrent: null, waterQuantity: null,
       arrearsNote: null, archived: false,
     };
     const line = run({ readings, existing: [februaryBill] }).lines.find(
@@ -208,6 +209,7 @@ describe('what stops a room being billed', () => {
       id: 'b-feb', roomId: '101', leaseId: 'l-101', cycle: '2025-02',
       issueDate: new Date(2025, 1, 26), dueDate: new Date(2025, 2, 10),
       rentAmount: 2200, electricityAmount: 336, waterAmount: 100,
+      electricityPrevious: null, electricityCurrent: null, waterQuantity: null,
       arrearsNote: null, archived: false,
     };
 
@@ -234,6 +236,7 @@ describe('not issuing the same cycle twice', () => {
     id: 'b-001', roomId: '101', leaseId: 'l-101', cycle: CYCLE.id,
     issueDate: CYCLE.issueDate, dueDate: CYCLE.dueDate,
     rentAmount: 2200, electricityAmount: 336, waterAmount: 100,
+    electricityPrevious: null, electricityCurrent: null, waterQuantity: null,
     arrearsNote: null, archived: false,
   };
 
@@ -272,8 +275,38 @@ describe('draftsFrom', () => {
       rentAmount: 2200,
       electricityAmount: 336,
       waterAmount: 100,
+      // The working the bill keeps, so ใบแจ้งค่าห้องพัก can print the dial
+      // range and the units years later without re-reading the meter.
+      electricityPrevious: 1256,
+      electricityCurrent: 1312,
+      waterQuantity: 1,
       arrearsNote: null,
     });
+  });
+
+  /**
+   * A stale reading charges nothing, so it records nothing. Printing a
+   * derivation beside a zero would claim the meter was read for this bill.
+   */
+  it('records no working for a line whose reading was already billed', () => {
+    const readings = [
+      makeMeterReading({ id: 'm-old', roomId: '101', previousReading: 1200,
+                         currentReading: 1256, ratePerUnit: 6, readDate: new Date(2025, 1, 26) }),
+      ...READINGS.filter((r) => r.roomId !== '101'),
+    ];
+    const februaryBill: Bill = {
+      id: 'b-feb', roomId: '101', leaseId: 'l-101', cycle: '2025-02',
+      issueDate: new Date(2025, 1, 26), dueDate: new Date(2025, 2, 10),
+      rentAmount: 2200, electricityAmount: 336, waterAmount: 100,
+      electricityPrevious: null, electricityCurrent: null, waterQuantity: null,
+      arrearsNote: null, archived: false,
+    };
+    const line = run({ readings, existing: [februaryBill] }).lines.find(
+      (l) => l.roomId === '101',
+    )!;
+
+    expect(line.electricityPrevious).toBeNull();
+    expect(line.electricityCurrent).toBeNull();
   });
 
   /** ค้าง is asserted on a bill after issue (KS-22), never inferred by a run. */

@@ -1,33 +1,46 @@
-import { billTotal, hasArrears, type Bill } from '@/lib/models/bill';
-import { cycleIssuedIn, rentLabel, utilityLabel } from '@/lib/models/billing-cycle';
+import {
+  billElectricityRate,
+  billElectricityUnits,
+  billTotal,
+  billWaterRate,
+  hasArrears,
+  type Bill,
+} from '@/lib/models/bill';
+import { cycleIssuedIn } from '@/lib/models/billing-cycle';
 import { settle, type Payment, type Settlement } from '@/lib/models/payment';
 import type { Room } from '@/lib/models/room';
-import { formatThaiDate, formatThaiMonth } from '@/lib/format/thai';
+import { formatThaiDate, formatThaiMonthName } from '@/lib/format/thai';
 
 /**
- * ใบแจ้งค่าห้องพัก — the bill as a document a tenant is handed (KS-24).
+ * ใบแจ้งค่าห้องพัก — the bill as the building's own document (KS-24).
  *
- * **The receipt was built from this, not the other way round.** KS-23 found
- * that the building has no separate receipt: ใบแจ้งค่าห้องพัก carries
- * `ผู้รับเงิน` / `ผู้ชำระเงิน` lines at its foot, and signed, the bill *is*
- * the receipt. So this restores the original document, and the two share
- * their charge lines deliberately — same labels, same order, same derivation
- * — because a tenant comparing the slip they were given with the one they
- * signed must find the same figures in the same places.
+ * **Laid out from the real slip in `สำเนาของ ใบเสร็จ หอพัก.xlsx`, not from
+ * what a bill "should" contain.** Its table is four fixed rows —
+ * ค่าเช่าห้อง, ค่าไฟ, ค่าน้ำ, อื่นๆ — under `รายการ / Description`,
+ * `จำนวน / Quantity`, `ราคา / Amount`, with the electricity dial range
+ * written inline beside the label (`11900 - 13948`) and its per-unit rate in
+ * its own narrow column. อื่นๆ is on every printed bill whether or not it
+ * carries anything, so it is here too: a tenant used to four rows should not
+ * have to wonder which one was dropped.
  *
- * What the bill has that the receipt does not is the **due date** and the
- * **transfer instructions** (NFR-1.1). What the receipt has that the bill
- * does not is a payment. Everything else is one document at two moments.
+ * The first version of this file printed only label, month and amount. That
+ * is a summary of the bill, not the bill — the working *is* the document, and
+ * it is the line a tenant queries.
  *
- * Amounts are read off the stored bill, never recomputed (see `Bill`): the
- * tenant's copy has to stay reconstructable after a rate changes.
+ * Every figure comes off the stored bill and none is recomputed from today's
+ * readings: a bill handed over is history (see `Bill`).
  */
 
-export interface BillDocumentLine {
+export interface BillDocumentRow {
   label: string;
-  /** Which month this charge is for, as the paper prints it. */
-  detail: string;
-  amount: number;
+  /** `11,900 - 11,948` on the electricity row; null on the others. */
+  meterRange: string | null;
+  /** Units, occupants, or 1 for rent. Null where the row counts nothing. */
+  quantity: number | null;
+  /** บาท per unit, shown only where a rate was charged. */
+  rate: number | null;
+  /** Null on อื่นๆ, which prints as an empty row unless something is owed. */
+  amount: number | null;
 }
 
 export interface BillDocument {
@@ -35,28 +48,32 @@ export interface BillDocument {
   roomLabel: string;
   /** `b-004` — the bill's own id, the reference printed on the slip. */
   reference: string;
-  lines: BillDocumentLine[];
+  /** The four rows, always in this order. */
+  rows: BillDocumentRow[];
   total: number;
   issuedOnLabel: string;
   dueOnLabel: string;
-  /** 'ส.ค. 2569' — the utility month, the slip's own period field. */
+  /** 'สิงหาคม' — spelled out, as the slip's ยอดชำระเดือน field is. */
   periodLabel: string;
   /** ค้าง as an admin wrote it, or null. Never inferred — see `Bill`. */
   arrearsNote: string | null;
   /**
    * What has been paid against this bill already, if anything.
    *
-   * A bill is normally printed before any payment exists, so this is usually
-   * a zero settlement. It is carried anyway because a **reprint** is the
-   * common case that goes wrong: a tenant who paid an instalment and asks for
-   * the bill again must not be handed a document that reads as though nothing
-   * has been received.
+   * A bill is normally printed before any payment exists. It is carried
+   * because a **reprint** is the case that goes wrong: a tenant who paid an
+   * instalment and asks for the bill again must not be handed a document
+   * reading as though nothing arrived.
    */
   settlement: Settlement;
-  /** True when something has been paid but the bill is not cleared. */
   partlyPaid: boolean;
-  /** True when the bill is settled — a reprint should not ask for money. */
   settled: boolean;
+}
+
+/** `1,677 - 1,800`, the dial range the slip writes beside ค่าไฟ. */
+function meterRangeOf(bill: Bill): string | null {
+  if (bill.electricityPrevious === null || bill.electricityCurrent === null) return null;
+  return `${bill.electricityPrevious} - ${bill.electricityCurrent}`;
 }
 
 export function billDocumentFor(
@@ -64,28 +81,48 @@ export function billDocumentFor(
   room: Room | null,
   payments: Payment[],
 ): BillDocument {
-  // The cycle is rebuilt from the bill's own id so the two month labels come
-  // from the one place that owns that rule (KS-20), rather than from a second
-  // reading of the issue date here. Same reasoning as `receiptFor`.
+  // The cycle is rebuilt from the bill's own id so the month labels come from
+  // the one place that owns that rule (KS-20). Same as `receiptFor`.
   const [year, month] = bill.cycle.split('-').map(Number);
   const cycle = cycleIssuedIn(year!, month! - 1);
 
   const settlement = settle(bill, payments);
 
+  const rows: BillDocumentRow[] = [
+    // Rent is one month of it — the slip writes 1 in จำนวน, not the rate.
+    { label: 'ค่าเช่าห้อง', meterRange: null, quantity: 1, rate: null, amount: bill.rentAmount },
+    {
+      label: 'ค่าไฟ',
+      meterRange: meterRangeOf(bill),
+      quantity: billElectricityUnits(bill),
+      rate: billElectricityRate(bill),
+      amount: bill.electricityAmount,
+    },
+    {
+      label: 'ค่าน้ำ',
+      meterRange: null,
+      quantity: bill.waterQuantity,
+      rate: billWaterRate(bill),
+      amount: bill.waterAmount,
+    },
+    /**
+     * อื่นๆ prints on every real bill and is nearly always blank — it is
+     * where a one-off is written by hand. The console has nothing to put in
+     * it, and leaving the row out would make the printed slip a row shorter
+     * than the one it replaces.
+     */
+    { label: 'อื่นๆ', meterRange: null, quantity: null, rate: null, amount: null },
+  ];
+
   return {
     bill,
     roomLabel: room?.label ?? bill.roomId,
     reference: bill.id,
-    // The same three lines the receipt prints, in the same order.
-    lines: [
-      { label: 'ค่าเช่าห้อง', detail: rentLabel(cycle), amount: bill.rentAmount },
-      { label: 'ค่าไฟ', detail: utilityLabel(cycle), amount: bill.electricityAmount },
-      { label: 'ค่าน้ำ', detail: utilityLabel(cycle), amount: bill.waterAmount },
-    ],
+    rows,
     total: billTotal(bill),
     issuedOnLabel: formatThaiDate(bill.issueDate),
     dueOnLabel: formatThaiDate(bill.dueDate),
-    periodLabel: formatThaiMonth(cycle.utilityMonth),
+    periodLabel: formatThaiMonthName(cycle.utilityMonth),
     arrearsNote: hasArrears(bill) ? bill.arrearsNote : null,
     settlement,
     partlyPaid: settlement.paid > 0 && settlement.outstanding > 0,

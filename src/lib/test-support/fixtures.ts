@@ -110,6 +110,13 @@ export function makeBill(overrides: Partial<Bill> = {}): Bill {
     rentAmount: 2200,
     electricityAmount: 336,
     waterAmount: 100,
+    // The real ใบแจ้งค่าห้องพัก for room 101: 11900 - 11948 is 48 units at
+    // ฿7, which is the 336 above, and ค่าน้ำ is เหมา for one occupant.
+    // Keeping the fixture on the document's own numbers means a test that
+    // prints it is checkable against the paper.
+    electricityPrevious: 11900,
+    electricityCurrent: 11948,
+    waterQuantity: 1,
     arrearsNote: null,
     archived: false,
     ...overrides,

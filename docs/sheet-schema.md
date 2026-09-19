@@ -324,8 +324,9 @@ from what was true when it was issued.
 
 ```
 id, room_id, lease_id, cycle, issue_date, due_date,
-rent_amount, electricity_amount, water_amount, total_amount,
-arrears_note, archived
+rent_amount, electricity_amount, water_amount,
+electricity_previous, electricity_current, water_quantity,
+total_amount, arrears_note, archived
 ```
 
 Identity: `id`, `room_id`, `cycle`.
@@ -338,6 +339,18 @@ Identity: `id`, `room_id`, `cycle`.
   unrepresentable.
 - **`cycle`** names the billing month. KS-20 owns the actual rule — read
   25th–26th, issue 26th, due 10th — and this column is what it writes.
+- **`electricity_previous` / `electricity_current` / `water_quantity`** are the
+  working ใบแจ้งค่าห้องพัก prints beside each charge — the dial range, the
+  units, the headcount (KS-24). **Stored rather than looked up at print time**,
+  for the reason the amounts are: a bill handed to a tenant is history, and a
+  later เก็บตก correction must not silently restate it.
+  - The **rate is deliberately not a column**. It is divided out of the amount
+    (`electricity_amount ÷ units`), so the rate printed on a slip can never
+    fail to multiply back to the total beside it — the one arithmetic a tenant
+    checks by hand.
+  - **Values may be blank**, and are on every bill issued before these columns
+    existed. Blank reads as "not recorded": the document prints the amount and
+    leaves the working empty rather than inventing a derivation.
 - **`arrears_note`** is KS-22's manual annotation. Free text, never auto-flagged:
   ค้าง is something an admin asserts, not something the console infers.
 - **Payments are not here** — they are their own tab, below. Recording one
