@@ -15,6 +15,7 @@ describe('CONSOLE_SECTIONS', () => {
       'water',
       'bills',
       'payments',
+      'collection',
       'health',
     ]);
   });

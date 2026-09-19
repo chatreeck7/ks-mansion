@@ -25,6 +25,10 @@ export const CONSOLE_SECTIONS: ConsoleSection[] = [
   { id: 'water', label: 'ค่าน้ำ', href: consolePath('console/water') },
   { id: 'bills', label: 'บิล', href: consolePath('console/bills') },
   { id: 'payments', label: 'รับเงิน', href: consolePath('console/payments') },
+  // Next to รับเงิน because they are the two halves of the same fortnight:
+  // one writes what arrived, this one is the sheet you read to see who has
+  // not paid yet (KS-25).
+  { id: 'collection', label: 'ใบเก็บเงิน', href: consolePath('console/collection') },
   // Not a daily section, but a diagnostic nobody can find is the same as one
   // that does not exist — which was the whole complaint KS-67 came from.
   { id: 'health', label: 'สถานะระบบ', href: consolePath('console/health') },
