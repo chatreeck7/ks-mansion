@@ -14,6 +14,16 @@ export type LedgerCell =
    */
   | { kind: 'figure'; value: number | null; measured?: boolean }
   | { kind: 'pill'; tone: PillTone; label: string }
+  /**
+   * An action on the row, as a link the reader can actually click.
+   *
+   * Separate from `LedgerRow.href`, which only ever makes the *first* cell a
+   * link. That was enough while the row's identity was the only link on it,
+   * and it misled the moment a later column said "เปิดใบแจ้ง": the words
+   * inviting the click were in one cell and the link was in another, so
+   * clicking the invitation did nothing.
+   */
+  | { kind: 'link'; href: string; label: string }
   | LedgerInputCell;
 
 /**

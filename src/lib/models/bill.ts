@@ -38,6 +38,28 @@ export interface Bill extends Archivable {
   electricityAmount: number;
   waterAmount: number;
   /**
+   * The dial figures this bill's electricity was charged from.
+   *
+   * **Stored, for the same reason the amounts are.** ใบแจ้งค่าห้องพัก prints
+   * the working — `11900 - 11948`, `48` หน่วย, `7` บาท — not just a total,
+   * and a tenant querying a bill is querying that line. Looking the reading
+   * up again at print time would let a later เก็บตก correction silently
+   * restate a bill already handed over, which is exactly what the
+   * append-only rule exists to prevent.
+   *
+   * Null on bills issued before these columns existed, and on any bill with
+   * no reading behind it. The document then prints the amount alone rather
+   * than inventing a derivation.
+   */
+  electricityPrevious: number | null;
+  electricityCurrent: number | null;
+  /**
+   * What the water charge was reckoned per — occupants where ค่าน้ำ is
+   * เหมา 100/คน, units where the space is metered. One column because the
+   * two are the same question ("how many?") and the bill prints one จำนวน.
+   */
+  waterQuantity: number | null;
+  /**
    * ค้าง, as free text an admin writes — `ยอดค้าง 4,327`, `ค้างประกัน 1,000`.
    *
    * **Never inferred** (KS-22). The console does not decide that someone is
@@ -71,4 +93,38 @@ export function hasArrears(bill: Bill): boolean {
 /** True when this bill charges no rent — a room under แจ้งออก, or a vacancy. */
 export function isUtilitiesOnly(bill: Bill): boolean {
   return bill.rentAmount === 0;
+}
+
+/**
+ * Units of electricity this bill charged, or null where the dial figures
+ * were not recorded.
+ *
+ * Derived rather than stored — both figures are on the same row, so a stored
+ * copy could only ever disagree with itself. Same rule as `unitsUsed` on a
+ * meter reading, and the same reasoning.
+ */
+export function billElectricityUnits(bill: Bill): number | null {
+  if (bill.electricityPrevious === null || bill.electricityCurrent === null) return null;
+  return bill.electricityCurrent - bill.electricityPrevious;
+}
+
+/**
+ * บาท per unit as this bill actually charged it.
+ *
+ * Derived from the amount rather than stored alongside it, so the rate on
+ * the printed slip can never fail to multiply out to the total beside it —
+ * the one arithmetic a tenant checks by hand. Null when there are no units
+ * to divide by: a meter that did not move charges nothing, and the rate it
+ * would have charged at is not something this bill recorded.
+ */
+export function billElectricityRate(bill: Bill): number | null {
+  const units = billElectricityUnits(bill);
+  if (units === null || units === 0) return null;
+  return bill.electricityAmount / units;
+}
+
+/** The same, for water: amount ÷ however many it was reckoned per. */
+export function billWaterRate(bill: Bill): number | null {
+  if (bill.waterQuantity === null || bill.waterQuantity === 0) return null;
+  return bill.waterAmount / bill.waterQuantity;
 }

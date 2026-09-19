@@ -53,6 +53,20 @@ export interface BillLine {
   electricityBasis: string;
   waterBasis: string;
   /**
+   * The same working as structured figures, for the issued bill to keep.
+   *
+   * `electricityBasis` is a sentence for the preview; these are what
+   * ใบแจ้งค่าห้องพัก lays out in its own จำนวน and ราคา columns, and what the
+   * bill row stores so a reprint years later still shows the dial figures
+   * this tenant was charged from. Null where there is no reading, or where
+   * the reading was already billed — a stale line charges nothing, so it has
+   * no working to record.
+   */
+  electricityPrevious: number | null;
+  electricityCurrent: number | null;
+  /** Occupants where ค่าน้ำ is เหมา, units where the space is metered. */
+  waterQuantity: number | null;
+  /**
    * Why this room cannot be billed yet. A line with problems is shown but
    * never issued — a bill built on a missing reading is a wrong number sent
    * to a tenant, which is worse than a bill that is late.
@@ -136,7 +150,9 @@ function alreadyBilled(reading: MeterReading, roomBills: Bill[], cycleId: string
   );
 }
 
-function waterLineFor(row: WaterRow | undefined): { amount: number; basis: string } | null {
+function waterLineFor(
+  row: WaterRow | undefined,
+): { amount: number; basis: string; quantity: number | null } | null {
   if (!row || row.charge === null) return null;
   return {
     amount: row.charge,
@@ -144,6 +160,9 @@ function waterLineFor(row: WaterRow | undefined): { amount: number; basis: strin
       row.basis === 'metered'
         ? `มิเตอร์น้ำ ${row.units === null ? '' : formatUnits(row.units)}`.trim()
         : `${formatBaht(row.occupantCount ?? 0)} คน × 100`,
+    // Whichever of the two the charge was reckoned per — the bill prints one
+    // จำนวน column and does not care which kind of "how many" it holds.
+    quantity: row.basis === 'metered' ? row.units : row.occupantCount,
   };
 }
 
@@ -237,6 +256,11 @@ export function planBillRun({
           `${formatUnits(units)} × ${formatReading(reading.ratePerUnit)} บาท`
         : '—',
       waterBasis: waterLine?.basis ?? '—',
+      // A stale reading charges nothing, so it records nothing: printing a
+      // derivation beside a zero would say the meter was read for this bill.
+      electricityPrevious: reading && !stale ? reading.previousReading : null,
+      electricityCurrent: reading && !stale ? reading.currentReading : null,
+      waterQuantity: waterLine?.quantity ?? null,
       problems,
       alreadyIssued: issuedThisCycle.get(room.id) ?? null,
     });
@@ -263,6 +287,9 @@ export function draftsFrom(run: BillRun): BillDraft[] {
     rentAmount: line.rentAmount,
     electricityAmount: line.electricityAmount,
     waterAmount: line.waterAmount,
+    electricityPrevious: line.electricityPrevious,
+    electricityCurrent: line.electricityCurrent,
+    waterQuantity: line.waterQuantity,
     // Never carried over from a previous cycle: ค้าง is something an admin
     // asserts on a bill after issue (KS-22), not something a run infers.
     arrearsNote: null,

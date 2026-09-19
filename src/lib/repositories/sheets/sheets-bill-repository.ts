@@ -9,6 +9,7 @@ import {
   cellValue,
   numberCell,
   nullableBooleanCell,
+  optionalNumberCell,
   requireCell,
   SheetRowError,
   type Tab,
@@ -35,6 +36,14 @@ const CONTRACT: TabContract = {
     'rent_amount',
     'electricity_amount',
     'water_amount',
+    // The working ใบแจ้งค่าห้องพัก prints beside the charge. Values are
+    // optional — blank on bills issued before these columns existed — but
+    // the *headers* are required, like every other column here, so a
+    // half-migrated tab fails loudly rather than printing bills with the
+    // derivation silently missing.
+    'electricity_previous',
+    'electricity_current',
+    'water_quantity',
     'total_amount',
     'arrears_note',
     ARCHIVED_COLUMN,
@@ -91,6 +100,9 @@ function parseBill(tab: Tab, row: string[], rowNumber: number): Bill {
     rentAmount: parseCharge(tab, row, rowNumber, 'rent_amount'),
     electricityAmount: parseCharge(tab, row, rowNumber, 'electricity_amount'),
     waterAmount: parseCharge(tab, row, rowNumber, 'water_amount'),
+    electricityPrevious: optionalNumberCell(tab, row, rowNumber, 'electricity_previous'),
+    electricityCurrent: optionalNumberCell(tab, row, rowNumber, 'electricity_current'),
+    waterQuantity: optionalNumberCell(tab, row, rowNumber, 'water_quantity'),
     arrearsNote: cellValue(tab, row, 'arrears_note') || null,
     archived: nullableBooleanCell(tab, row, rowNumber, ARCHIVED_COLUMN) ?? false,
   };
@@ -128,6 +140,19 @@ function toRowValues(fields: Partial<BillDraft>): RowValues {
   if (fields.issueDate !== undefined) values['issue_date'] = formatThaiDate(fields.issueDate);
   if (fields.dueDate !== undefined) values['due_date'] = formatThaiDate(fields.dueDate);
   if (fields.arrearsNote !== undefined) values['arrears_note'] = fields.arrearsNote ?? '';
+
+  // Written individually rather than with the charges: a bill with no
+  // reading behind it is legitimate (a meter that was never read, an older
+  // row), so a blank here is data rather than a half-written bill.
+  if (fields.electricityPrevious !== undefined) {
+    values['electricity_previous'] = fields.electricityPrevious ?? '';
+  }
+  if (fields.electricityCurrent !== undefined) {
+    values['electricity_current'] = fields.electricityCurrent ?? '';
+  }
+  if (fields.waterQuantity !== undefined) {
+    values['water_quantity'] = fields.waterQuantity ?? '';
+  }
 
   // The three charges move together, and the total is derived from them here
   // rather than accepted from a caller — one place computes it, and it is the

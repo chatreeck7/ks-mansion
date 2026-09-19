@@ -310,8 +310,9 @@ const METER_READING_ROWS: (string | number)[][] = meterRows();
 
 const BILLS_HEADER = [
   'id', 'room_id', 'lease_id', 'cycle', 'issue_date', 'due_date',
-  'rent_amount', 'electricity_amount', 'water_amount', 'total_amount',
-  'arrears_note', 'archived',
+  'rent_amount', 'electricity_amount', 'water_amount',
+  'electricity_previous', 'electricity_current', 'water_quantity',
+  'total_amount', 'arrears_note', 'archived',
 ];
 
 /**
@@ -328,16 +329,19 @@ const BILLS_HEADER = [
 const BILL_ROWS: (string | number)[][] = [
   // 101: an ordinary room. 1312 − 1256 = 56 units at ฿6, two occupants.
   ['b-001', '101', 'l-001', '2025-03', thaiDate(2025, 3, 26), thaiDate(2025, 4, 10),
-   2200, 336, 200, 2736, '', ''],
+   2200, 336, 200, 1256, 1312, 2, 2736, '', ''],
 
   // 102: an arrears note an admin wrote, in the register's own wording.
   // The note changes no figure and is not part of the total.
   ['b-002', '102', 'l-002', '2025-03', thaiDate(2025, 3, 26), thaiDate(2025, 4, 10),
-   3000, 606, 100, 3706, 'ยอดค้าง 1,169', ''],
+   3000, 606, 100, 1489, 1590, 1, 3706, 'ยอดค้าง 1,169', ''],
 
   // ร้านซักผ้า: metered water at ฿15, and its own electricity rate of ฿5.
+  // Its working is left blank on purpose — one seeded bill that predates the
+  // columns, so the document's "no derivation recorded" path is exercised by
+  // the seeds rather than only by a unit test.
   ['b-003', 'laundry', 'l-005', '2025-03', thaiDate(2025, 3, 26), thaiDate(2025, 4, 10),
-   1800, 635, 525, 2960, '', ''],
+   1800, 635, 525, '', '', '', 2960, '', ''],
 ];
 
 // -------------------------------------------------------------- payments

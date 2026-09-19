@@ -4,8 +4,9 @@ import { createSheetsBillRepository } from './sheets-bill-repository';
 
 const HEADER = [
   'id', 'room_id', 'lease_id', 'cycle', 'issue_date', 'due_date',
-  'rent_amount', 'electricity_amount', 'water_amount', 'total_amount',
-  'arrears_note', 'archived',
+  'rent_amount', 'electricity_amount', 'water_amount',
+  'electricity_previous', 'electricity_current', 'water_quantity',
+  'total_amount', 'arrears_note', 'archived',
 ];
 
 function client(rows: string[][]) {
@@ -23,6 +24,11 @@ function row(overrides: Partial<Record<string, string>> = {}): string[] {
     rent_amount: '2200',
     electricity_amount: '336',
     water_amount: '200',
+    // Blank by default: most rows in the live tab predate these columns, so
+    // the common fixture is the one that has to keep parsing.
+    electricity_previous: '',
+    electricity_current: '',
+    water_quantity: '',
     total_amount: '2736',
     arrears_note: '',
     archived: 'FALSE',
@@ -42,6 +48,9 @@ const DRAFT = {
   rentAmount: 2500,
   electricityAmount: 420,
   waterAmount: 100,
+  electricityPrevious: 1600,
+  electricityCurrent: 1670,
+  waterQuantity: 1,
   arrearsNote: null,
 };
 
@@ -59,9 +68,38 @@ describe('createSheetsBillRepository', () => {
       rentAmount: 2200,
       electricityAmount: 336,
       waterAmount: 200,
+      electricityPrevious: null,
+      electricityCurrent: null,
+      waterQuantity: null,
       arrearsNote: null,
       archived: false,
     });
+  });
+
+  /**
+   * The working columns exist for ใบแจ้งค่าห้องพัก (KS-24), and are blank on
+   * every bill issued before they did — so the interesting case is both: a
+   * row that has them, and a row that does not, parsing side by side.
+   */
+  it('reads the working where a row records it', async () => {
+    const [bill] = await repo([
+      row({ electricity_previous: '11900', electricity_current: '11948', water_quantity: '2' }),
+    ]).listBills();
+
+    expect(bill).toMatchObject({
+      electricityPrevious: 11900,
+      electricityCurrent: 11948,
+      waterQuantity: 2,
+    });
+  });
+
+  it('reads a blank working column as not recorded, never as zero', async () => {
+    // Zero is a real dial figure and a real headcount. Reading blank as 0
+    // would print "0 - 0 = 0 หน่วย" on a bill nobody recorded a reading for.
+    const [bill] = await repo([row({ electricity_previous: '', water_quantity: '' })]).listBills();
+
+    expect(bill?.electricityPrevious).toBeNull();
+    expect(bill?.waterQuantity).toBeNull();
   });
 
   it('accepts a bill with no tenancy behind it', async () => {
