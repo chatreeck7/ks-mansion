@@ -1,45 +1,43 @@
 ---
 // src/pages/console/collection.astro
 import ConsoleFrame from '@/components/console/ConsoleFrame.astro';
-import LedgerTable from '@/components/console/LedgerTable.astro';
 import {
-  collectionColumns,
+  collectionHeading,
   collectionSheetFor,
-  toCollectionGroups,
+  cycleFromId,
+  recentCycles,
 } from '@/lib/console/collection-sheet';
 import { consolePath } from '@/lib/console/paths';
-import { formatBaht } from '@/lib/format/thai';
-import { cycleFor, cycleLabel, previousCycle } from '@/lib/models/billing-cycle';
+import { formatBaht, formatThaiDate, formatThaiMonth } from '@/lib/format/thai';
+import { cycleFor, cycleLabel } from '@/lib/models/billing-cycle';
 import { getBillRepository, getPaymentRepository, getRoomRepository } from '@/lib/repositories';
 
 /**
- * แบบฟอร์มเก็บเงินค่าห้อง — the collection sheet (KS-25).
+ * แบบฟอร์มเก็บเงินค่าห้อง (KS-25).
  *
- * Read-only, and that is the point. `/console/payments` records what
- * arrived; this is the sheet an admin looks *at* — one row per room, one
- * column per day of the 26→10 window, the amount in the cell for the day it
- * came in. The question it answers is "who has not paid yet", and the paper
- * answers it by having an empty run of cells.
+ * **Drawn as the paper, not as a console table.** Every cell ruled, the
+ * form's own header line across the top, a รวม row at the foot — because
+ * this is a document that gets printed and carried round the building, and
+ * an admin reading across a row is reading by position. It is rendered here
+ * rather than through `LedgerTable` for the same reason the bill is: the
+ * ledger is the console's house style for screens you *read*, and this is a
+ * form you *fill in*.
  *
- * Prints, because the paper version gets carried around the building. Same
- * approach as the bill and the receipt: a print stylesheet rather than a
- * rendering engine, and the nav rail is not part of what comes out.
+ * What prints is what is on screen. The frame hides its own chrome under
+ * print, so the preview and the paper are the same thing — no separate
+ * export route to drift from the page.
  */
 
 const env = Astro.locals.runtime?.env;
 
-/**
- * Which cycle to show. Defaults to the one being collected now.
- *
- * `?cycle=previous` rather than a free date: the sheet either is this
- * round's or the one before it, and the collection window runs into the next
- * month — on the 3rd, "last cycle" is the one an admin is still chasing.
- * A general cycle picker is worth building when there is a reason to look
- * back further than that, and inventing one now would be guessing at it.
- */
-const wantsPrevious = Astro.url.searchParams.get('cycle') === 'previous';
-const current = cycleFor(new Date());
-const cycle = wantsPrevious ? previousCycle(current) : current;
+const now = new Date();
+const requested = Astro.url.searchParams.get('cycle');
+const chosen = cycleFromId(requested);
+// A typed or stale `?cycle=` says so rather than quietly showing a different
+// month than the one in the address bar.
+const unknownCycle = requested !== null && chosen === null;
+const cycle = chosen ?? cycleFor(now);
+const options = recentCycles(now);
 
 const [bills, payments, rooms] = await Promise.all([
   getBillRepository(env).listBillsForCycle(cycle.id),
@@ -48,85 +46,195 @@ const [bills, payments, rooms] = await Promise.all([
 ]);
 
 const sheet = collectionSheetFor(cycle, bills, payments, rooms);
-const columns = collectionColumns(sheet);
-const groups = toCollectionGroups(sheet, cycleLabel(cycle));
-const unpaid = sheet.rows.filter((row) => row.settlement.paid === 0).length;
+const billedRows = sheet.rows.filter((row) => row.bill !== null).length;
+const unpaid = sheet.rows.filter(
+  (row) => row.settlement !== null && row.settlement.paid === 0,
+).length;
+
+/** Ruled like the paper: every cell bordered, nothing relying on colour. */
+const CELL = 'border border-console-rule/60 px-1.5 py-1';
+/**
+ * The first two columns are held narrow on purpose.
+ *
+ * Left to spread, `w-full` gives ห้อง and ค่าห้องฯ a third of the page each
+ * and squeezes the sixteen day columns into the rest — which is backwards:
+ * the day grid is the part that gets written in, and the room number is four
+ * characters. หมายเหตุ takes whatever is left, as it does on the paper.
+ */
+const ROOM_COL = 'w-16';
+const DUE_COL = 'w-24';
 ---
 
-<ConsoleFrame title="ใบเก็บเงิน" activeSection="collection">
-  <div class="mb-4 flex flex-wrap items-baseline justify-between gap-2 print:hidden">
+<ConsoleFrame title="แบบฟอร์มเก็บเงินค่าห้อง" activeSection="collection">
+  <div class="mb-4 flex flex-wrap items-end justify-between gap-3 print:hidden">
     <div>
       <h1 class="mb-1 text-xl font-semibold text-console-ink">ใบเก็บเงิน</h1>
       <p class="mb-0 text-sm text-console-ink-soft">
-        {cycleLabel(cycle)} — ช่องว่างคือยังไม่ได้รับเงิน · บันทึกการรับเงินที่หน้า{' '}
+        ช่องว่างคือยังไม่ได้รับเงิน · บันทึกการรับเงินที่หน้า{' '}
         <a
           href={consolePath('console/payments')}
           class="underline underline-offset-2 hover:no-underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
           >รับเงิน</a
+        >{' '}· เขียนหมายเหตุค้างที่หน้า{' '}
+        <a
+          href={consolePath('console/bills')}
+          class="underline underline-offset-2 hover:no-underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
+          >บิล</a
         >
       </p>
     </div>
-    <div class="flex flex-wrap items-center gap-2">
-      <a
-        href={wantsPrevious ? consolePath('console/collection') : `${consolePath('console/collection')}?cycle=previous`}
-        class="rounded-sm border border-console-rule/40 px-3 py-2 text-sm text-console-ink hover:bg-console-sunk focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
-        >{wantsPrevious ? 'รอบปัจจุบัน →' : '← รอบก่อนหน้า'}</a
-      >
+
+    <div class="flex flex-wrap items-end gap-2">
+      {/* GET, so the chosen month is in the URL and can be bookmarked or
+          reloaded. Submits without JavaScript. */}
+      <form method="GET" class="flex items-end gap-2">
+        <label class="flex flex-col gap-1 text-sm text-console-ink-soft">
+          เลือกเดือน
+          <select
+            name="cycle"
+            class="rounded-sm border border-console-rule/40 bg-console-paper px-2 py-1.5 text-console-ink focus:border-console-rule focus:outline-none"
+          >
+            {options.map((option) => (
+              <option value={option.id} selected={option.id === cycle.id}>
+                {formatThaiMonth(option.utilityMonth)} — {cycleLabel(option)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button
+          type="submit"
+          class="rounded-sm border border-console-rule/40 px-3 py-2 text-sm text-console-ink hover:bg-console-sunk focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
+        >
+          ดู
+        </button>
+      </form>
       <button
         type="button"
         data-print
         class="rounded-sm border border-console-rule/40 px-3 py-2 text-sm text-console-ink hover:bg-console-sunk focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
       >
-        พิมพ์
+        พิมพ์ / บันทึกเป็น PDF
       </button>
     </div>
   </div>
 
-  {sheet.rows.length === 0 ? (
-    /* Not an error. Before the 26th of a month nothing has been issued yet,
-       which is the ordinary state for a third of every cycle. */
-    <p class="rounded-sm bg-console-sunk px-3 py-2 text-sm text-console-ink-soft">
-      รอบนี้ยังไม่ได้ออกบิล — ออกบิลที่หน้า{' '}
-      <a
-        href={consolePath('console/bills')}
-        class="underline underline-offset-2 hover:no-underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
-        >บิล</a
-      >{' '}แล้วรายการจะขึ้นที่นี่
+  {unknownCycle && (
+    <p class="mb-4 rounded-sm bg-console-warn-bg px-3 py-2 text-sm text-console-warn print:hidden">
+      ไม่รู้จักรอบ "{requested}" — แสดงรอบปัจจุบันแทน
     </p>
-  ) : (
-    <Fragment>
-      <LedgerTable columns={columns} groups={groups} />
-
-      <div class="mt-4 flex flex-wrap gap-x-8 gap-y-2 text-sm">
-        <p class="mb-0 text-console-ink-soft">
-          ออกบิลทั้งหมด{' '}
-          <span class="font-figure font-semibold tabular-nums text-console-ink">
-            {formatBaht(sheet.billed)}
-          </span>{' '}บาท
-        </p>
-        <p class="mb-0 text-console-ink-soft">
-          รับแล้ว{' '}
-          <span class="font-figure font-semibold tabular-nums text-console-ok">
-            {formatBaht(sheet.collected)}
-          </span>{' '}บาท
-        </p>
-        <p class="mb-0 text-console-ink-soft">
-          คงเหลือ{' '}
-          <span
-            class:list={[
-              'font-figure font-semibold tabular-nums',
-              sheet.outstanding > 0 ? 'text-console-warn' : 'text-console-ink',
-            ]}
-          >
-            {formatBaht(sheet.outstanding)}
-          </span>{' '}บาท
-        </p>
-        {unpaid > 0 && (
-          <p class="mb-0 text-console-warn">ยังไม่ได้จ่ายเลย {unpaid} ห้อง</p>
-        )}
-      </div>
-    </Fragment>
   )}
+
+  <article class="text-sm">
+    <header class="mb-2">
+      <p class="mb-0 font-semibold text-console-ink">{collectionHeading(cycle)}</p>
+      <p class="mb-0 text-console-ink-soft">
+        {cycleLabel(cycle)}
+        {billedRows === 0 && ' — ยังไม่ได้ออกบิลรอบนี้'}
+      </p>
+    </header>
+
+    <div class="overflow-x-auto">
+      <table class="w-full border-collapse">
+        <thead>
+          <tr>
+            <th scope="col" class={`${CELL} ${ROOM_COL} text-center font-semibold text-console-ink`}>
+              ห้อง
+            </th>
+            <th scope="col" class={`${CELL} ${DUE_COL} text-center font-semibold text-console-ink`}>
+              ค่าห้องฯ
+            </th>
+            {sheet.days.map((day) => (
+              <th
+                scope="col"
+                class={`${CELL} w-8 text-center font-figure text-xs font-semibold text-console-ink`}
+              >
+                {day.dayOfMonth}
+                {day.monthLabel && (
+                  <span class="block text-[0.6rem] font-normal text-console-ink-faint">
+                    {day.monthLabel}
+                  </span>
+                )}
+              </th>
+            ))}
+            <th scope="col" class={`${CELL} text-center font-semibold text-console-ink`}>
+              หมายเหตุ
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {sheet.rows.map((row) => (
+            <tr>
+              <td class={`${CELL} ${ROOM_COL} text-center font-figure text-console-ink`}>
+                {row.roomLabel}
+              </td>
+              {/* Blank, not a zero and not a dash: the paper leaves ค่าห้องฯ
+                  empty for a room with no bill this cycle. */}
+              <td class={`${CELL} ${DUE_COL} text-right font-figure tabular-nums text-console-ink`}>
+                {row.due === null ? '' : formatBaht(row.due)}
+              </td>
+              {sheet.days.map((day) => {
+                const amount = row.byDay.get(day.key);
+                return (
+                  <td class={`${CELL} text-right font-figure text-xs tabular-nums text-console-ink`}>
+                    {amount === undefined ? '' : formatBaht(amount)}
+                  </td>
+                );
+              })}
+              <td class={`${CELL} text-console-ink`}>{row.note ?? ''}</td>
+            </tr>
+          ))}
+          <tr>
+            <td class={`${CELL} ${ROOM_COL} text-center font-semibold text-console-ink`}>รวม</td>
+            <td
+              class={`${CELL} ${DUE_COL} text-right font-figure text-base font-semibold tabular-nums text-console-ink`}
+            >
+              {formatBaht(sheet.billed)}
+            </td>
+            {sheet.days.map(() => <td class={CELL}></td>)}
+            <td class={CELL}></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    {/* A footnote rather than a seventeenth column. The paper has nowhere to
+        put a late payment, and dropping it would show a balance the tenant
+        has already settled — so it prints here, with the grid left alone. */}
+    {sheet.late.length > 0 && (
+      <section class="mt-3">
+        <p class="mb-1 font-semibold text-console-ink">รับนอกช่วง</p>
+        <ul class="mb-0 list-disc ps-5 text-console-ink-soft">
+          {sheet.late.map((row) => (
+            <li>
+              {row.roomLabel} — {formatBaht(row.outsideWindow)} บาท
+              {' '}({row.outsideWindowDates.map((at) => formatThaiDate(at)).join(', ')})
+            </li>
+          ))}
+        </ul>
+      </section>
+    )}
+  </article>
+
+  <div class="mt-4 flex flex-wrap gap-x-8 gap-y-2 text-sm print:hidden">
+    <p class="mb-0 text-console-ink-soft">
+      รับแล้ว{' '}
+      <span class="font-figure font-semibold tabular-nums text-console-ok">
+        {formatBaht(sheet.collected)}
+      </span>{' '}บาท
+    </p>
+    <p class="mb-0 text-console-ink-soft">
+      คงเหลือ{' '}
+      <span
+        class:list={[
+          'font-figure font-semibold tabular-nums',
+          sheet.outstanding > 0 ? 'text-console-warn' : 'text-console-ink',
+        ]}
+      >
+        {formatBaht(sheet.outstanding)}
+      </span>{' '}บาท
+    </p>
+    {unpaid > 0 && <p class="mb-0 text-console-warn">ยังไม่ได้จ่ายเลย {unpaid} ห้อง</p>}
+  </div>
 </ConsoleFrame>
 
 <script>
