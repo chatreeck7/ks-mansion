@@ -188,19 +188,33 @@ const arrearsGroups = toArrearsGroups(
 
   <LedgerTable columns={COLUMNS} groups={groups} />
 
-  <form method="POST" class="mt-4 flex flex-wrap items-center justify-between gap-3">
-    <input type="hidden" name="action" value="issue" />
-    <button
-      type="submit"
-      disabled={run.issuable.length === 0}
-      class="rounded-sm bg-console-ink px-4 py-2 font-semibold text-console-paper disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-console-rule"
-    >
-      {run.issuable.length === 0 ? 'ไม่มีบิลให้ออก' : `ออกบิล ${run.issuable.length} ใบ`}
-    </button>
-    <p class="mb-0 font-figure text-console-ink-soft tabular-nums">
-      ยอดที่จะออกรอบนี้ <span class="font-semibold text-console-ink">{formatBaht(run.total)}</span> บาท
+  {/* A disabled button whose label states a fact reads like an action you
+      cannot take, and the reader is left wondering what it would have done.
+      With nothing to issue there is no action, so there is no button —
+      a sentence says why, and points at what is usually the reason. */}
+  {run.issuable.length === 0 ? (
+    <p class="mt-4 rounded-sm bg-console-sunk px-3 py-2 text-sm text-console-ink-soft">
+      {run.lines.length === 0
+        ? 'ยังไม่มีห้องที่ต้องออกบิลรอบนี้'
+        : run.lines.every((line) => line.alreadyIssued)
+          ? 'ออกบิลครบทุกห้องแล้วสำหรับรอบนี้ — เปิดใบแจ้งได้จากคอลัมน์ขวาสุด'
+          : 'ยังออกบิลไม่ได้ — ดูเหตุผลในคอลัมน์สถานะของแต่ละห้อง'}
     </p>
-  </form>
+  ) : (
+    <form method="POST" class="mt-4 flex flex-wrap items-center justify-between gap-3">
+      <input type="hidden" name="action" value="issue" />
+      <button
+        type="submit"
+        class="rounded-sm bg-console-ink px-4 py-2 font-semibold text-console-paper focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-console-rule"
+      >
+        ออกบิล {run.issuable.length} ใบ
+      </button>
+      <p class="mb-0 font-figure text-console-ink-soft tabular-nums">
+        ยอดที่จะออกรอบนี้{' '}
+        <span class="font-semibold text-console-ink">{formatBaht(run.total)}</span> บาท
+      </p>
+    </form>
+  )}
 
   {issuedBills.length > 0 && (
     <section class="mt-10">

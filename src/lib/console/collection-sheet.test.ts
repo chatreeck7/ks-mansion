@@ -2,10 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { makeBill, makePayment, makeRoom } from '@/lib/test-support/fixtures';
 import { cycleIssuedIn } from '@/lib/models/billing-cycle';
 import {
-  collectionColumns,
   collectionDays,
+  collectionHeading,
   collectionSheetFor,
-  toCollectionGroups,
+  cycleFromId,
+  recentCycles,
 } from './collection-sheet';
 
 /** Issued 26 มี.ค. 2568, due 10 เม.ย. — 16 days inclusive. */
@@ -92,7 +93,7 @@ describe('collectionSheetFor', () => {
 
     expect(row.byDay.get('2025-03-28')).toBe(1000);
     expect(row.byDay.get('2025-04-04')).toBe(1636);
-    expect(row.settlement.outstanding).toBe(0);
+    expect(row.settlement!.outstanding).toBe(0);
   });
 
   it('adds two payments that landed on the same day into one cell', () => {
@@ -117,7 +118,7 @@ describe('collectionSheetFor', () => {
 
     expect(row.byDay.size).toBe(0);
     expect(row.outsideWindow).toBe(2636);
-    expect(row.settlement.outstanding).toBe(0);
+    expect(row.settlement!.outstanding).toBe(0);
     expect(built.collected).toBe(2636);
   });
 
@@ -126,8 +127,8 @@ describe('collectionSheetFor', () => {
       makePayment({ id: 'p-1', billId: 'b-102', amount: 500, paidOn: new Date(2025, 2, 28) }),
     ]);
 
-    expect(built.rows.find((r) => r.roomId === '101')!.settlement.paid).toBe(0);
-    expect(built.rows.find((r) => r.roomId === '102')!.settlement.paid).toBe(500);
+    expect(built.rows.find((r) => r.roomId === '101')!.settlement!.paid).toBe(0);
+    expect(built.rows.find((r) => r.roomId === '102')!.settlement!.paid).toBe(500);
   });
 
   it('ignores a voided payment, as settle does', () => {
@@ -140,18 +141,16 @@ describe('collectionSheetFor', () => {
     const row = built.rows.find((r) => r.roomId === '101')!;
 
     expect(row.byDay.size).toBe(0);
-    expect(row.settlement.paid).toBe(0);
+    expect(row.settlement!.paid).toBe(0);
   });
 
-  it('reads in walking order, the order the building is collected in', () => {
+  /**
+   * Order comes from the registry, not from whatever order the bills came
+   * back in — the sheet is walked floor by floor.
+   */
+  it('reads in walking order whatever order the bills arrive in', () => {
     const shuffled = [BILLS[1]!, BILLS[0]!];
-    expect(sheet([], shuffled).rows.map((r) => r.roomId)).toEqual(['101', '102']);
-  });
-
-  it('has no row for a room with no bill this cycle', () => {
-    // 201 is in the registry and was not billed — a vacant room is not on
-    // the paper sheet either.
-    expect(sheet().rows.some((r) => r.roomId === '201')).toBe(false);
+    expect(sheet([], shuffled).rows.map((r) => r.roomId)).toEqual(['101', '102', '201']);
   });
 
   it('totals what was billed, collected and is still owed', () => {
@@ -164,79 +163,108 @@ describe('collectionSheetFor', () => {
   });
 });
 
-describe('the rendered sheet', () => {
-  it('has a column per day, between the bill total and the running figures', () => {
-    const built = sheet();
-    const keys = collectionColumns(built).map((c) => c.key);
+describe('the paper the sheet is copying', () => {
+  /**
+   * The form lists 206, 305, 310 and ห้องใต้ถุน with an empty ค่าห้องฯ. The
+   * collector ticks down the whole building, and a room that vanished from
+   * the list is a room nobody checks.
+   */
+  it('gives every room a row, billed or not', () => {
+    const rows = sheet().rows;
 
-    expect(keys.slice(0, 2)).toEqual(['room', 'due']);
-    expect(keys.slice(2, 18)).toEqual(built.days.map((d) => d.key));
-    expect(keys.slice(18)).toEqual(['paid', 'outstanding', 'note']);
+    expect(rows.map((r) => r.roomId)).toEqual(['101', '102', '201']);
+    expect(rows.find((r) => r.roomId === '201')).toMatchObject({ bill: null, due: null });
+  });
+
+  it('leaves an unbilled room out of every total rather than counting it as zero', () => {
+    const built = sheet();
+
+    expect(built.billed).toBe(5272);
+    expect(built.rows.find((r) => r.roomId === '201')!.settlement).toBeNull();
+  });
+
+  it('drops an archived room, which is gone from the registry', () => {
+    const withArchived = [...ROOMS, makeRoom({ id: '999', label: '999', floor: 9, archived: true })];
+    const built = collectionSheetFor(CYCLE, BILLS, [], withArchived);
+
+    expect(built.rows.some((r) => r.roomId === '999')).toBe(false);
+  });
+
+  /** ค้าง is an admin's assertion (KS-22), carried through as written. */
+  it('carries the arrears note into หมายเหตุ', () => {
+    const annotated = [
+      makeBill({ id: 'b-101', roomId: '101', cycle: CYCLE.id, arrearsNote: 'ยอดค้าง 4,327' }),
+    ];
+
+    expect(sheet([], annotated).rows.find((r) => r.roomId === '101')!.note).toBe('ยอดค้าง 4,327');
+  });
+
+  it('treats a blank note as no note', () => {
+    const annotated = [
+      makeBill({ id: 'b-101', roomId: '101', cycle: CYCLE.id, arrearsNote: '   ' }),
+    ];
+
+    expect(sheet([], annotated).rows.find((r) => r.roomId === '101')!.note).toBeNull();
   });
 
   /**
-   * An empty column on every ordinary sheet is a column that stops being
-   * read, so นอกช่วง only appears when something is actually out there.
+   * The line the form prints across its top, and the thing most likely to be
+   * got wrong: rent is for the month ahead, utilities for the month just
+   * consumed.
    */
-  it('leaves out นอกช่วง when every payment landed in the window', () => {
+  it('reproduces the form header for the cycle', () => {
+    expect(collectionHeading(CYCLE)).toBe(
+      'รายการโอนเงินจ่ายค่าห้องพัก ณ สิ้นเดือน มี.ค. 2568 ' +
+        '[ เก็บค่าเช่าของ เม.ย. 2568, ค่าน้ำค่าไฟของ มี.ค. 2568 ]',
+    );
+  });
+
+  it('names the days that fell outside the window, for the footnote', () => {
+    const built = sheet([
+      makePayment({ id: 'p-late', billId: 'b-101', amount: 100, paidOn: new Date(2025, 3, 12) }),
+    ]);
+
+    expect(built.late.map((r) => r.roomId)).toEqual(['101']);
+    expect(built.late[0]!.outsideWindowDates).toEqual([new Date(2025, 3, 12)]);
+  });
+
+  it('has no late footnote when everything landed in the window', () => {
     const built = sheet([
       makePayment({ id: 'p-1', billId: 'b-101', amount: 100, paidOn: new Date(2025, 2, 27) }),
     ]);
 
-    expect(collectionColumns(built).map((c) => c.key)).not.toContain('outside');
+    expect(built.late).toEqual([]);
+  });
+});
+
+describe('choosing a month', () => {
+  it('offers the cycle being collected now, newest first', () => {
+    // The 3rd: the round still being chased is last month's.
+    const early = recentCycles(new Date(2025, 3, 3), 3);
+    expect(early.map((c) => c.id)).toEqual(['2025-03', '2025-02', '2025-01']);
   });
 
-  it('adds นอกช่วง as soon as one payment is outside it', () => {
-    const built = sheet([
-      makePayment({ id: 'p-late', billId: 'b-101', amount: 100, paidOn: new Date(2025, 3, 12) }),
-    ]);
+  it('rolls to this month once the 26th has come round', () => {
+    expect(recentCycles(new Date(2025, 3, 26), 2).map((c) => c.id)).toEqual(['2025-04', '2025-03']);
+  });
 
-    expect(collectionColumns(built).map((c) => c.key)).toContain('outside');
+  it('crosses a year boundary going back', () => {
+    expect(recentCycles(new Date(2025, 0, 26), 2).map((c) => c.id)).toEqual(['2025-01', '2024-12']);
+  });
+
+  it('resolves a cycle id from the query string', () => {
+    expect(cycleFromId('2025-03')?.id).toBe('2025-03');
+    expect(cycleFromId(' 2025-03 ')?.id).toBe('2025-03');
   });
 
   /**
-   * Blank, not an em dash. `formatFigure(null)` is right in a narrow ledger
-   * and wrong across sixteen columns — a wall of dashes is what the eye has
-   * to look past to find the one cell with a number in it.
+   * Null rather than a silent fall back to today: a typed or stale URL should
+   * say it did not work, and a screen quietly showing a different month than
+   * the one in the address bar is the worse failure.
    */
-  it('renders a day with no payment as blank rather than a dash', () => {
-    const built = sheet([
-      makePayment({ id: 'p-1', billId: 'b-101', amount: 1000, paidOn: new Date(2025, 2, 28) }),
-    ]);
-    const row = toCollectionGroups(built, 'รอบ')[0]!.rows.find((r) => r.id === 'b-101')!;
-
-    expect(row.cells['2025-03-27']).toEqual({ kind: 'text', value: '' });
-    expect(row.cells['2025-03-28']).toEqual({ kind: 'figure', value: 1000 });
-  });
-
-  it('supplies a cell for every column, which LedgerTable requires', () => {
-    const built = sheet([
-      makePayment({ id: 'p-late', billId: 'b-101', amount: 100, paidOn: new Date(2025, 3, 12) }),
-    ]);
-    const columns = collectionColumns(built);
-
-    for (const row of toCollectionGroups(built, 'รอบ')[0]!.rows) {
-      for (const column of columns) {
-        expect(row.cells[column.key], `${row.id} is missing "${column.key}"`).toBeDefined();
-      }
+  it('refuses anything that is not a cycle id', () => {
+    for (const bad of [null, '', 'this-month', '2025-13', '2025-00', '25-03', '2025-3']) {
+      expect(cycleFromId(bad), `"${bad}" should not resolve`).toBeNull();
     }
-  });
-
-  /** ค้าง is an admin's assertion (KS-22), printed as written. */
-  it('carries the arrears note through as text', () => {
-    const annotated = [makeBill({ id: 'b-101', roomId: '101', cycle: CYCLE.id,
-                                  arrearsNote: 'ยอดค้าง 4,327' })];
-    const row = toCollectionGroups(sheet([], annotated), 'รอบ')[0]!.rows[0]!;
-
-    expect(row.cells.note).toMatchObject({ value: 'ยอดค้าง 4,327' });
-  });
-
-  it('shows a settled row as zero owing rather than as blank', () => {
-    const built = sheet([
-      makePayment({ id: 'p-1', billId: 'b-101', amount: 2636, paidOn: new Date(2025, 2, 26) }),
-    ]);
-    const row = toCollectionGroups(built, 'รอบ')[0]!.rows.find((r) => r.id === 'b-101')!;
-
-    expect(row.cells.outstanding).toEqual({ kind: 'figure', value: 0 });
   });
 });
