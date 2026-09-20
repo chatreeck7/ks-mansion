@@ -124,9 +124,26 @@ const DUE_COL = 'w-24';
       <p class="mb-0 font-semibold text-console-ink">{collectionHeading(cycle)}</p>
       <p class="mb-0 text-console-ink-soft">
         {cycleLabel(cycle)}
-        {billedRows === 0 && ' — ยังไม่ได้ออกบิลรอบนี้'}
       </p>
     </header>
+
+    {/* An unbilled month renders a grid with every ค่าห้องฯ blank, which is
+        the correct sheet and reads exactly like a broken page — the month
+        changed, the table did not, because there was nothing in it either
+        way. It used to say so in a grey clause at the end of the cycle line,
+        which is not where anyone looks. Said plainly instead, with the way
+        to fix it, and hidden from print: a blank form is still worth
+        carrying round and filling in by hand. */}
+    {billedRows === 0 && (
+      <p class="mb-3 rounded-sm bg-console-warn-bg px-3 py-2 text-sm text-console-warn print:hidden">
+        ยังไม่ได้ออกบิลรอบนี้ — ช่อง ค่าห้องฯ จึงว่างทั้งแผ่น ออกบิลที่หน้า{' '}
+        <a
+          href={consolePath('console/bills')}
+          class="underline underline-offset-2 hover:no-underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
+          >บิล</a
+        >{' '}แล้วกลับมาดูอีกครั้ง
+      </p>
+    )}
 
     <div class="overflow-x-auto">
       <table class="w-full border-collapse">
