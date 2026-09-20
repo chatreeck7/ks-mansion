@@ -26,7 +26,15 @@ const { title } = Astro.props;
       rel="stylesheet"
     />
   </head>
-  <body class="bg-console-paper font-console text-console-ink antialiased">
+  <!--
+    `print:bg-white`: the paper tint is screen furniture. On a real sheet the
+    document is ink on the sheet itself, and a console-coloured wash behind it
+    is the screen leaking onto something a tenant is handed. Browsers leave
+    background graphics off by default, so this is usually invisible — which
+    is the reason to set it rather than to leave it: how a bill looks must not
+    depend on a checkbox in someone's print dialog.
+  -->
+  <body class="bg-console-paper font-console text-console-ink antialiased print:bg-white">
     <slot />
   </body>
 

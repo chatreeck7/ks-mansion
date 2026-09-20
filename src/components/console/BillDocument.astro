@@ -34,7 +34,11 @@ const { doc, letterhead, payee } = Astro.props;
   </p>
 )}
 
-<article class="border border-console-rule/30 bg-console-card p-6 print:border-0 print:p-0">
+<!-- On screen the bill sits on a card, inside the console. On paper it *is*
+     the page, so the card loses its border, its padding and its tint. -->
+<article
+  class="border border-console-rule/30 bg-console-card p-6 print:border-0 print:bg-transparent print:p-0"
+>
   <header class="mb-5 flex flex-wrap justify-between gap-4 border-b border-console-rule/25 pb-4">
     <div>
       <p class="mb-0 text-lg font-semibold text-console-ink">{letterhead.name}</p>
