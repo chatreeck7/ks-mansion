@@ -151,3 +151,65 @@ export function rentLabel(cycle: BillingCycle): string {
 export function utilityLabel(cycle: BillingCycle): string {
   return `ค่าน้ำค่าไฟเดือน ${formatThaiMonth(cycle.utilityMonth)}`;
 }
+
+/**
+ * The cycles a month picker offers, newest first.
+ *
+ * Generated from the current cycle rather than from what the sheet happens to
+ * hold: a month with no bills is a legitimate thing to look at and confirm,
+ * and a picker that hid it would leave an admin unsure whether the month was
+ * empty or the console had lost it.
+ */
+export function recentCycles(now: Date, count = 12): BillingCycle[] {
+  const anchor = cycleFor(now);
+
+  return Array.from({ length: count }, (_, back) =>
+    cycleIssuedIn(anchor.issueDate.getFullYear(), anchor.issueDate.getMonth() - back),
+  );
+}
+
+/**
+ * Resolves `?cycle=2026-08` to a cycle, or null if it is not one.
+ *
+ * Null rather than a thrown error or a silent fall back to today: a typed or
+ * stale URL should say it did not work, and a screen that quietly showed a
+ * different month than the one in the address bar is the worse failure.
+ */
+export function cycleFromId(id: string | null): BillingCycle | null {
+  if (!id) return null;
+  const match = /^(\d{4})-(\d{2})$/.exec(id.trim());
+  if (!match) return null;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  if (month < 1 || month > 12) return null;
+
+  const cycle = cycleIssuedIn(year, month - 1);
+  // `cycleIssuedIn` takes a month index and lets Date roll over, so this also
+  // rejects anything that did not land on the month it asked for.
+  return cycle.id === `${match[1]}-${match[2]}` ? cycle : null;
+}
+
+/**
+ * The picker's options, guaranteed to contain the cycle on screen.
+ *
+ * `recentCycles` alone is not enough: a bookmarked or hand-typed `?cycle=`
+ * older than the window it covers has no `<option>` to match, so the browser
+ * selects the first one and the picker reads a different month than the page
+ * is showing. Found on `/console/bills/print?cycle=2020-01`, which rendered
+ * รอบ ม.ค. 2563 under a picker saying ส.ค. 2569.
+ *
+ * So the chosen cycle is added when the recent window misses it, in date
+ * order with the rest — the control always names what is being looked at.
+ */
+export function cycleOptions(
+  now: Date,
+  chosen: BillingCycle | null,
+  count = 12,
+): BillingCycle[] {
+  const recent = recentCycles(now, count);
+  if (!chosen || recent.some((cycle) => cycle.id === chosen.id)) return recent;
+
+  // Ids are `YYYY-MM`, so lexical order is date order — newest first.
+  return [...recent, chosen].sort((a, b) => b.id.localeCompare(a.id));
+}

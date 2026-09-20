@@ -1,5 +1,5 @@
 import { billTotal, type Bill } from '@/lib/models/bill';
-import { cycleIssuedIn, type BillingCycle } from '@/lib/models/billing-cycle';
+import type { BillingCycle } from '@/lib/models/billing-cycle';
 import { settle, type Payment, type Settlement } from '@/lib/models/payment';
 import { inWalkingOrder, type Room } from '@/lib/models/room';
 import { formatThaiMonth, THAI_MONTHS_SHORT } from '@/lib/format/thai';
@@ -193,45 +193,4 @@ export function collectionSheetFor(
     outstanding: rows.reduce((sum, row) => sum + (row.settlement?.outstanding ?? 0), 0),
     late: rows.filter((row) => row.outsideWindow !== 0),
   };
-}
-
-/**
- * The cycles a month picker offers, newest first.
- *
- * Generated from the current cycle rather than from what the sheet happens to
- * hold: a month with no bills is a legitimate thing to look at and confirm,
- * and a picker that hid it would leave an admin unsure whether the month was
- * empty or the console had lost it.
- */
-export function recentCycles(now: Date, count = 12): BillingCycle[] {
-  const anchor =
-    now.getDate() >= 26
-      ? cycleIssuedIn(now.getFullYear(), now.getMonth())
-      : cycleIssuedIn(now.getFullYear(), now.getMonth() - 1);
-
-  return Array.from({ length: count }, (_, back) =>
-    cycleIssuedIn(anchor.issueDate.getFullYear(), anchor.issueDate.getMonth() - back),
-  );
-}
-
-/**
- * Resolves `?cycle=2026-08` to a cycle, or null if it is not one.
- *
- * Null rather than a thrown error or a silent fall back to today: a typed or
- * stale URL should say it did not work, and a screen that quietly showed a
- * different month than the one in the address bar is the worse failure.
- */
-export function cycleFromId(id: string | null): BillingCycle | null {
-  if (!id) return null;
-  const match = /^(\d{4})-(\d{2})$/.exec(id.trim());
-  if (!match) return null;
-
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  if (month < 1 || month > 12) return null;
-
-  const cycle = cycleIssuedIn(year, month - 1);
-  // `cycleIssuedIn` takes a month index and lets Date roll over, so this also
-  // rejects anything that did not land on the month it asked for.
-  return cycle.id === `${match[1]}-${match[2]}` ? cycle : null;
 }

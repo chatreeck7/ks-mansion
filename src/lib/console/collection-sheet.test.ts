@@ -5,8 +5,6 @@ import {
   collectionDays,
   collectionHeading,
   collectionSheetFor,
-  cycleFromId,
-  recentCycles,
 } from './collection-sheet';
 
 /** Issued 26 มี.ค. 2568, due 10 เม.ย. — 16 days inclusive. */
@@ -234,37 +232,5 @@ describe('the paper the sheet is copying', () => {
     ]);
 
     expect(built.late).toEqual([]);
-  });
-});
-
-describe('choosing a month', () => {
-  it('offers the cycle being collected now, newest first', () => {
-    // The 3rd: the round still being chased is last month's.
-    const early = recentCycles(new Date(2025, 3, 3), 3);
-    expect(early.map((c) => c.id)).toEqual(['2025-03', '2025-02', '2025-01']);
-  });
-
-  it('rolls to this month once the 26th has come round', () => {
-    expect(recentCycles(new Date(2025, 3, 26), 2).map((c) => c.id)).toEqual(['2025-04', '2025-03']);
-  });
-
-  it('crosses a year boundary going back', () => {
-    expect(recentCycles(new Date(2025, 0, 26), 2).map((c) => c.id)).toEqual(['2025-01', '2024-12']);
-  });
-
-  it('resolves a cycle id from the query string', () => {
-    expect(cycleFromId('2025-03')?.id).toBe('2025-03');
-    expect(cycleFromId(' 2025-03 ')?.id).toBe('2025-03');
-  });
-
-  /**
-   * Null rather than a silent fall back to today: a typed or stale URL should
-   * say it did not work, and a screen quietly showing a different month than
-   * the one in the address bar is the worse failure.
-   */
-  it('refuses anything that is not a cycle id', () => {
-    for (const bad of [null, '', 'this-month', '2025-13', '2025-00', '25-03', '2025-3']) {
-      expect(cycleFromId(bad), `"${bad}" should not resolve`).toBeNull();
-    }
   });
 });

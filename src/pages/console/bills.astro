@@ -168,6 +168,20 @@ const arrearsGroups = toArrearsGroups(
     </p>
   </div>
 
+  {/* The run, not the slip. Printing a cycle one bill at a time is the thing
+      KS-24 was actually missing, so the way in belongs on the page where the
+      cycle is issued — not only in the rightmost column of each row. */}
+  {issuedBills.length > 0 && (
+    <p class="mb-4">
+      <a
+        href={`${consolePath('console/bills/print')}?cycle=${cycle.id}`}
+        class="inline-block rounded-sm border border-console-rule/40 px-3 py-2 text-sm text-console-ink hover:bg-console-sunk focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
+      >
+        พิมพ์ใบแจ้งทั้งรอบ {issuedBills.length} ใบ
+      </a>
+    </p>
+  )}
+
   {issued > 0 && (
     <p class="mb-4 rounded-sm bg-console-ok-bg px-3 py-2 text-console-ok">
       ออกบิลแล้ว {issued} ใบ
