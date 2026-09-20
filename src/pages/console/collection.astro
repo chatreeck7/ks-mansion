@@ -1,9 +1,10 @@
 ---
 // src/pages/console/collection.astro
 import ConsoleFrame from '@/components/console/ConsoleFrame.astro';
+import CyclePicker from '@/components/console/CyclePicker.astro';
 import { collectionHeading, collectionSheetFor } from '@/lib/console/collection-sheet';
 import { consolePath } from '@/lib/console/paths';
-import { formatBaht, formatThaiDate, formatThaiMonth } from '@/lib/format/thai';
+import { formatBaht, formatThaiDate } from '@/lib/format/thai';
 import { cycleFor, cycleFromId, cycleLabel, cycleOptions } from '@/lib/models/billing-cycle';
 import { getBillRepository, getPaymentRepository, getRoomRepository } from '@/lib/repositories';
 
@@ -80,29 +81,7 @@ const DUE_COL = 'w-24';
     </div>
 
     <div class="flex flex-wrap items-end gap-2">
-      {/* GET, so the chosen month is in the URL and can be bookmarked or
-          reloaded. Submits without JavaScript. */}
-      <form method="GET" class="flex items-end gap-2">
-        <label class="flex flex-col gap-1 text-sm text-console-ink-soft">
-          เลือกเดือน
-          <select
-            name="cycle"
-            class="rounded-sm border border-console-rule/40 bg-console-paper px-2 py-1.5 text-console-ink focus:border-console-rule focus:outline-none"
-          >
-            {options.map((option) => (
-              <option value={option.id} selected={option.id === cycle.id}>
-                {formatThaiMonth(option.utilityMonth)} — {cycleLabel(option)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button
-          type="submit"
-          class="rounded-sm border border-console-rule/40 px-3 py-2 text-sm text-console-ink hover:bg-console-sunk focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
-        >
-          ดู
-        </button>
-      </form>
+      <CyclePicker {options} selected={cycle} />
       <button
         type="button"
         data-print
