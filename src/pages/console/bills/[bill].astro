@@ -1,14 +1,16 @@
 ---
 // src/pages/console/bills/[bill].astro
+import BillDocument from '@/components/console/BillDocument.astro';
 import ConsoleLayout from '@/layouts/ConsoleLayout.astro';
 import { billDocumentFor } from '@/lib/console/bill-document';
 import { letterheadFrom, payeeFrom, PAYEE_KEYS } from '@/lib/console/letterhead';
 import { consolePath } from '@/lib/console/paths';
-import { formatBaht, formatReading } from '@/lib/format/thai';
 import { getBillRepository, getPaymentRepository, getRoomRepository } from '@/lib/repositories';
 
 /**
- * ใบแจ้งค่าห้องพัก, the document the tenant is actually handed (KS-24).
+ * One bill, on its own (KS-24). The whole cycle prints from `print.astro`;
+ * this is the single slip — a reprint for a tenant who lost theirs, or the
+ * link out of the bills ledger.
  *
  * **Printed from the browser rather than generated as a PDF server-side.**
  * The card is titled "PDF export" and this is deliberately not that: a print
@@ -60,152 +62,7 @@ const payee = payeeFrom(env);
       </button>
     </div>
 
-    {bill.archived && (
-      <p class="mb-4 rounded-sm bg-console-crit-bg px-3 py-2 font-semibold text-console-crit">
-        บิลใบนี้ถูกยกเลิกแล้ว — ไม่ใช่ใบแจ้งหนี้ที่ใช้ได้
-      </p>
-    )}
-
-    <article class="border border-console-rule/30 bg-console-card p-6 print:border-0 print:p-0">
-      <header class="mb-5 flex flex-wrap justify-between gap-4 border-b border-console-rule/25 pb-4">
-        <div>
-          <p class="mb-0 text-lg font-semibold text-console-ink">{letterhead.name}</p>
-          {letterhead.addressLines.map((line) => (
-            <p class="mb-0 text-sm text-console-ink-soft">{line}</p>
-          ))}
-          {letterhead.phone && (
-            <p class="mb-0 text-sm text-console-ink-soft">โทร. {letterhead.phone}</p>
-          )}
-        </div>
-        <div class="text-right">
-          <p class="mb-1 text-lg font-semibold text-console-ink">ใบแจ้งค่าห้องพัก</p>
-          <dl class="mb-0 grid grid-cols-[auto_auto] justify-end gap-x-3 text-sm">
-            <dt class="text-console-ink-soft">ยอดชำระเดือน :</dt>
-            <dd class="mb-0 text-console-ink">{doc.periodLabel}</dd>
-            <dt class="text-console-ink-soft">ห้อง :</dt>
-            <dd class="mb-0 font-figure text-base font-semibold text-console-ink">
-              {doc.roomLabel}
-            </dd>
-            <dt class="text-console-ink-soft">วันที่ :</dt>
-            <dd class="mb-0 font-figure tabular-nums text-console-ink">{doc.issuedOnLabel}</dd>
-            <dt class="text-console-ink-soft">เลขที่อ้างอิง :</dt>
-            <dd class="mb-0 font-figure text-console-ink">{doc.reference}</dd>
-          </dl>
-        </div>
-      </header>
-
-      <!-- Column set and row order are the paper slip's, not a tidier
-           arrangement of them: รายการ carries the dial range inline, จำนวน
-           and ราคา/หน่วย stand apart, and อื่นๆ is always the fourth row. -->
-      <table class="mb-4 w-full border-collapse text-sm">
-        <thead>
-          <tr class="border-y-2 border-console-rule/50">
-            <th scope="col" class="px-2 py-1.5 text-left font-semibold text-console-ink">
-              รายการ / Description
-            </th>
-            <th scope="col" class="px-2 py-1.5 text-right font-semibold text-console-ink">
-              จำนวน / Quantity
-            </th>
-            <th scope="col" class="px-2 py-1.5 text-right font-semibold text-console-ink">
-              <span class="sr-only">ราคาต่อหน่วย</span>
-            </th>
-            <th scope="col" class="px-2 py-1.5 text-right font-semibold text-console-ink">
-              ราคา / Amount
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {doc.rows.map((row) => (
-            <tr>
-              <td class="px-2 py-1.5 text-console-ink">
-                {row.label}
-                {row.meterRange && (
-                  <span class="ms-4 font-figure tabular-nums text-console-ink-soft">
-                    {row.meterRange}
-                  </span>
-                )}
-              </td>
-              <td class="px-2 py-1.5 text-right font-figure tabular-nums text-console-ink">
-                {row.quantity === null ? '' : formatReading(row.quantity)}
-              </td>
-              <td class="px-2 py-1.5 text-right font-figure tabular-nums text-console-ink-soft">
-                {row.rate === null ? '' : formatReading(row.rate)}
-              </td>
-              <td class="px-2 py-1.5 text-right font-figure tabular-nums text-console-ink">
-                {row.amount === null ? '' : formatBaht(row.amount)}
-              </td>
-            </tr>
-          ))}
-          <tr class="border-y-2 border-console-rule/50">
-            <td class="px-2 py-2 font-semibold text-console-ink" colspan="3">
-              รวมยอดชำระทั้งสิ้น / Total
-            </td>
-            <td class="px-2 py-2 text-right font-figure text-base font-semibold tabular-nums text-console-ink underline decoration-2 underline-offset-4">
-              {formatBaht(doc.total)}
-            </td>
-          </tr>
-        </tbody>
-      </table>
-
-      <p class="mb-4 rounded-sm bg-console-sunk px-3 py-2 text-sm text-console-ink">
-        กรุณาชำระภายในวันที่{' '}
-        <span class="font-figure font-semibold tabular-nums">{doc.dueOnLabel}</span>
-      </p>
-
-      {/* ค้าง is an admin's assertion about the bill, never a computed
-          balance (KS-22), so it prints as the sentence they wrote and is kept
-          out of the total. */}
-      {doc.arrearsNote && (
-        <p class="mb-4 rounded-sm bg-console-warn-bg px-3 py-2 text-sm text-console-warn">
-          หมายเหตุ: {doc.arrearsNote}
-        </p>
-      )}
-
-      {/* A reprint must not ask again for money already received. Normally
-          absent — a bill is printed before anything is paid. */}
-      {doc.partlyPaid && (
-        <p class="mb-4 rounded-sm bg-console-warn-bg px-3 py-2 text-sm text-console-warn">
-          รับเงินแล้ว {formatBaht(doc.settlement.paid)} บาท — ยังค้างอีก{' '}
-          <span class="font-semibold">{formatBaht(doc.settlement.outstanding)}</span> บาท
-        </p>
-      )}
-      {doc.settled && (
-        <p class="mb-4 rounded-sm bg-console-ok-bg px-3 py-2 text-sm text-console-ok">
-          ชำระครบแล้วเมื่อ {formatBaht(doc.settlement.paid)} บาท — ใบนี้เป็นสำเนา
-        </p>
-      )}
-
-      {/* Kept because it is what makes the signed slip the building's receipt
-          — the finding KS-23 was built on. */}
-      <div class="grid grid-cols-2 gap-8 pt-6 text-sm">
-        {['ผู้รับเงิน', 'ผู้ชำระเงิน'].map((role) => (
-          <div>
-            <p class="mb-1 text-console-ink-soft">{role}</p>
-            <p class="mb-0 border-b border-console-rule/40 pb-6"></p>
-            <p class="mb-0 pt-1 text-center text-console-ink-soft">(&nbsp;)</p>
-          </div>
-        ))}
-      </div>
-
-      <!-- One sentence across the foot, as the slip writes it. Not a table:
-           it is read aloud over the phone as often as it is read off paper. -->
-      <p class="mb-0 mt-6 border-t-2 border-console-rule/50 pt-3 font-semibold text-console-ink">
-        {payee.configured ? (
-          <Fragment>
-            โอนได้ที่เลขบัญชี{' '}
-            <span class="font-figure tabular-nums">{payee.payee.accountNumber}</span>{' '}
-            {payee.payee.bank} ชื่อบัญชี {payee.payee.accountName}
-          </Fragment>
-        ) : (
-          /* Said on the document rather than silently omitted: NFR-1.1 wants
-             the bill to show payment instructions, and a bill handed over
-             without them looks complete and cannot be paid from. */
-          <span class="text-console-crit">
-            ยังไม่ได้ตั้งค่าบัญชีรับโอน — ตั้งค่า {payee.missing.join(', ')} ก่อนส่งบิลให้ผู้เช่า
-          </span>
-        )}
-      </p>
-    </article>
+    <BillDocument {doc} {letterhead} {payee} />
 
     {!payee.configured && (
       <p class="mt-4 text-sm text-console-ink-faint print:hidden">

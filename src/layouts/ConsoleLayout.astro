@@ -29,4 +29,27 @@ const { title } = Astro.props;
   <body class="bg-console-paper font-console text-console-ink antialiased">
     <slot />
   </body>
+
+  <style is:global>
+    /**
+     * The console prints on A4, because that is the paper in the building.
+     *
+     * Declared rather than left to the browser: with no `@page` size a print
+     * falls back to the printing machine's locale default, which is Letter on
+     * a good deal of hardware — 216 × 279mm against A4's 210 × 297. A bill
+     * laid out for one and printed on the other is either cropped down the
+     * right edge or floating in the middle of the sheet, and the tenant is
+     * holding the result. Verified: before this rule, Chromium produced a
+     * 612 × 792pt (Letter) page for /console/bills/<id>.
+     *
+     * The margin is here too, so the printed edge does not depend on a
+     * setting in someone's print dialog. 10mm is inside the unprintable
+     * border of every desktop printer and leaves the collection sheet's
+     * sixteen day columns room to stay on one page.
+     */
+    @page {
+      size: A4;
+      margin: 10mm;
+    }
+  </style>
 </html>

@@ -1,15 +1,10 @@
 ---
 // src/pages/console/collection.astro
 import ConsoleFrame from '@/components/console/ConsoleFrame.astro';
-import {
-  collectionHeading,
-  collectionSheetFor,
-  cycleFromId,
-  recentCycles,
-} from '@/lib/console/collection-sheet';
+import { collectionHeading, collectionSheetFor } from '@/lib/console/collection-sheet';
 import { consolePath } from '@/lib/console/paths';
 import { formatBaht, formatThaiDate, formatThaiMonth } from '@/lib/format/thai';
-import { cycleFor, cycleLabel } from '@/lib/models/billing-cycle';
+import { cycleFor, cycleFromId, cycleLabel, cycleOptions } from '@/lib/models/billing-cycle';
 import { getBillRepository, getPaymentRepository, getRoomRepository } from '@/lib/repositories';
 
 /**
@@ -37,7 +32,7 @@ const chosen = cycleFromId(requested);
 // month than the one in the address bar.
 const unknownCycle = requested !== null && chosen === null;
 const cycle = chosen ?? cycleFor(now);
-const options = recentCycles(now);
+const options = cycleOptions(now, chosen);
 
 const [bills, payments, rooms] = await Promise.all([
   getBillRepository(env).listBillsForCycle(cycle.id),

@@ -1,0 +1,179 @@
+---
+// src/pages/console/bills/print.astro
+import BillDocument from '@/components/console/BillDocument.astro';
+import ConsoleLayout from '@/layouts/ConsoleLayout.astro';
+import { billBatchFor } from '@/lib/console/bill-batch';
+import { letterheadFrom, payeeFrom, PAYEE_KEYS } from '@/lib/console/letterhead';
+import { consolePath } from '@/lib/console/paths';
+import { formatBaht, formatThaiMonth } from '@/lib/format/thai';
+import { cycleFor, cycleFromId, cycleLabel, cycleOptions } from '@/lib/models/billing-cycle';
+import { getBillRepository, getPaymentRepository, getRoomRepository } from '@/lib/repositories';
+
+/**
+ * The whole cycle's bills, one per sheet of paper (KS-24).
+ *
+ * **This is the 26th.** Twenty-three bills get issued and every one has to be
+ * printed and delivered; doing that a URL at a time was the gap between "the
+ * console can render a bill" and "the console can do the bill run".
+ *
+ * What prints is exactly what `/console/bills/<id>` prints — same component,
+ * so a slip from the stack and a reprint for a tenant who lost theirs are the
+ * same document. The only thing this page adds is where the pages break.
+ *
+ * Static route, so it wins over `[bill].astro` — no bill is ever called
+ * `print`, but the ordering is Astro's and not a coincidence worth relying on
+ * silently.
+ */
+
+const env = Astro.locals.runtime?.env;
+
+const requested = Astro.url.searchParams.get('cycle');
+const chosen = cycleFromId(requested);
+// A typed or stale `?cycle=` says so rather than quietly printing a different
+// month than the one in the address bar — the same rule the collection sheet
+// follows, and it matters more here because the output gets handed out.
+const unknownCycle = requested !== null && chosen === null;
+const now = new Date();
+const cycle = chosen ?? cycleFor(now);
+// Always contains `cycle`, so the control names the month on screen even for
+// a bookmarked link older than the recent window.
+const options = cycleOptions(now, chosen);
+
+const [bills, rooms, payments] = await Promise.all([
+  getBillRepository(env).listBillsForCycle(cycle.id),
+  getRoomRepository(env).listRooms(),
+  getPaymentRepository(env).listPayments(),
+]);
+
+const batch = billBatchFor(cycle, bills, rooms, payments);
+const letterhead = letterheadFrom(env);
+const payee = payeeFrom(env);
+---
+
+<ConsoleLayout title={`ใบแจ้งค่าห้องพัก ${cycleLabel(cycle)}`}>
+  <main class="mx-auto max-w-2xl px-4 py-6 print:max-w-none print:px-0 print:py-0">
+    <div class="mb-6 print:hidden">
+      <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <a
+          href={consolePath('console/bills')}
+          class="text-sm text-console-ink-soft underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
+        >
+          ← กลับไปหน้าบิล
+        </a>
+        {batch.documents.length > 0 && (
+          <button
+            type="button"
+            data-print
+            class="rounded-sm bg-console-ink px-4 py-2 font-semibold text-console-paper focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-console-rule"
+          >
+            พิมพ์ {batch.documents.length} ใบ / บันทึกเป็น PDF
+          </button>
+        )}
+      </div>
+
+      <h1 class="mb-1 text-xl font-semibold text-console-ink">ใบแจ้งค่าห้องพักทั้งรอบ</h1>
+      <p class="mb-3 text-sm text-console-ink-soft">
+        {cycleLabel(cycle)} — เรียงตามลำดับที่เดินเก็บ ใบละแผ่น
+        {batch.documents.length > 0 && (
+          <Fragment>
+            {' '}· รวม{' '}
+            <span class="font-figure font-semibold tabular-nums text-console-ink">
+              {formatBaht(batch.total)}
+            </span>{' '}บาท
+          </Fragment>
+        )}
+      </p>
+
+      {/* GET, so the chosen month is in the URL and can be bookmarked or
+          reloaded. Submits without JavaScript. */}
+      <form method="GET" class="flex flex-wrap items-end gap-2">
+        <label class="flex flex-col gap-1 text-sm text-console-ink-soft">
+          เลือกเดือน
+          <select
+            name="cycle"
+            class="rounded-sm border border-console-rule/40 bg-console-paper px-2 py-1.5 text-console-ink focus:border-console-rule focus:outline-none"
+          >
+            {options.map((option) => (
+              <option value={option.id} selected={option.id === cycle.id}>
+                {formatThaiMonth(option.utilityMonth)} — {cycleLabel(option)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button
+          type="submit"
+          class="rounded-sm border border-console-rule/40 px-3 py-2 text-sm text-console-ink hover:bg-console-sunk focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
+        >
+          ดู
+        </button>
+      </form>
+
+      {unknownCycle && (
+        <p class="mt-3 mb-0 rounded-sm bg-console-warn-bg px-3 py-2 text-sm text-console-warn">
+          ไม่รู้จักรอบ "{requested}" — แสดงรอบปัจจุบันแทน
+        </p>
+      )}
+
+      {!payee.configured && (
+        <p class="mt-3 mb-0 rounded-sm bg-console-crit-bg px-3 py-2 text-sm text-console-crit">
+          ยังไม่ได้ตั้งค่าบัญชีรับโอน ({PAYEE_KEYS.join(', ')}) — พิมพ์ออกไปตอนนี้
+          ผู้เช่าจะโอนเงินไม่ได้ ตั้งค่าใน Cloudflare Pages ก่อน แล้วพิมพ์ใหม่ได้เลย
+          ไม่ต้องออกบิลใหม่
+        </p>
+      )}
+    </div>
+
+    {batch.documents.length === 0 ? (
+      <p class="rounded-sm bg-console-sunk px-3 py-2 text-sm text-console-ink-soft print:hidden">
+        ยังไม่ได้ออกบิลรอบนี้ — ออกบิลที่หน้า{' '}
+        <a
+          href={consolePath('console/bills')}
+          class="underline underline-offset-2 hover:no-underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
+          >บิล</a
+        >{' '}ก่อน แล้วกลับมาพิมพ์
+      </p>
+    ) : (
+      batch.documents.map((doc) => (
+        <div class="slip">
+          <BillDocument {doc} {letterhead} {payee} />
+        </div>
+      ))
+    )}
+  </main>
+</ConsoleLayout>
+
+<style>
+  /**
+   * One slip per sheet.
+   *
+   * `break-before` on every slip *after* the first rather than
+   * `break-after` on every slip: the latter ends the run with a page break
+   * and prints a blank final sheet, twenty-three times a year.
+   *
+   * `avoid` as well, because a bill split across two sheets is not a bill —
+   * the tenant gets the charges on one and the account number on the other.
+   */
+  .slip {
+    break-inside: avoid;
+  }
+
+  .slip + .slip {
+    break-before: page;
+  }
+
+  /* On screen they are a scrollable stack, so the run can be checked before
+     it is committed to paper. Spacing only; the document itself is untouched. */
+  @media screen {
+    .slip + .slip {
+      margin-top: 2rem;
+      padding-top: 2rem;
+      border-top: 1px dashed rgb(139 115 85 / 0.4);
+    }
+  }
+</style>
+
+<script>
+  // Progressive enhancement only: the page is the complete run without it,
+  // and Ctrl-P still prints.
+  document.querySelector('[data-print]')?.addEventListener('click', () => window.print());
+</script>

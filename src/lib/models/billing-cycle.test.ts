@@ -4,12 +4,15 @@ import {
   chargeFor,
   chargeLabel,
   cycleFor,
+  cycleFromId,
   cycleIssuedIn,
   cycleLabel,
+  cycleOptions,
   isCollecting,
   isReadingDay,
   nextCycle,
   previousCycle,
+  recentCycles,
   rentLabel,
   utilityLabel,
 } from './billing-cycle';
@@ -167,5 +170,75 @@ describe('labels', () => {
   it('names the two months apart', () => {
     expect(rentLabel(july)).toBe('ค่าเช่าเดือน ส.ค. 2568');
     expect(utilityLabel(july)).toBe('ค่าน้ำค่าไฟเดือน ก.ค. 2568');
+  });
+});
+
+describe('choosing a month', () => {
+  it('offers the cycle being collected now, newest first', () => {
+    // The 3rd: the round still being chased is last month's.
+    const early = recentCycles(new Date(2025, 3, 3), 3);
+    expect(early.map((c) => c.id)).toEqual(['2025-03', '2025-02', '2025-01']);
+  });
+
+  it('rolls to this month once the 26th has come round', () => {
+    expect(recentCycles(new Date(2025, 3, 26), 2).map((c) => c.id)).toEqual(['2025-04', '2025-03']);
+  });
+
+  it('crosses a year boundary going back', () => {
+    expect(recentCycles(new Date(2025, 0, 26), 2).map((c) => c.id)).toEqual(['2025-01', '2024-12']);
+  });
+
+  it('resolves a cycle id from the query string', () => {
+    expect(cycleFromId('2025-03')?.id).toBe('2025-03');
+    expect(cycleFromId(' 2025-03 ')?.id).toBe('2025-03');
+  });
+
+  /**
+   * Null rather than a silent fall back to today: a typed or stale URL should
+   * say it did not work, and a screen quietly showing a different month than
+   * the one in the address bar is the worse failure.
+   */
+  it('refuses anything that is not a cycle id', () => {
+    for (const bad of [null, '', 'this-month', '2025-13', '2025-00', '25-03', '2025-3']) {
+      expect(cycleFromId(bad), `"${bad}" should not resolve`).toBeNull();
+    }
+  });
+});
+
+describe('cycleOptions', () => {
+  const now = new Date(2025, 3, 3);
+
+  it('is just the recent window when it already holds the chosen cycle', () => {
+    expect(cycleOptions(now, cycleIssuedIn(2025, 1), 3).map((c) => c.id)).toEqual([
+      '2025-03',
+      '2025-02',
+      '2025-01',
+    ]);
+  });
+
+  /**
+   * The bug this exists for: an older `?cycle=` had no option to match, so
+   * the picker selected the first one and named a different month than the
+   * page was showing.
+   */
+  it('adds a chosen cycle the window does not reach, in date order', () => {
+    expect(cycleOptions(now, cycleIssuedIn(2020, 0), 3).map((c) => c.id)).toEqual([
+      '2025-03',
+      '2025-02',
+      '2025-01',
+      '2020-01',
+    ]);
+  });
+
+  it('sorts a chosen cycle newer than the window to the front', () => {
+    expect(cycleOptions(now, cycleIssuedIn(2026, 5), 2).map((c) => c.id)).toEqual([
+      '2026-06',
+      '2025-03',
+      '2025-02',
+    ]);
+  });
+
+  it('is the plain window when nothing was chosen', () => {
+    expect(cycleOptions(now, null, 2).map((c) => c.id)).toEqual(['2025-03', '2025-02']);
   });
 });
