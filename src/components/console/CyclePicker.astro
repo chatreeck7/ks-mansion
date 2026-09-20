@@ -1,0 +1,71 @@
+---
+// src/components/console/CyclePicker.astro
+import { cycleLabel, type BillingCycle } from '@/lib/models/billing-cycle';
+import { formatThaiMonth } from '@/lib/format/thai';
+
+/**
+ * Pick which billing cycle a screen is showing.
+ *
+ * **Choosing the month *is* the action — there is no second step.** This
+ * started as a select plus a ดู button, and the button was the problem: press
+ * it without touching the select and the URL gains a `?cycle=` for the month
+ * already on screen, so the address bar changes and the page does not. That
+ * reads exactly like a broken control, and it was reported as one.
+ *
+ * So the select submits on change, and the button only exists inside
+ * `<noscript>` — a browser without JavaScript still gets a working form, and
+ * a browser with it never sees a button that can do nothing. Navigation stays
+ * a plain GET either way, so the month is in the URL and can be bookmarked,
+ * reloaded and shared.
+ *
+ * One component rather than one per page: the bills run and the collection
+ * sheet need the same control, and the version that drifted would be the one
+ * nobody was looking at.
+ */
+
+interface Props {
+  /** Newest first. Must contain `selected` — see `cycleOptions`. */
+  options: BillingCycle[];
+  selected: BillingCycle;
+}
+
+const { options, selected } = Astro.props;
+---
+
+<form method="GET" class="flex flex-wrap items-end gap-2" data-cycle-picker>
+  <label class="flex flex-col gap-1 text-sm text-console-ink-soft">
+    เลือกเดือน
+    <select
+      name="cycle"
+      class="rounded-sm border border-console-rule/40 bg-console-paper px-2 py-1.5 text-console-ink focus:border-console-rule focus:outline-none"
+    >
+      {options.map((option) => (
+        <option value={option.id} selected={option.id === selected.id}>
+          {formatThaiMonth(option.utilityMonth)} — {cycleLabel(option)}
+        </option>
+      ))}
+    </select>
+  </label>
+
+  {/* Rendered only when scripting is off, so the form still works there and
+      nobody else is shown a button that would be a no-op. */}
+  <noscript>
+    <button
+      type="submit"
+      class="rounded-sm border border-console-rule/40 px-3 py-2 text-sm text-console-ink hover:bg-console-sunk focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
+    >
+      ดู
+    </button>
+  </noscript>
+</form>
+
+<script>
+  for (const form of document.querySelectorAll<HTMLFormElement>('form[data-cycle-picker]')) {
+    form.querySelector('select')?.addEventListener('change', () => {
+      // `requestSubmit` goes through the normal submit path; `submit` is the
+      // fallback for browsers that predate it (Safari before 16).
+      if (typeof form.requestSubmit === 'function') form.requestSubmit();
+      else form.submit();
+    });
+  }
+</script>
