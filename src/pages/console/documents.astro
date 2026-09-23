@@ -1,6 +1,7 @@
 ---
 // src/pages/console/documents.astro
 import ConsoleFrame from '@/components/console/ConsoleFrame.astro';
+import { consolePath } from '@/lib/console/paths';
 import {
   documentTypesFor,
   isReady,
@@ -14,9 +15,10 @@ import { cycleFor, cycleFromId, cycleLabel, cycleOptions } from '@/lib/models/bi
  * Pick which documents to produce for a month (KS-27, AC-4.1).
  *
  * **The selection lives in the URL**, as `?cycle=` and `?include=`, so a set
- * of documents is a link — bookmarkable, shareable, and the same shape KS-30
- * will read to assemble them into one file. That is why this is a plain GET
- * form rather than something that keeps its state on the client.
+ * of documents is a link — bookmarkable, shareable, and the same shape
+ * `documents/print.astro` reads to assemble them into one file (KS-30). That
+ * is why this is a plain GET form rather than something that keeps its state
+ * on the client.
  *
  * **The cycle picker is not `CyclePicker`.** That control submits the moment
  * you choose, which is right where the month *is* the whole choice; here it
@@ -142,9 +144,18 @@ const pending = types.filter((type) => !isReady(type));
       </ul>
     )}
 
-    <p class="mt-3 mb-0 text-sm text-console-ink-faint">
-      ตอนนี้เปิดทีละใบ — รวมทุกอย่างเป็นไฟล์เดียวกำลังทำอยู่ (KS-30)
-    </p>
+    {selected.length > 0 && (
+      <p class="mt-3 mb-0">
+        <a
+          href={`${consolePath('console/documents/print')}?cycle=${cycle.id}${selected
+            .map((type) => `&include=${type.id}`)
+            .join('')}`}
+          class="inline-block rounded-sm bg-console-ink px-4 py-2 font-semibold text-console-paper focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-console-rule"
+        >
+          รวมเป็นไฟล์เดียว {selected.length} รายการ
+        </a>
+      </p>
+    )}
   </section>
 
   {/* Listed rather than hidden: a selector showing only what exists looks
