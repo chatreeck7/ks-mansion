@@ -107,7 +107,7 @@ export function documentTypesFor(cycle: BillingCycle): DocumentType[] {
       availability: {
         ready: false,
         reason: 'ข้อมูลมีครบแล้วในสัญญาเช่า แต่ยังไม่ได้ทำหน้าเอกสาร',
-        blockedBy: 'ยังไม่มีการ์ด — ต้องเปิดใบใหม่',
+        blockedBy: 'KS-73',
       },
     },
     {

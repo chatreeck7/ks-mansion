@@ -16,9 +16,13 @@ import { getBillRepository, getPaymentRepository, getRoomRepository } from '@/li
  * The card is titled "PDF export" and this is deliberately not that: a print
  * stylesheet gives a real PDF through Ctrl-P / Save as PDF on every device
  * the admin uses, needs no rendering engine in a Worker, and keeps the
- * document as selectable text rather than an image. KS-30's combined
- * multi-page export is where a real engine earns its place — one file with a
- * section per document type is not something a browser dialog can assemble.
+ * document as selectable text rather than an image.
+ *
+ * This note used to add that KS-30's combined export would be where a real
+ * engine earned its place. That was wrong: one page holding every section is
+ * assembled into a single file by the same print dialog, and an engine would
+ * have meant a second copy of every layout to keep in step. See
+ * `/console/documents/print`.
  *
  * Rendered outside `ConsoleFrame` for the same reason the receipt is: the nav
  * rail is not part of a document somebody hands over.

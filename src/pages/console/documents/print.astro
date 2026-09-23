@@ -1,0 +1,210 @@
+---
+// src/pages/console/documents/print.astro
+import BillDocument from '@/components/console/BillDocument.astro';
+import CollectionSheet from '@/components/console/CollectionSheet.astro';
+import ConsoleLayout from '@/layouts/ConsoleLayout.astro';
+import { billBatchFor } from '@/lib/console/bill-batch';
+import { collectionSheetFor } from '@/lib/console/collection-sheet';
+import {
+  documentTypesFor,
+  selectedDocuments,
+  selectionFrom,
+} from '@/lib/console/document-types';
+import { letterheadFrom, payeeFrom } from '@/lib/console/letterhead';
+import { consolePath } from '@/lib/console/paths';
+import { formatThaiDate } from '@/lib/format/thai';
+import { cycleFor, cycleFromId, cycleLabel } from '@/lib/models/billing-cycle';
+import { getBillRepository, getPaymentRepository, getRoomRepository } from '@/lib/repositories';
+
+/**
+ * Every selected document, one file (KS-30, AC-4.5).
+ *
+ * **One page holding every section, printed once.** AC-4.5 asks for "one
+ * combined PDF document containing every selected document type as its own
+ * section/pages, not separate files per document type" — which is exactly
+ * what a browser produces from this page via Save as PDF. The sections are
+ * ordered by the registry, each starts on a fresh sheet, and a contents page
+ * goes in front so a twenty-five page stack says what it is.
+ *
+ * **KS-24's note that this needed a real PDF engine was wrong**, and it is
+ * worth saying why rather than quietly doing something else. An engine would
+ * mean re-expressing every document as PDF primitives: a second copy of each
+ * layout, drifting from the one an admin actually prints — the precise
+ * problem `BillDocument.astro` was extracted to avoid — plus embedding and
+ * shaping Thai text by hand. This composes the components that already exist
+ * and adds only the page breaks between them.
+ *
+ * **The sections are switched on by id here, not resolved from the
+ * registry.** A registry of data cannot hold Astro components, and pretending
+ * otherwise would buy indirection rather than remove a copy. What the
+ * registry does own is which documents exist, what they are called and which
+ * are ready — so a type it does not mark ready can never reach this switch.
+ */
+
+const env = Astro.locals.runtime?.env;
+
+const requested = Astro.url.searchParams.get('cycle');
+const chosen = cycleFromId(requested);
+const now = new Date();
+const cycle = chosen ?? cycleFor(now);
+
+const types = documentTypesFor(cycle);
+const raw = Astro.url.searchParams.has('include')
+  ? Astro.url.searchParams.getAll('include').join(',')
+  : null;
+const sections = selectedDocuments(selectionFrom(raw, types), types);
+
+const wantsBills = sections.some((section) => section.id === 'bills');
+const wantsCollection = sections.some((section) => section.id === 'collection');
+
+// One read each, shared by whichever sections need them, rather than a fetch
+// per section: both documents are built from the same three lists.
+const [bills, rooms, payments] = await Promise.all([
+  wantsBills || wantsCollection
+    ? getBillRepository(env).listBillsForCycle(cycle.id)
+    : Promise.resolve([]),
+  wantsBills || wantsCollection ? getRoomRepository(env).listRooms() : Promise.resolve([]),
+  wantsBills || wantsCollection ? getPaymentRepository(env).listPayments() : Promise.resolve([]),
+]);
+
+const batch = wantsBills ? billBatchFor(cycle, bills, rooms, payments) : null;
+const sheet = wantsCollection ? collectionSheetFor(cycle, bills, payments, rooms) : null;
+
+const letterhead = letterheadFrom(env);
+const payee = payeeFrom(env);
+
+/** How many sheets each section will take, for the contents page. */
+function pagesIn(id: string): number {
+  if (id === 'bills') return batch?.documents.length ?? 0;
+  return 1;
+}
+
+const backToSelector = `${consolePath('console/documents')}?cycle=${cycle.id}` +
+  sections.map((section) => `&include=${section.id}`).join('');
+---
+
+<ConsoleLayout title={`เอกสารรวม ${cycleLabel(cycle)}`}>
+  <main class="mx-auto max-w-4xl px-4 py-6 print:max-w-none print:px-0 print:py-0">
+    <div class="mb-6 flex flex-wrap items-center justify-between gap-3 print:hidden">
+      <a
+        href={backToSelector}
+        class="text-sm text-console-ink-soft underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
+      >
+        ← กลับไปเลือกเอกสาร
+      </a>
+      {sections.length > 0 && (
+        <button
+          type="button"
+          data-print
+          class="rounded-sm bg-console-ink px-4 py-2 font-semibold text-console-paper focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-console-rule"
+        >
+          พิมพ์ / บันทึกเป็น PDF ไฟล์เดียว
+        </button>
+      )}
+    </div>
+
+    {sections.length === 0 ? (
+      <p class="rounded-sm bg-console-sunk px-3 py-2 text-sm text-console-ink-soft print:hidden">
+        ยังไม่ได้เลือกเอกสาร — เลือกที่หน้า{' '}
+        <a
+          href={consolePath('console/documents')}
+          class="underline underline-offset-2 hover:no-underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
+          >เอกสาร</a
+        >{' '}ก่อน
+      </p>
+    ) : (
+      <Fragment>
+        {/* A contents page, because the thing this produces is a stack of
+            paper somebody puts in a folder. Without it the first sheet is a
+            bill for room 101 and nothing says what the other twenty-four
+            pages are, or which month any of it belongs to. */}
+        <section class="doc-section">
+          <header class="mb-6 border-b-2 border-console-rule/50 pb-4">
+            <p class="mb-1 text-lg font-semibold text-console-ink">{letterhead.name}</p>
+            <h1 class="mb-1 text-2xl font-semibold text-console-ink">เอกสารประจำรอบ</h1>
+            <p class="mb-0 text-console-ink-soft">
+              {cycleLabel(cycle)} · พิมพ์เมื่อ {formatThaiDate(now)}
+            </p>
+          </header>
+
+          <h2 class="mb-2 text-lg font-semibold text-console-ink">สารบัญ</h2>
+          <ol class="mb-0 ps-5 text-console-ink">
+            {sections.map((section) => (
+              <li class="mb-1">
+                <span class="font-semibold">{section.label}</span>
+                <span class="text-console-ink-soft"> — {section.description}</span>
+                <span class="ms-1 font-figure tabular-nums text-console-ink-faint">
+                  ({pagesIn(section.id)} แผ่น)
+                </span>
+              </li>
+            ))}
+          </ol>
+        </section>
+
+        {sections.map((section) => (
+          <section class="doc-section">
+            {/* Named at the top of its own first sheet: pulled out of the
+                folder on its own, a section still has to say what it is. */}
+            <h2 class="mb-3 border-b border-console-rule/40 pb-1 text-lg font-semibold text-console-ink">
+              {section.label}
+            </h2>
+
+            {section.id === 'bills' &&
+              (batch!.documents.length === 0 ? (
+                <p class="mb-0 text-console-ink-soft">ยังไม่ได้ออกบิลรอบนี้</p>
+              ) : (
+                batch!.documents.map((doc) => (
+                  <div class="slip">
+                    <BillDocument {doc} {letterhead} {payee} />
+                  </div>
+                ))
+              ))}
+
+            {section.id === 'collection' && <CollectionSheet sheet={sheet!} />}
+          </section>
+        ))}
+      </Fragment>
+    )}
+  </main>
+</ConsoleLayout>
+
+<style>
+  /**
+   * Every section starts on a fresh sheet, and every bill within the bill
+   * section does too.
+   *
+   * `break-before` on each one *after* the first rather than `break-after` on
+   * all of them: `break-after` would end the run with a page break and print
+   * a blank final sheet. Same reasoning as the bill run's own stylesheet —
+   * and the rules are repeated here rather than shared because a scoped
+   * Astro style cannot reach into a child component's markup.
+   */
+  .doc-section + .doc-section {
+    break-before: page;
+  }
+
+  .slip {
+    break-inside: avoid;
+  }
+
+  .slip + .slip {
+    break-before: page;
+  }
+
+  /* On screen the whole export is one scrollable stack, so it can be read
+     through before it is committed to paper. Spacing only. */
+  @media screen {
+    .doc-section + .doc-section,
+    .slip + .slip {
+      margin-top: 2rem;
+      padding-top: 2rem;
+      border-top: 1px dashed rgb(139 115 85 / 0.4);
+    }
+  }
+</style>
+
+<script>
+  // Progressive enhancement only: the page is the complete export without
+  // it, and Ctrl-P produces the same single file.
+  document.querySelector('[data-print]')?.addEventListener('click', () => window.print());
+</script>
