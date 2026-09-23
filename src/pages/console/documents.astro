@@ -1,0 +1,175 @@
+---
+// src/pages/console/documents.astro
+import ConsoleFrame from '@/components/console/ConsoleFrame.astro';
+import {
+  documentTypesFor,
+  isReady,
+  selectedDocuments,
+  selectionFrom,
+} from '@/lib/console/document-types';
+import { formatThaiMonth } from '@/lib/format/thai';
+import { cycleFor, cycleFromId, cycleLabel, cycleOptions } from '@/lib/models/billing-cycle';
+
+/**
+ * Pick which documents to produce for a month (KS-27, AC-4.1).
+ *
+ * **The selection lives in the URL**, as `?cycle=` and `?include=`, so a set
+ * of documents is a link — bookmarkable, shareable, and the same shape KS-30
+ * will read to assemble them into one file. That is why this is a plain GET
+ * form rather than something that keeps its state on the client.
+ *
+ * **The cycle picker is not `CyclePicker`.** That control submits the moment
+ * you choose, which is right where the month *is* the whole choice; here it
+ * is one field among several, and auto-submitting would throw away the boxes
+ * you had just ticked. So the month sits inside this form and the ดู button
+ * applies the lot — the button earns its place here in a way it did not
+ * there.
+ */
+
+const now = new Date();
+const requested = Astro.url.searchParams.get('cycle');
+const chosen = cycleFromId(requested);
+const unknownCycle = requested !== null && chosen === null;
+const cycle = chosen ?? cycleFor(now);
+const options = cycleOptions(now, chosen);
+
+const types = documentTypesFor(cycle);
+
+/**
+ * Absent and empty have to stay distinguishable, and an all-unticked
+ * checkbox group submits nothing at all. The hidden empty `include` below
+ * keeps the parameter present, so "I unticked everything" arrives as an
+ * empty selection instead of looking like a first visit.
+ */
+const raw = Astro.url.searchParams.has('include')
+  ? Astro.url.searchParams.getAll('include').join(',')
+  : null;
+const selection = selectionFrom(raw, types);
+const selected = selectedDocuments(selection, types);
+
+const ready = types.filter(isReady);
+const pending = types.filter((type) => !isReady(type));
+---
+
+<ConsoleFrame title="เอกสาร" activeSection="documents">
+  <div class="mb-4">
+    <h1 class="mb-1 text-xl font-semibold text-console-ink">เอกสารประจำเดือน</h1>
+    <p class="mb-0 text-sm text-console-ink-soft">
+      เลือกว่าจะเอาเอกสารไหนบ้าง แล้วเปิดดูทีละใบ · ลิงก์หน้านี้เก็บสิ่งที่เลือกไว้ด้วย
+      บุ๊กมาร์กไว้ใช้เดือนหน้าได้
+    </p>
+  </div>
+
+  {unknownCycle && (
+    <p class="mb-4 rounded-sm bg-console-warn-bg px-3 py-2 text-sm text-console-warn">
+      ไม่รู้จักรอบ "{requested}" — แสดงรอบปัจจุบันแทน
+    </p>
+  )}
+
+  <form method="GET" class="mb-6 rounded-sm border border-console-rule/30 bg-console-card p-4">
+    <label class="mb-4 flex flex-col gap-1 text-sm text-console-ink-soft">
+      เดือน
+      <select
+        name="cycle"
+        class="w-full max-w-md rounded-sm border border-console-rule/40 bg-console-paper px-2 py-1.5 text-console-ink focus:border-console-rule focus:outline-none"
+      >
+        {options.map((option) => (
+          <option value={option.id} selected={option.id === cycle.id}>
+            {formatThaiMonth(option.utilityMonth)} — {cycleLabel(option)}
+          </option>
+        ))}
+      </select>
+    </label>
+
+    {/* Keeps `include` in the query even when every box is unticked — see
+        the note in the frontmatter. */}
+    <input type="hidden" name="include" value="" />
+
+    <fieldset class="mb-4">
+      <legend class="mb-2 text-sm font-semibold text-console-ink">เอกสารที่จะเอา</legend>
+      <div class="flex flex-col gap-2">
+        {ready.map((type) => (
+          <label class="flex items-start gap-2 text-console-ink">
+            <input
+              type="checkbox"
+              name="include"
+              value={type.id}
+              checked={selection.includes(type.id)}
+              class="mt-1 accent-console-rule"
+            />
+            <span>
+              <span class="font-semibold">{type.label}</span>
+              <span class="block text-sm text-console-ink-soft">{type.description}</span>
+            </span>
+          </label>
+        ))}
+      </div>
+    </fieldset>
+
+    <button
+      type="submit"
+      class="rounded-sm bg-console-ink px-4 py-2 font-semibold text-console-paper focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-console-rule"
+    >
+      ดู
+    </button>
+  </form>
+
+  <section class="mb-8">
+    <h2 class="mb-2 text-lg font-semibold text-console-ink">
+      เลือกไว้ {selected.length} รายการ
+    </h2>
+
+    {selected.length === 0 ? (
+      <p class="mb-0 rounded-sm bg-console-sunk px-3 py-2 text-sm text-console-ink-soft">
+        ยังไม่ได้เลือกเอกสาร — ติ๊กด้านบนแล้วกด ดู
+      </p>
+    ) : (
+      <ul class="mb-0 list-none space-y-2 ps-0">
+        {selected.map((type) => (
+          <li class="flex flex-wrap items-center justify-between gap-3 rounded-sm border border-console-rule/30 bg-console-card px-3 py-2">
+            <span>
+              <span class="font-semibold text-console-ink">{type.label}</span>
+              <span class="block text-sm text-console-ink-soft">{type.description}</span>
+            </span>
+            <a
+              href={(type.availability as { href: string }).href}
+              class="rounded-sm border border-console-rule/40 px-3 py-1.5 text-sm text-console-ink hover:bg-console-sunk focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
+            >
+              เปิด / พิมพ์
+            </a>
+          </li>
+        ))}
+      </ul>
+    )}
+
+    <p class="mt-3 mb-0 text-sm text-console-ink-faint">
+      ตอนนี้เปิดทีละใบ — รวมทุกอย่างเป็นไฟล์เดียวกำลังทำอยู่ (KS-30)
+    </p>
+  </section>
+
+  {/* Listed rather than hidden: a selector showing only what exists looks
+      finished when it is not, and the person who would ask for the missing
+      ones is exactly the person reading this screen. */}
+  {pending.length > 0 && (
+    <section>
+      <h2 class="mb-1 text-lg font-semibold text-console-ink">ยังทำไม่ได้</h2>
+      <p class="mb-3 text-sm text-console-ink-soft">
+        AC-4.1 ระบุเอกสารไว้ {types.length} อย่าง ตอนนี้ทำได้ {ready.length} อย่าง
+      </p>
+      <ul class="mb-0 list-none space-y-2 ps-0">
+        {pending.map((type) => {
+          const blocked = type.availability as { reason: string; blockedBy: string };
+          return (
+            <li class="rounded-sm border border-dashed border-console-rule/40 px-3 py-2">
+              <span class="font-semibold text-console-ink-soft">{type.label}</span>
+              <span class="block text-sm text-console-ink-soft">{type.description}</span>
+              <span class="mt-1 block text-sm text-console-warn">
+                {blocked.reason} · รอ {blocked.blockedBy}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  )}
+</ConsoleFrame>
