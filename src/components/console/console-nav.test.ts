@@ -16,6 +16,8 @@ describe('CONSOLE_SECTIONS', () => {
       'bills',
       'payments',
       'collection',
+      // KS-27. A real section: /console/documents exists and is reachable.
+      'documents',
       'health',
     ]);
   });

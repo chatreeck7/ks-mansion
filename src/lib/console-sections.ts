@@ -29,6 +29,10 @@ export const CONSOLE_SECTIONS: ConsoleSection[] = [
   // one writes what arrived, this one is the sheet you read to see who has
   // not paid yet (KS-25).
   { id: 'collection', label: 'ใบเก็บเงิน', href: consolePath('console/collection') },
+  // The document centre (KS-27). Sits after the billing run because that is
+  // when it is used: the month is issued and collected, and then somebody
+  // wants the paperwork for it in one place.
+  { id: 'documents', label: 'เอกสาร', href: consolePath('console/documents') },
   // Not a daily section, but a diagnostic nobody can find is the same as one
   // that does not exist — which was the whole complaint KS-67 came from.
   { id: 'health', label: 'สถานะระบบ', href: consolePath('console/health') },
