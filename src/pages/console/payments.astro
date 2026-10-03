@@ -1,15 +1,20 @@
 ---
 // src/pages/console/payments.astro
 import ConsoleFrame from '@/components/console/ConsoleFrame.astro';
+import Button from '@/components/console/Button.astro';
+import Card from '@/components/console/Card.astro';
 import ErrorSummary from '@/components/console/ErrorSummary.astro';
-import LedgerTable from '@/components/console/LedgerTable.astro';
+import Notice from '@/components/console/Notice.astro';
+import PageHeader from '@/components/console/PageHeader.astro';
+import StatusPill from '@/components/console/StatusPill.astro';
+import { daysUntilDue } from '@/lib/console/logbook';
+import { FOCUS, INPUT, SECTION_TITLE } from '@/lib/console/ui';
 import { consolePath } from '@/lib/console/paths';
 import {
   parsePaidOn,
   paymentRows,
   paymentsFromForm,
   toPaymentGroups,
-  PAYMENT_COLUMNS,
 } from '@/lib/console/payment-ledger';
 import { formatBaht, formatThaiDate } from '@/lib/format/thai';
 import { cycleFor, cycleLabel } from '@/lib/models/billing-cycle';
@@ -100,6 +105,25 @@ const thisCycle = payments
   .filter((payment) => billIds.has(payment.billId))
   .sort((a, b) => b.paidOn.getTime() - a.paidOn.getTime());
 
+const ledger = groups[0]?.rows ?? [];
+const lines = rows.map((row, i) => {
+  const cells = ledger[i]!.cells;
+  return {
+    ...row,
+    amount: cells.amount as { name: string; value: string; label: string; placeholder?: string },
+    note: cells.note as { name: string; value: string; label: string; placeholder?: string },
+    state: cells.state as { tone: 'ok' | 'warn' | 'crit' | 'info' | 'mute'; label: string },
+  };
+});
+// Still owing first; settled rooms drop to the card beside the list.
+const owing = lines.filter((l) => l.settlement.outstanding > 0);
+const settled = lines.filter((l) => l.settlement.outstanding <= 0);
+const billed = rows.reduce((sum, row) => sum + row.settlement.due, 0);
+const collectedTotal = rows.reduce((sum, row) => sum + row.settlement.paid, 0);
+const paidPct = billed > 0 ? Math.min(100, Math.round((collectedTotal / billed) * 100)) : 0;
+const days = daysUntilDue(cycle, today);
+const lastPaid = (row: (typeof lines)[number]) => row.settlement.payments.at(-1)?.paidOn;
+
 const outstanding = rows.reduce(
   (sum, row) => sum + Math.max(row.settlement.outstanding, 0),
   0,
@@ -107,92 +131,197 @@ const outstanding = rows.reduce(
 ---
 
 <ConsoleFrame title="รับเงิน" activeSection="payments">
-  <div class="mb-4">
-    <h1 class="mb-1 text-xl font-semibold text-console-ink">บันทึกการรับเงิน</h1>
-    <p class="mb-0 text-sm text-console-ink-soft">
-      {cycleLabel(cycle)} — กรอกเฉพาะห้องที่จ่ายเข้ามาแล้ว ห้องที่ยังไม่จ่ายเว้นว่างไว้
-    </p>
-    <p class="mb-0 text-sm text-console-ink-faint">
-      คอนโซลไม่ได้รับเงินเอง — ตรวจสลิปใน LINE OA แล้วมาบันทึกที่นี่ ·
-      จ่ายบางส่วนได้ · จ่ายเกินยอดบิลได้ (เคลียร์ยอดค้างรอบก่อน)
-    </p>
-  </div>
+  <PageHeader
+    eyebrow="ขั้น 4 จาก 6"
+    title="บันทึกเงินเข้า"
+    subtitle={`ตรวจสลิปใน LINE OA ก่อน แล้วค่อยบันทึกที่นี่ · ${cycleLabel(cycle)}`}
+  />
 
   {recorded > 0 && (
-    <p class="mb-4 rounded-sm bg-console-ok-bg px-3 py-2 text-console-ok">
+    <Notice tone="ok" role="status">
       บันทึกแล้ว {recorded} รายการ รวม {formatBaht(collected)} บาท — ออกใบเสร็จได้ที่รายการด้านล่าง
-    </p>
+    </Notice>
   )}
   <ErrorSummary message={errors.length > 0 ? errors.join('\n') : null} />
 
-  <form method="POST">
-    <fieldset class="mb-4 flex flex-wrap items-end gap-6 border-0 p-0">
-      <label class="flex flex-col gap-1 text-sm text-console-ink-soft">
-        วันที่รับเงิน
-        <input
-          type="text"
-          name="paid_on"
-          value={paidOnValue}
-          class="w-44 rounded-sm border border-console-rule/30 bg-console-paper px-2 py-1 font-figure tabular-nums focus:border-console-rule focus:outline-none"
-        />
-      </label>
-
-      <div class="flex flex-col gap-1 text-sm text-console-ink-soft">
-        <span>ช่องทาง</span>
-        <div class="flex gap-4">
-          {(['transfer', 'cash'] as const).map((value) => (
-            <label class="flex items-center gap-1.5 text-console-ink">
-              <input type="radio" name="method" value={value} checked={method === value} />
-              {paymentMethodLabel(value)}
-            </label>
-          ))}
-        </div>
-      </div>
-    </fieldset>
-
-    <LedgerTable columns={PAYMENT_COLUMNS} groups={groups} />
-
-    <div class="mt-4 flex flex-wrap items-center justify-between gap-3">
-      <button
-        type="submit"
-        disabled={rows.length === 0}
-        class="rounded-sm bg-console-ink px-4 py-2 font-semibold text-console-paper disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-console-rule"
-      >
-        บันทึกการรับเงิน
-      </button>
-      <p class="mb-0 font-figure text-console-ink-soft tabular-nums">
-        ยังค้างรอบนี้ <span class="font-semibold text-console-ink">{formatBaht(outstanding)}</span> บาท
-      </p>
-    </div>
-  </form>
-
-  {rows.length === 0 && (
-    <p class="mt-4 rounded-sm bg-console-warn-bg px-3 py-2 text-sm text-console-warn">
-      ยังไม่มีบิลของรอบนี้ — ออกบิลก่อนจึงจะบันทึกการรับเงินได้
+  {rows.length > 0 && (
+    <p class="-mt-3 mb-4 text-base text-console-ink-soft desk:hidden">
+      รับแล้ว {settled.length}/{rows.length} · ค้าง <span class="font-figure font-semibold text-console-ink">{formatBaht(outstanding)}</span>
     </p>
   )}
-
-  {thisCycle.length > 0 && (
-    <section class="mt-10">
-      <h2 class="mb-3 text-lg font-semibold text-console-ink">ใบเสร็จรอบนี้</h2>
-      <ul class="mb-0 list-none space-y-1 p-0 text-sm">
-        {thisCycle.map((payment) => (
-          <li class="flex flex-wrap items-baseline gap-x-3 border-b border-console-rule/10 py-1.5">
-            <a
-              href={consolePath(`console/receipts/${payment.id}`)}
-              class="font-figure font-semibold text-console-ink underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
-            >
-              ห้อง {roomOf.get(payment.billId) ?? payment.billId}
-            </a>
-            <span class="font-figure tabular-nums text-console-ink">
-              {formatBaht(payment.amount)} บาท
-            </span>
-            <span class="text-console-ink-soft">{formatThaiDate(payment.paidOn)}</span>
-            <span class="text-console-ink-soft">{paymentMethodLabel(payment.method)}</span>
-            {payment.note && <span class="text-console-ink-faint">{payment.note}</span>}
-          </li>
-        ))}
-      </ul>
-    </section>
+  {rows.length === 0 && (
+    <Notice tone="warn">ยังไม่มีบิลของรอบนี้ — ออกบิลก่อนจึงจะบันทึกการรับเงินได้</Notice>
   )}
+
+  <div class="flex flex-col gap-6 desk:flex-row desk:items-start">
+    <form method="POST" class="min-w-0 flex-1" data-payments>
+      <fieldset class="mb-4 flex flex-wrap items-end gap-3 border-0 p-0 desk:gap-5">
+        <label class="flex flex-1 flex-col gap-1 text-[15px] font-medium text-console-ink-soft desk:flex-none">
+          วันที่รับ
+          <input
+            type="text"
+            name="paid_on"
+            value={paidOnValue}
+            class:list={[INPUT, 'font-semibold desk:w-48']}
+          />
+        </label>
+
+        <div class="flex flex-col gap-1 text-[15px] font-medium text-console-ink-soft">
+          <span id="method-label">ช่องทาง</span>
+          <div role="radiogroup" aria-labelledby="method-label" class="flex overflow-hidden rounded-lg border-[1.5px] border-console-ink">
+            {(['transfer', 'cash'] as const).map((value) => (
+              <label class="relative cursor-pointer">
+                <input type="radio" name="method" value={value} checked={method === value} class="peer sr-only" />
+                <span class="flex min-h-11 items-center px-4 font-semibold text-console-ink peer-checked:bg-console-ink peer-checked:text-white peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:-outline-offset-4 peer-focus-visible:outline-console-highlight">
+                  {paymentMethodLabel(value)}
+                </span>
+              </label>
+            ))}
+          </div>
+        </div>
+      </fieldset>
+
+      <h2 class={SECTION_TITLE}>ยังไม่จ่าย ({owing.length})</h2>
+      {owing.length === 0 && rows.length > 0 && (
+        <p class="mb-4 border-t-2 border-console-ink py-3 text-[15px] text-console-ok">✓ รับครบทุกห้องแล้ว</p>
+      )}
+      {owing.length > 0 && (
+        <ul class="m-0 flex list-none flex-col gap-2 p-0 desk:gap-0 desk:border-t-2 desk:border-console-ink">
+          {owing.map((line) => (
+            <li
+              data-payment-row
+              class="flex flex-col gap-2 rounded-xl border border-console-line bg-console-card p-3 desk:grid desk:grid-cols-[64px_minmax(0,1fr)_150px_96px_minmax(0,1fr)] desk:items-center desk:gap-2.5 desk:rounded-none desk:border-0 desk:border-b desk:border-console-rule desk:bg-transparent desk:px-2 desk:py-1.5"
+            >
+              <div class="flex items-baseline gap-2 desk:contents">
+                <span class="font-hand text-xl font-semibold desk:text-[17px]">{line.roomLabel}</span>
+                <span class="flex-1 text-[15px] text-console-ink-soft">
+                  {line.settlement.paid > 0 ? `จ่ายแล้ว ${formatBaht(line.settlement.paid)} · ` : ''}ค้าง{' '}
+                  <span class="font-figure font-semibold text-console-ink" data-outstanding={line.settlement.outstanding}>
+                    {formatBaht(line.settlement.outstanding)}
+                  </span>
+                </span>
+              </div>
+              <div class="flex gap-2 desk:contents">
+              <label class="flex-1">
+                <span class="sr-only">{line.amount.label}</span>
+                <input
+                  type="text"
+                  inputmode="decimal"
+                  name={line.amount.name}
+                  value={line.amount.value}
+                  placeholder={line.amount.placeholder}
+                  data-amount
+                  class:list={[INPUT, 'text-right font-figure tabular-nums']}
+                />
+              </label>
+              <button
+                type="button"
+                data-fill
+                class:list={[
+                  'min-h-11 w-24 flex-none rounded-lg bg-console-ok px-3 text-[15px] font-semibold text-white hover:bg-console-ok/90 desk:w-auto',
+                  FOCUS,
+                ]}
+              >
+                รับครบ
+              </button>
+              </div>
+              <label>
+                <span class="sr-only">{line.note.label}</span>
+                <input
+                  type="text"
+                  name={line.note.name}
+                  value={line.note.value}
+                  placeholder={line.note.placeholder}
+                  class:list={[INPUT, 'text-[15px]']}
+                />
+              </label>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {rows.length > 0 && (
+        <div class="sticky bottom-16 -mx-4 mt-4 flex flex-col gap-2 border-t border-console-line bg-console-paper px-4 py-3 desk:static desk:mx-0 desk:flex-row desk:items-center desk:justify-between desk:border-0 desk:bg-transparent desk:p-0">
+          <p class="text-[15px] text-console-ink-soft">
+            กรอกเฉพาะห้องที่เงินเข้าแล้ว · จ่ายบางส่วนหรือเกินยอดได้
+          </p>
+          <Button type="submit" size="lg">บันทึกเงินเข้า</Button>
+        </div>
+      )}
+    </form>
+
+    <aside class="flex w-full flex-col gap-3.5 desk:w-[270px] desk:flex-none">
+      <Card class="flex flex-col gap-2">
+        <h2 class="font-hand text-[17px] font-semibold">รอบนี้</h2>
+        <div class="flex justify-between text-[15px]">
+          <span class="text-console-ink-soft">ยอดบิลทั้งหมด</span><span class="font-figure">{formatBaht(billed)}</span>
+        </div>
+        <div class="flex justify-between text-[15px] text-console-ok">
+          <span>รับแล้ว ✓</span><span class="font-figure">{formatBaht(collectedTotal)}</span>
+        </div>
+        <div class="flex justify-between border-t border-console-rule pt-2 text-base font-semibold">
+          <span>ยังค้าง</span><span class="font-figure">{formatBaht(outstanding)}</span>
+        </div>
+        <div class="h-2.5 overflow-hidden rounded-full bg-console-sunk" role="img" aria-label={`รับแล้ว ${paidPct}%`}>
+          <div class="h-full bg-console-ok" style={`width:${paidPct}%`}></div>
+        </div>
+        <span class="text-sm text-console-ink-soft">
+          ครบกำหนด {formatThaiDate(cycle.dueDate)} · {days >= 0 ? `อีก ${days} วัน` : `เลยมา ${-days} วัน`}
+        </span>
+      </Card>
+
+      {settled.length > 0 && (
+        <Card tone="spine" class="flex flex-col gap-1">
+          <h2 class="font-hand text-base font-semibold text-console-ok">จ่ายแล้ว ✓ {settled.length}</h2>
+          {settled.map((line) => (
+            <div class="flex justify-between gap-2 text-sm text-console-ink-soft">
+              <span>{line.roomLabel}</span>
+              <span>
+                {lastPaid(line) ? formatThaiDate(lastPaid(line)!) : ''}
+                {line.settlement.state === 'overpaid' && (
+                  <StatusPill tone={line.state.tone} label={line.state.label} />
+                )}
+              </span>
+            </div>
+          ))}
+        </Card>
+      )}
+
+      {thisCycle.length > 0 && (
+        <Card class="flex flex-col gap-1">
+          <h2 class="font-hand text-base font-semibold">ใบเสร็จรอบนี้</h2>
+          <ul class="m-0 list-none p-0">
+            {thisCycle.map((payment) => (
+              <li class="border-b border-dotted border-console-line-strong last:border-0">
+                <a
+                  href={consolePath(`console/receipts/${payment.id}`)}
+                  class:list={['flex min-h-10 items-center justify-between gap-2 text-sm text-console-ink no-underline hover:underline', FOCUS]}
+                >
+                  <span class="font-hand font-semibold">{roomOf.get(payment.billId) ?? payment.billId}</span>
+                  <span class="text-console-ink-soft">{formatThaiDate(payment.paidOn)} · {paymentMethodLabel(payment.method)}</span>
+                  <span class="font-figure">{formatBaht(payment.amount)}</span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+    </aside>
+  </div>
 </ConsoleFrame>
+
+<script>
+  // "รับครบ" writes the outstanding amount into the row's field — one tap
+  // instead of copying a figure. The amount stays visible in the field and
+  // nothing is recorded until the form is submitted, so it is still the
+  // admin's decision; without script the field is typed as before.
+  for (const row of document.querySelectorAll<HTMLElement>('[data-payment-row]')) {
+    const amount = row.querySelector<HTMLInputElement>('[data-amount]');
+    const owed = row.querySelector<HTMLElement>('[data-outstanding]')?.dataset.outstanding;
+    row.querySelector('[data-fill]')?.addEventListener('click', () => {
+      if (!amount || !owed) return;
+      amount.value = owed;
+      amount.focus();
+    });
+  }
+</script>

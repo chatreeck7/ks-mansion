@@ -1,6 +1,10 @@
 ---
 // src/pages/console/documents.astro
 import ConsoleFrame from '@/components/console/ConsoleFrame.astro';
+import Button from '@/components/console/Button.astro';
+import Notice from '@/components/console/Notice.astro';
+import PageHeader from '@/components/console/PageHeader.astro';
+import { FOCUS, INPUT } from '@/lib/console/ui';
 import { consolePath } from '@/lib/console/paths';
 import {
   documentTypesFor,
@@ -19,6 +23,10 @@ import { cycleFor, cycleFromId, cycleLabel, cycleOptions } from '@/lib/models/bi
  * `documents/print.astro` reads to assemble them into one file (KS-30). That
  * is why this is a plain GET form rather than something that keeps its state
  * on the client.
+ *
+ * **"รวมเป็นไฟล์เดียว" submits this same form to the print route**
+ * (`formaction`), so what gets printed is whatever is ticked at that moment —
+ * no separate "apply" step between ticking and printing.
  *
  * **The cycle picker is not `CyclePicker`.** That control submits the moment
  * you choose, which is right where the month *is* the whole choice; here it
@@ -53,28 +61,19 @@ const ready = types.filter(isReady);
 const pending = types.filter((type) => !isReady(type));
 ---
 
-<ConsoleFrame title="เอกสาร" activeSection="documents">
-  <div class="mb-4">
-    <h1 class="mb-1 text-xl font-semibold text-console-ink">เอกสารประจำเดือน</h1>
-    <p class="mb-0 text-sm text-console-ink-soft">
-      เลือกว่าจะเอาเอกสารไหนบ้าง แล้วเปิดดูทีละใบ · ลิงก์หน้านี้เก็บสิ่งที่เลือกไว้ด้วย
-      บุ๊กมาร์กไว้ใช้เดือนหน้าได้
-    </p>
-  </div>
+<ConsoleFrame title="เอกสาร" activeSection="documents" width="reading">
+  <PageHeader
+    eyebrow="ขั้น 6 จาก 6"
+    title="เอกสารประจำรอบ"
+    subtitle="ติ๊กเอกสารที่ต้องการ แล้วรวมเป็นไฟล์เดียว · พิมพ์ A4 · ลิงก์หน้านี้จำสิ่งที่เลือกไว้"
+  />
 
-  {unknownCycle && (
-    <p class="mb-4 rounded-sm bg-console-warn-bg px-3 py-2 text-sm text-console-warn">
-      ไม่รู้จักรอบ "{requested}" — แสดงรอบปัจจุบันแทน
-    </p>
-  )}
+  {unknownCycle && <Notice tone="warn">ไม่รู้จักรอบ "{requested}" — แสดงรอบปัจจุบันแทน</Notice>}
 
-  <form method="GET" class="mb-6 rounded-sm border border-console-rule/30 bg-console-card p-4">
-    <label class="mb-4 flex flex-col gap-1 text-sm text-console-ink-soft">
+  <form method="GET" data-documents>
+    <label class="mb-4 flex max-w-md flex-col gap-1 text-[15px] font-medium text-console-ink-soft">
       เดือน
-      <select
-        name="cycle"
-        class="w-full max-w-md rounded-sm border border-console-rule/40 bg-console-paper px-2 py-1.5 text-console-ink focus:border-console-rule focus:outline-none"
-      >
+      <select name="cycle" class={INPUT} data-cycle>
         {options.map((option) => (
           <option value={option.id} selected={option.id === cycle.id}>
             {formatThaiMonth(option.utilityMonth)} — {cycleLabel(option)}
@@ -87,100 +86,73 @@ const pending = types.filter((type) => !isReady(type));
         the note in the frontmatter. */}
     <input type="hidden" name="include" value="" />
 
-    <fieldset class="mb-4">
-      <legend class="mb-2 text-sm font-semibold text-console-ink">เอกสารที่จะเอา</legend>
-      <div class="flex flex-col gap-2">
+    <fieldset class="m-0 border-0 p-0">
+      <legend class="sr-only">เอกสารที่จะเอา</legend>
+      <ul class="m-0 list-none border-t-2 border-console-ink p-0">
         {ready.map((type) => (
-          <label class="flex items-start gap-2 text-console-ink">
-            <input
-              type="checkbox"
-              name="include"
-              value={type.id}
-              checked={selection.includes(type.id)}
-              class="mt-1 accent-console-rule"
-            />
-            <span>
-              <span class="font-semibold">{type.label}</span>
-              <span class="block text-sm text-console-ink-soft">{type.description}</span>
-            </span>
-          </label>
-        ))}
-      </div>
-    </fieldset>
-
-    <button
-      type="submit"
-      class="rounded-sm bg-console-ink px-4 py-2 font-semibold text-console-paper focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-console-rule"
-    >
-      ดู
-    </button>
-  </form>
-
-  <section class="mb-8">
-    <h2 class="mb-2 text-lg font-semibold text-console-ink">
-      เลือกไว้ {selected.length} รายการ
-    </h2>
-
-    {selected.length === 0 ? (
-      <p class="mb-0 rounded-sm bg-console-sunk px-3 py-2 text-sm text-console-ink-soft">
-        ยังไม่ได้เลือกเอกสาร — ติ๊กด้านบนแล้วกด ดู
-      </p>
-    ) : (
-      <ul class="mb-0 list-none space-y-2 ps-0">
-        {selected.map((type) => (
-          <li class="flex flex-wrap items-center justify-between gap-3 rounded-sm border border-console-rule/30 bg-console-card px-3 py-2">
-            <span>
-              <span class="font-semibold text-console-ink">{type.label}</span>
-              <span class="block text-sm text-console-ink-soft">{type.description}</span>
-            </span>
+          <li class="flex items-center gap-3 border-b border-console-rule">
+            <label class="flex min-h-16 flex-1 cursor-pointer items-center gap-3.5 py-1 pl-1 desk:pl-3">
+              <input
+                type="checkbox"
+                name="include"
+                value={type.id}
+                checked={selection.includes(type.id)}
+                class="peer sr-only"
+              />
+              <span
+                aria-hidden="true"
+                class="flex h-7 w-7 flex-none items-center justify-center rounded-md border-2 border-console-ink text-base font-semibold text-transparent peer-checked:bg-console-ink peer-checked:text-white peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-console-ink"
+              >
+                ✓
+              </span>
+              <span class="flex flex-col leading-snug">
+                <span class="text-[17px] font-semibold">{type.label}</span>
+                <span class="text-[15px] text-console-ink-soft">{type.description}</span>
+              </span>
+            </label>
             <a
               href={(type.availability as { href: string }).href}
-              class="rounded-sm border border-console-rule/40 px-3 py-1.5 text-sm text-console-ink hover:bg-console-sunk focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
+              class:list={['flex min-h-11 items-center whitespace-nowrap pr-1 text-[15px] font-semibold text-console-ink no-underline hover:underline desk:pr-3', FOCUS]}
             >
-              เปิด / พิมพ์
+              ดูตัวอย่าง
             </a>
           </li>
         ))}
+        {/* Listed rather than hidden: a selector showing only what exists looks
+            finished when it is not, and the person who would ask for the missing
+            ones is exactly the person reading this screen. Said in plain words. */}
+        {pending.map((type) => (
+          <li class="flex min-h-16 items-center gap-3.5 border-b border-console-rule py-1 pl-1 opacity-75 desk:pl-3">
+            <span aria-hidden="true" class="h-7 w-7 flex-none rounded-md border-2 border-dashed border-console-ink-faint" />
+            <span class="flex flex-col leading-snug">
+              <span class="text-[17px] font-semibold text-console-ink-soft">{type.label}</span>
+              <span class="text-[15px] text-console-ink-faint">ยังทำไม่ได้: {(type.availability as { reason: string }).reason}</span>
+            </span>
+          </li>
+        ))}
       </ul>
-    )}
+    </fieldset>
 
-    {selected.length > 0 && (
-      <p class="mt-3 mb-0">
-        <a
-          href={`${consolePath('console/documents/print')}?cycle=${cycle.id}${selected
-            .map((type) => `&include=${type.id}`)
-            .join('')}`}
-          class="inline-block rounded-sm bg-console-ink px-4 py-2 font-semibold text-console-paper focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-console-rule"
-        >
-          รวมเป็นไฟล์เดียว {selected.length} รายการ
-        </a>
-      </p>
-    )}
-  </section>
-
-  {/* Listed rather than hidden: a selector showing only what exists looks
-      finished when it is not, and the person who would ask for the missing
-      ones is exactly the person reading this screen. */}
-  {pending.length > 0 && (
-    <section>
-      <h2 class="mb-1 text-lg font-semibold text-console-ink">ยังทำไม่ได้</h2>
-      <p class="mb-3 text-sm text-console-ink-soft">
-        AC-4.1 ระบุเอกสารไว้ {types.length} อย่าง ตอนนี้ทำได้ {ready.length} อย่าง
-      </p>
-      <ul class="mb-0 list-none space-y-2 ps-0">
-        {pending.map((type) => {
-          const blocked = type.availability as { reason: string; blockedBy: string };
-          return (
-            <li class="rounded-sm border border-dashed border-console-rule/40 px-3 py-2">
-              <span class="font-semibold text-console-ink-soft">{type.label}</span>
-              <span class="block text-sm text-console-ink-soft">{type.description}</span>
-              <span class="mt-1 block text-sm text-console-warn">
-                {blocked.reason} · รอ {blocked.blockedBy}
-              </span>
-            </li>
-          );
-        })}
-      </ul>
-    </section>
-  )}
+    <div class="sticky bottom-16 -mx-4 mt-4 flex flex-wrap items-center gap-3 border-t border-console-line bg-console-paper px-4 py-3 desk:static desk:mx-0 desk:border-0 desk:bg-transparent desk:p-0">
+      <Button
+        type="submit"
+        size="lg"
+        formaction={consolePath('console/documents/print')}
+        class="flex-1 desk:flex-none"
+      >
+        รวมเป็น PDF ไฟล์เดียว{selected.length > 0 ? ` (${selected.length})` : ''}
+      </Button>
+      <noscript>
+        <Button type="submit" variant="secondary" size="lg">อัปเดตรายการ</Button>
+      </noscript>
+    </div>
+  </form>
 </ConsoleFrame>
+
+<script>
+  // The month is part of the selection; changing it reloads this page with
+  // the ticks kept, rather than printing. The form's own submit button goes
+  // to the print route instead (see `formaction`).
+  const form = document.querySelector<HTMLFormElement>('form[data-documents]');
+  form?.querySelector('[data-cycle]')?.addEventListener('change', () => form.submit());
+</script>

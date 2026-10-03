@@ -1,11 +1,152 @@
 ---
 // src/pages/console/index.astro
-// `astro check` reports `consolePath` as unused here (ts 6133). It is a false
-// positive — TypeScript's analysis stops at the top-level `return`. Verified
-// at runtime: this serves a 302 to /console/rooms. Do not "fix" it by moving
-// the call into the template as `{Astro.redirect(...)}` — that renders the
-// Response into the body and serves a 200 instead of redirecting.
+import ConsoleFrame from '@/components/console/ConsoleFrame.astro';
+import Button from '@/components/console/Button.astro';
+import Card from '@/components/console/Card.astro';
+import Legend from '@/components/console/Legend.astro';
+import ProblemCard from '@/components/console/ProblemCard.astro';
+import RoomTile from '@/components/console/RoomTile.astro';
+import StepList from '@/components/console/StepList.astro';
+import { buildingTiles, floorsOf, tileCounts } from '@/lib/console/building';
+import { dueLabel, notebookTitle, shortCycleLabel, todayLabel } from '@/lib/console/logbook';
+import { monthProgress } from '@/lib/console/month-progress';
 import { consolePath } from '@/lib/console/paths';
+import { formatBaht } from '@/lib/format/thai';
+import { cycleFor } from '@/lib/models/billing-cycle';
+import {
+  getBillRepository,
+  getLeaseRepository,
+  getMeterReadingRepository,
+  getPaymentRepository,
+  getRoomRepository,
+  getTenantRepository,
+} from '@/lib/repositories';
 
-return Astro.redirect(consolePath('console/rooms'), 302);
+/**
+ * หน้าสมุด — this month's page of the notebook.
+ *
+ * Replaces the old redirect to ห้อง. The console used to open on the room
+ * list and leave the admin to remember where the month had got to; this page
+ * answers that first: one "ทำต่อ" card for the next job, the six steps with
+ * their marks, every blocked room grouped into one card per reason, and a
+ * glance at the building.
+ *
+ * Nothing here is stored. Every mark is worked out from the same sheets the
+ * step pages read, by the same functions, so this page and the step it links
+ * to cannot disagree.
+ */
+
+const env = Astro.locals.runtime?.env;
+const today = new Date();
+const cycle = cycleFor(today);
+
+const [rooms, leases, readings, bills, payments, tenants] = await Promise.all([
+  getRoomRepository(env).listRooms(),
+  getLeaseRepository(env).listLeases(),
+  getMeterReadingRepository(env).listReadings(),
+  getBillRepository(env).listBills(),
+  getPaymentRepository(env).listPayments(),
+  getTenantRepository(env).listTenants(),
+]);
+
+const month = monthProgress({ cycle, today, rooms, leases, readings, bills, payments });
+const tiles = buildingTiles({
+  rooms,
+  leases,
+  tenants,
+  bills: bills.filter((b) => b.cycle === cycle.id),
+  payments,
+  today,
+});
+const floors = floorsOf(tiles);
+const counts = tileCounts(tiles);
+
+const next = month.next;
+const nextDetail =
+  next?.id === 'payments'
+    ? `รับแล้ว ${month.money.paidCount} จาก ${month.money.billCount} ห้อง · ยังรอ ${month.money.unpaidCount} ห้อง รวม ${formatBaht(month.money.outstanding)} บาท`
+    : next?.sub;
+const nextShort =
+  next?.id === 'payments' ? `รอเงินอีก ${month.money.unpaidCount} ห้อง` : next?.subShort;
 ---
+
+<ConsoleFrame title="หน้าสมุด" activeSection="home" progress={month.nav}>
+  <header class="mb-4 desk:mb-5">
+    <h1 class="font-hand text-[23px] font-semibold leading-[1.4] tracking-normal desk:text-[30px]">
+      {notebookTitle(cycle)}
+    </h1>
+    <p class="text-base text-console-ink-soft">
+      <span class="desk:hidden">{shortCycleLabel(cycle)} · </span>{todayLabel(today)} · {dueLabel(cycle, today)}
+    </p>
+  </header>
+
+  <div class="grid gap-5 desk:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)] desk:gap-7">
+    <div class="flex flex-col gap-3.5">
+      {
+        next ? (
+          <Card tone="ink" class="flex flex-col gap-3 desk:flex-row desk:items-center desk:gap-5 desk:px-[22px] desk:py-[18px]">
+            <div class="flex flex-1 flex-col gap-0.5">
+              <span class="text-sm font-medium text-white/75">ทำต่อ · ขั้น {next.n}</span>
+              <span class="font-hand text-[26px] font-semibold leading-tight">{next.label}</span>
+              <span class="hidden text-base text-white/90 desk:inline">{nextDetail}</span>
+              <span class="text-base text-white/90 desk:hidden">{nextShort}</span>
+            </div>
+            <Button href={next.href} variant="highlight" size="lg" class="min-h-[52px] desk:px-[22px]">
+              เปิดขั้น {next.n} →
+            </Button>
+          </Card>
+        ) : (
+          <Card tone="spine" class="flex items-center gap-3">
+            <span class="font-hand text-[32px] font-semibold text-console-ok" aria-hidden="true">✓</span>
+            <span class="text-[17px] font-semibold">งานเดือนนี้เสร็จครบแล้ว — เหลือแค่พิมพ์เอกสารประจำรอบ</span>
+          </Card>
+        )
+      }
+
+      <StepList steps={month.steps} />
+    </div>
+
+    <div class="flex flex-col gap-3.5">
+      {
+        month.problems.map((problem) => (
+          <ProblemCard
+            eyebrow="ต้องตามเรื่อง"
+            title={problem.title}
+            items={problem.rooms.map((r) => ({ label: r.label, href: r.href }))}
+            action={problem.action}
+          />
+        ))
+      }
+
+      <Card class="flex flex-col gap-2">
+        <div class="flex items-baseline justify-between">
+          <h2 class="font-hand text-[17px] font-semibold">ภาพรวมตึก</h2>
+          <a href={consolePath('console/rooms')} class="text-sm font-medium text-console-ink-soft hover:text-console-ink">
+            ดูทั้งตึก →
+          </a>
+        </div>
+        {
+          floors.map((floor) => (
+            <div class="flex items-center gap-1.5">
+              <span class="w-8 flex-none text-[13px] font-semibold text-console-ink-soft">{floor.short}</span>
+              <div class="flex flex-1 flex-wrap gap-[3px]">
+                {floor.tiles.map((tile) => (
+                  <RoomTile tile={tile} size="mini" class="w-[30px]" />
+                ))}
+              </div>
+            </div>
+          ))
+        }
+        <Legend
+          class="pt-1 text-[13px] text-console-ink-soft"
+          items={[
+            { mark: 'done', label: 'จ่ายแล้ว', count: counts.paid },
+            { mark: 'todo', label: 'รอจ่าย', count: counts.unpaid },
+            { mark: 'missing', label: 'ไม่มีข้อมูล', count: counts.missing },
+            { mark: 'none', label: 'ว่าง/ปรับปรุง', count: counts.idle },
+          ]}
+        />
+      </Card>
+    </div>
+  </div>
+</ConsoleFrame>

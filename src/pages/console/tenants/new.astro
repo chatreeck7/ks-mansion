@@ -37,18 +37,11 @@ if (Astro.request.method === 'POST') {
 }
 ---
 
-<ConsoleFrame title="เพิ่มผู้เช่า" activeSection="tenants">
+<ConsoleFrame title="เพิ่มผู้เช่า" activeSection="tenants" width="reading">
+  <a href={listHref} class="inline-flex min-h-11 items-center text-base font-medium text-console-ink-soft no-underline hover:text-console-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-console-ink mb-3">← กลับไปรายชื่อผู้เช่า</a>
   <DetailSheet title="เพิ่มผู้เช่า" meta="ข้อมูลผู้เช่า">
     <DetailSection heading="ข้อมูลผู้เช่า">
       <TenantForm values={values} error={error} submitLabel="บันทึก" cancelHref={listHref} />
     </DetailSection>
   </DetailSheet>
-
-  <p class="mt-4 mb-0 leading-none text-console-ink-soft">
-    <a
-      href={listHref}
-      class="text-sm underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
-      >← กลับไปรายชื่อผู้เช่า</a
-    >
-  </p>
 </ConsoleFrame>

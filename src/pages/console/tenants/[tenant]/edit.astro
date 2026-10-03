@@ -37,14 +37,15 @@ if (Astro.request.method === 'POST') {
 }
 ---
 
-<ConsoleFrame title={`แก้ไข ${tenant.fullName}`} activeSection="tenants">
+<ConsoleFrame title={`แก้ไข ${tenant.fullName}`} activeSection="tenants" width="reading">
+  <a href={detailHref} class="inline-flex min-h-11 items-center text-base font-medium text-console-ink-soft no-underline hover:text-console-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-console-ink mb-3">← กลับไปข้อมูลผู้เช่า</a>
   <DetailSheet title={displayName(tenant)} meta="แก้ไขข้อมูลผู้เช่า">
     <DetailSection heading="ข้อมูลผู้เช่า">
       <TenantForm values={values} error={error} submitLabel="บันทึก" cancelHref={detailHref} />
     </DetailSection>
 
     <DetailSection heading="เก็บเข้าคลัง">
-      <p class="mb-2 text-xs text-console-ink-faint">
+      <p class="mb-2 text-sm text-console-ink-soft">
         ผู้เช่าที่เก็บเข้าคลังจะไม่แสดงในรายชื่อ แต่ประวัติและสัญญาเช่ายังอยู่ครบ
         และเปิดจากลิงก์เดิมได้ — ไม่ใช่การลบ
       </p>
@@ -53,19 +54,11 @@ if (Astro.request.method === 'POST') {
       <form method="POST" action={consolePath(`console/tenants/${tenant.id}/archive`)}>
         <button
           type="submit"
-          class="rounded border border-console-crit px-3 py-1.5 text-sm text-console-crit hover:bg-console-crit-bg focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
+          class="inline-flex min-h-11 items-center rounded-[10px] border-[1.5px] border-console-crit px-4 text-[15px] font-semibold text-console-crit hover:bg-console-crit-bg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-console-ink"
         >
           เก็บเข้าคลัง
         </button>
       </form>
     </DetailSection>
   </DetailSheet>
-
-  <p class="mt-4 mb-0 leading-none text-console-ink-soft">
-    <a
-      href={detailHref}
-      class="text-sm underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
-      >← กลับไปข้อมูลผู้เช่า</a
-    >
-  </p>
 </ConsoleFrame>

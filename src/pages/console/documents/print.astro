@@ -84,11 +84,11 @@ const backToSelector = `${consolePath('console/documents')}?cycle=${cycle.id}` +
 ---
 
 <ConsoleLayout title={`เอกสารรวม ${cycleLabel(cycle)}`}>
-  <main class="mx-auto max-w-4xl px-4 py-6 print:max-w-none print:px-0 print:py-0">
+  <main class="console-root mx-auto max-w-4xl px-4 py-6 print:max-w-none print:px-0 print:py-0">
     <div class="mb-6 flex flex-wrap items-center justify-between gap-3 print:hidden">
       <a
         href={backToSelector}
-        class="text-sm text-console-ink-soft underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
+        class="inline-flex min-h-11 items-center text-base font-medium text-console-ink-soft no-underline hover:text-console-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-console-ink"
       >
         ← กลับไปเลือกเอกสาร
       </a>
@@ -96,7 +96,7 @@ const backToSelector = `${consolePath('console/documents')}?cycle=${cycle.id}` +
         <button
           type="button"
           data-print
-          class="rounded-sm bg-console-ink px-4 py-2 font-semibold text-console-paper focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-console-rule"
+          class="inline-flex min-h-11 items-center rounded-[10px] bg-console-ink px-4 font-semibold text-white no-underline hover:bg-console-ink/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-console-ink"
         >
           พิมพ์ / บันทึกเป็น PDF ไฟล์เดียว
         </button>
@@ -104,11 +104,11 @@ const backToSelector = `${consolePath('console/documents')}?cycle=${cycle.id}` +
     </div>
 
     {sections.length === 0 ? (
-      <p class="rounded-sm bg-console-sunk px-3 py-2 text-sm text-console-ink-soft print:hidden">
+      <p class="rounded-lg bg-console-spine px-3 py-2 text-sm text-console-ink-soft print:hidden">
         ยังไม่ได้เลือกเอกสาร — เลือกที่หน้า{' '}
         <a
           href={consolePath('console/documents')}
-          class="underline underline-offset-2 hover:no-underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
+          class="underline underline-offset-2 hover:no-underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-ink"
           >เอกสาร</a
         >{' '}ก่อน
       </p>
@@ -119,7 +119,7 @@ const backToSelector = `${consolePath('console/documents')}?cycle=${cycle.id}` +
             bill for room 101 and nothing says what the other twenty-four
             pages are, or which month any of it belongs to. */}
         <section class="doc-section">
-          <header class="mb-6 border-b-2 border-console-rule/50 pb-4">
+          <header class="mb-6 border-b-2 border-console-print/50 pb-4">
             <p class="mb-1 text-lg font-semibold text-console-ink">{letterhead.name}</p>
             <h1 class="mb-1 text-2xl font-semibold text-console-ink">เอกสารประจำรอบ</h1>
             <p class="mb-0 text-console-ink-soft">
@@ -145,7 +145,7 @@ const backToSelector = `${consolePath('console/documents')}?cycle=${cycle.id}` +
           <section class="doc-section">
             {/* Named at the top of its own first sheet: pulled out of the
                 folder on its own, a section still has to say what it is. */}
-            <h2 class="mb-3 border-b border-console-rule/40 pb-1 text-lg font-semibold text-console-ink">
+            <h2 class="mb-3 border-b border-console-print/40 pb-1 text-lg font-semibold text-console-ink">
               {section.label}
             </h2>
 

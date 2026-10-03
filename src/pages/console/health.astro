@@ -2,7 +2,10 @@
 // src/pages/console/health.astro
 // KS-67. Behind the middleware's auth like every other /console route.
 import ConsoleFrame from '@/components/console/ConsoleFrame.astro';
+import Card from '@/components/console/Card.astro';
 import DetailSection from '@/components/console/DetailSection.astro';
+import PageHeader from '@/components/console/PageHeader.astro';
+import { consolePath } from '@/lib/console/paths';
 import StatusPill from '@/components/console/StatusPill.astro';
 import { checkDatastoreHealth } from '@/lib/repositories/health';
 
@@ -12,15 +15,17 @@ const failed = tabs.filter((tab) => tab.status === 'failed').length;
 const onSheets = datastore.backend === 'sheets';
 ---
 
-<ConsoleFrame title="สถานะระบบ" activeSection="health">
-  <h1 class="mb-1 text-xl font-medium text-console-ink">สถานะระบบ</h1>
-  <p class="mb-6 text-sm text-console-ink-faint">
-    หน้านี้บอกว่าตอนนี้คอนโซลอ่านข้อมูลจากที่ไหน และแท็บไหนอ่านไม่ผ่านเพราะอะไร
-  </p>
+<ConsoleFrame title="สถานะระบบ" activeSection="health" width="reading">
+  <PageHeader
+    title="สถานะระบบ"
+    subtitle="คอนโซลอ่านข้อมูลจากที่ไหน และแท็บไหนอ่านไม่ผ่านเพราะอะไร"
+    back={{ href: consolePath('console/more'), label: 'อื่นๆ' }}
+  />
+  <Card padding="sm" class="overflow-hidden p-0 desk:p-0">
 
   <DetailSection heading="แหล่งข้อมูล">
     <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
-      <dt class="text-console-ink-faint">กำลังอ่านจาก</dt>
+      <dt class="text-console-ink-soft">กำลังอ่านจาก</dt>
       <dd>
         {
           onSheets ? (
@@ -34,14 +39,14 @@ const onSheets = datastore.backend === 'sheets';
       {
         datastore.sourceId && (
           <Fragment>
-            <dt class="text-console-ink-faint">แหล่งที่มา</dt>
-            <dd class="break-all font-figure text-xs">
+            <dt class="text-console-ink-soft">แหล่งที่มา</dt>
+            <dd class="break-all font-figure text-sm">
               {datastore.sourceUrl ? (
                 <a
                   href={datastore.sourceUrl}
                   target="_blank"
                   rel="noreferrer"
-                  class="underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
+                  class="underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-ink"
                 >
                   {datastore.sourceId}
                 </a>
@@ -56,7 +61,7 @@ const onSheets = datastore.backend === 'sheets';
 
     {
       !onSheets && (
-        <p class="mt-3 text-xs text-console-ink-soft">
+        <p class="mt-3 text-sm text-console-ink-soft">
           คอนโซลกำลังแสดง<strong>ข้อมูลตัวอย่าง</strong> ไม่ใช่ข้อมูลจริงของตึก —
           สิ่งที่แก้ในหน้านี้จะหายไปเมื่อรีสตาร์ท เพราะไม่พบ {datastore.missingConfig.join(' และ ')}
         </p>
@@ -68,10 +73,10 @@ const onSheets = datastore.backend === 'sheets';
     <ul class="flex flex-col gap-3">
       {
         tabs.map((tab) => (
-          <li class="border-b border-console-sunk pb-3 last:border-0 last:pb-0">
+          <li class="border-b border-console-rule pb-3 last:border-0 last:pb-0">
             <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
               <span class="text-sm text-console-ink">{tab.label}</span>
-              <span class="font-figure text-xs text-console-ink-faint">{tab.tab}</span>
+              <span class="font-figure text-sm text-console-ink-soft">{tab.tab}</span>
               {tab.status === 'ok' ? (
                 <StatusPill tone="ok" label={`${tab.records} รายการ`} />
               ) : (
@@ -87,7 +92,7 @@ const onSheets = datastore.backend === 'sheets';
             {tab.error && (
               <p
                 role="alert"
-                class="mt-2 whitespace-pre-wrap break-words bg-console-crit-bg px-3 py-2 font-figure text-xs text-console-crit"
+                class="mt-2 whitespace-pre-wrap break-words bg-console-crit-bg px-3 py-2 font-figure text-sm text-console-crit"
               >
                 {tab.error}
               </p>
@@ -102,7 +107,7 @@ const onSheets = datastore.backend === 'sheets';
             {tab.rows && tab.rows.ignoredWithContent.length > 0 && (
               <div
                 role="alert"
-                class="mt-2 bg-console-warn-bg px-3 py-2 text-xs text-console-warn"
+                class="mt-2 bg-console-warn-bg px-3 py-2 text-sm text-console-warn"
               >
                 <p class="mb-1 font-medium">
                   มี {tab.rows.ignoredWithContent.length} แถวที่มีข้อมูล แต่คอนโซลมองไม่เห็น
@@ -122,7 +127,7 @@ const onSheets = datastore.backend === 'sheets';
             )}
 
             {tab.rows && (
-              <p class="mt-1 font-figure text-xs text-console-ink-faint">
+              <p class="mt-1 font-figure text-sm text-console-ink-soft">
                 {tab.rows.dataRows} แถวในชีต
                 {tab.rows.skipped.length > tab.rows.ignoredWithContent.length &&
                   ` · ข้ามแถวว่าง ${tab.rows.skipped.length - tab.rows.ignoredWithContent.length}`}
@@ -137,7 +142,7 @@ const onSheets = datastore.backend === 'sheets';
 
     {
       failed < tabs.length && (
-        <p class="mt-3 text-xs text-console-ink-faint">
+        <p class="mt-3 text-sm text-console-ink-soft">
           จำนวนรายการนับเฉพาะที่อ่านกลับมาได้ ไม่รวมรายการที่เก็บเข้าคลัง (archived)
           — ถ้าตัวเลขไม่ตรงกับที่คาด แปลว่าชีตกับคอนโซลมองไม่ตรงกัน
         </p>
@@ -145,9 +150,11 @@ const onSheets = datastore.backend === 'sheets';
     }
   </DetailSection>
 
+  </Card>
+
   {
     failed > 0 && (
-      <p class="mt-4 text-sm text-console-ink-soft">
+      <p class="mt-4 text-[15px] text-console-ink-soft">
         แก้ตามข้อความข้างบน แล้วรีเฟรชหน้านี้ — คอนโซลรายงานอย่างเดียว ไม่แก้ให้เอง
       </p>
     )

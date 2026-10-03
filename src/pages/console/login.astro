@@ -2,6 +2,8 @@
 // src/pages/console/login.astro
 // The one console route the middleware leaves open — see src/lib/auth/guard.ts.
 import ConsoleLayout from '@/layouts/ConsoleLayout.astro';
+import Button from '@/components/console/Button.astro';
+import { INPUT } from '@/lib/console/ui';
 import { safeNextPath } from '@/lib/auth/guard';
 import { readAuthSecrets } from '@/lib/auth/secrets';
 import { verifyPassword } from '@/lib/auth/password';
@@ -44,32 +46,31 @@ if (Astro.request.method === 'POST') {
 ---
 
 <ConsoleLayout title="เข้าสู่ระบบ">
-  <main class="mx-auto flex min-h-[60vh] max-w-sm flex-col justify-center px-4">
-    <h1 class="mb-1 text-xl font-medium text-console-ink">KS Mansion</h1>
-    <p class="mb-6 text-sm text-console-ink-faint">ระบบจัดการภายใน</p>
+  <main class="console-root flex min-h-[100dvh] items-center justify-center px-4 desk:bg-console-ruled">
+    <div class="w-full max-w-sm rounded-xl border border-console-line bg-console-card p-6 shadow-[0_8px_24px_rgba(30,45,74,0.12)]">
+      <p class="text-[13px] font-semibold tracking-[0.12em] text-console-ink-soft">KS MANSION</p>
+      <h1 class="mb-1 font-hand text-[28px] font-semibold leading-[1.4]">สมุดประจำเดือน</h1>
+      <p class="mb-6 text-[15px] text-console-ink-soft">ระบบจัดการภายในของตึก</p>
 
-    <form method="POST" class="flex flex-col gap-3">
-      <input type="hidden" name="next" value={next} />
+      <form method="POST" class="flex flex-col gap-3">
+        <input type="hidden" name="next" value={next} />
 
-      <label class="text-sm text-console-ink-soft" for="password">รหัสผ่าน</label>
-      <input
-        id="password"
-        name="password"
-        type="password"
-        autocomplete="current-password"
-        required
-        autofocus
-        class="rounded border border-console-sunk bg-console-card px-3 py-2 text-console-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
-      />
+        <label class="text-[15px] font-medium text-console-ink-soft" for="password">รหัสผ่าน</label>
+        <input
+          id="password"
+          name="password"
+          type="password"
+          autocomplete="current-password"
+          required
+          autofocus
+          aria-invalid={error ? 'true' : undefined}
+          class:list={[INPUT, error && 'border-console-crit']}
+        />
 
-      {error && <p class="text-sm text-console-crit" role="alert">{error}</p>}
+        {error && <p class="text-[15px] font-medium text-console-crit" role="alert">{error}</p>}
 
-      <button
-        type="submit"
-        class="mt-1 rounded bg-console-ink px-3 py-2 text-sm text-console-card hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
-      >
-        เข้าสู่ระบบ
-      </button>
-    </form>
+        <Button type="submit" size="lg" full class="mt-1">เข้าสู่ระบบ</Button>
+      </form>
+    </div>
   </main>
 </ConsoleLayout>

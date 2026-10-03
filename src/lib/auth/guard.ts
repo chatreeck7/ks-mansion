@@ -21,8 +21,8 @@ export function requiresAuth(pathname: string): boolean {
   return path !== LOGIN_PATH;
 }
 
-/** Where login sends you when there is no usable `?next=`. */
-export const DEFAULT_LANDING = '/console/rooms';
+/** Where login sends you when there is no usable `?next=`: this month's page. */
+export const DEFAULT_LANDING = '/console';
 
 /**
  * Sanitises the post-login redirect target from `?next=`.

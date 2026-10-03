@@ -3,9 +3,14 @@
 import ConsoleFrame from '@/components/console/ConsoleFrame.astro';
 import CollectionSheet from '@/components/console/CollectionSheet.astro';
 import CyclePicker from '@/components/console/CyclePicker.astro';
+import Button from '@/components/console/Button.astro';
+import Card from '@/components/console/Card.astro';
+import Notice from '@/components/console/Notice.astro';
+import PageHeader from '@/components/console/PageHeader.astro';
+import { LINK } from '@/lib/console/ui';
 import { collectionSheetFor } from '@/lib/console/collection-sheet';
 import { consolePath } from '@/lib/console/paths';
-import { formatBaht } from '@/lib/format/thai';
+import { formatBaht, formatThaiDate } from '@/lib/format/thai';
 import { cycleFor, cycleFromId, cycleOptions } from '@/lib/models/billing-cycle';
 import { getBillRepository, getPaymentRepository, getRoomRepository } from '@/lib/repositories';
 
@@ -48,82 +53,88 @@ const unpaid = sheet.rows.filter(
   (row) => row.settlement !== null && row.settlement.paid === 0,
 ).length;
 
+
+/** The phone's view of the same sheet: who still owes, first. */
+const owing = sheet.rows
+  .filter((row) => row.settlement !== null)
+  .map((row) => {
+    const s = row.settlement!;
+    const done = s.outstanding <= 0;
+    const last = s.payments.at(-1)?.paidOn;
+    return {
+      label: row.roomLabel,
+      done,
+      sub: done
+        ? `จ่ายแล้ว${last ? ` ${formatThaiDate(last)}` : ''}`
+        : s.paid > 0
+          ? `จ่ายบางส่วน · ค้าง ${formatBaht(s.outstanding)}`
+          : `ค้าง ${formatBaht(s.outstanding)}`,
+    };
+  })
+  .sort((a, b) => Number(a.done) - Number(b.done));
 ---
 
-<ConsoleFrame title="แบบฟอร์มเก็บเงินค่าห้อง" activeSection="collection">
-  <div class="mb-4 flex flex-wrap items-end justify-between gap-3 print:hidden">
-    <div>
-      <h1 class="mb-1 text-xl font-semibold text-console-ink">ใบเก็บเงิน</h1>
-      <p class="mb-0 text-sm text-console-ink-soft">
-        ช่องว่างคือยังไม่ได้รับเงิน · บันทึกการรับเงินที่หน้า{' '}
-        <a
-          href={consolePath('console/payments')}
-          class="underline underline-offset-2 hover:no-underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
-          >รับเงิน</a
-        >{' '}· เขียนหมายเหตุค้างที่หน้า{' '}
-        <a
-          href={consolePath('console/bills')}
-          class="underline underline-offset-2 hover:no-underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
-          >บิล</a
-        >
-      </p>
-    </div>
-
-    <div class="flex flex-wrap items-end gap-2">
+<ConsoleFrame title="ใบเก็บเงิน" activeSection="collection">
+  <div class="flex flex-col gap-6 desk:flex-row desk:items-start">
+    <div class="flex flex-col gap-3 desk:w-[250px] desk:flex-none print:hidden">
+      <PageHeader eyebrow="ขั้น 5 จาก 6" title="ใบเก็บเงิน">
+        <p slot="subtitle" class="leading-relaxed">
+          ตารางติ๊กรับเงินวันที่ 26 ถึง 10 · หนึ่งแผ่นทั้งตึก · เติมจาก
+          <a href={consolePath('console/payments')} class={LINK}>ขั้น 4 รับเงิน</a> ให้อัตโนมัติ
+        </p>
+      </PageHeader>
       <CyclePicker {options} selected={cycle} />
-      <button
-        type="button"
-        data-print
-        class="rounded-sm border border-console-rule/40 px-3 py-2 text-sm text-console-ink hover:bg-console-sunk focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
-      >
-        พิมพ์ / บันทึกเป็น PDF
-      </button>
+      <Button data-print size="lg" class="hidden desk:inline-flex">พิมพ์ / บันทึก PDF</Button>
+      <p class="hidden text-[15px] leading-relaxed text-console-ink-soft desk:block">
+        พิมพ์ได้ทุกเมื่อ พิมพ์ซ้ำได้ ไม่มีผลกับข้อมูล · หมายเหตุค้างเขียนที่
+        <a href={consolePath('console/bills')} class={LINK}>ขั้น 3</a>
+      </p>
+      <Card tone="spine" padding="sm" class="flex flex-col gap-1 text-[15px]">
+        <div class="flex justify-between"><span class="text-console-ink-soft">รับแล้ว</span><span class="font-figure font-semibold text-console-ok">{formatBaht(sheet.collected)}</span></div>
+        <div class="flex justify-between"><span class="text-console-ink-soft">คงเหลือ</span><span class="font-figure font-semibold">{formatBaht(sheet.outstanding)}</span></div>
+        {unpaid > 0 && <p class="text-console-crit">ยังไม่ได้จ่ายเลย {unpaid} ห้อง</p>}
+      </Card>
     </div>
-  </div>
 
-  {unknownCycle && (
-    <p class="mb-4 rounded-sm bg-console-warn-bg px-3 py-2 text-sm text-console-warn print:hidden">
-      ไม่รู้จักรอบ "{requested}" — แสดงรอบปัจจุบันแทน
-    </p>
-  )}
+    <div class="min-w-0 flex-1">
+      {unknownCycle && (
+        <Notice tone="warn" class="print:hidden">ไม่รู้จักรอบ "{requested}" — แสดงรอบปัจจุบันแทน</Notice>
+      )}
 
-  {/* An unbilled month renders a grid with every ค่าห้องฯ blank, which is
-      the correct sheet and reads exactly like a broken page — the month
-      changed, the table did not, because there was nothing in it either
-      way. Said plainly, with the way to fix it, and hidden from print: a
-      blank form is still worth carrying round and filling in by hand. */}
-  {billedRows === 0 && (
-    <p class="mb-3 rounded-sm bg-console-warn-bg px-3 py-2 text-sm text-console-warn print:hidden">
-      ยังไม่ได้ออกบิลรอบนี้ — ช่อง ค่าห้องฯ จึงว่างทั้งแผ่น ออกบิลที่หน้า{' '}
-      <a
-        href={consolePath('console/bills')}
-        class="underline underline-offset-2 hover:no-underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
-        >บิล</a
-      >{' '}แล้วกลับมาดูอีกครั้ง
-    </p>
-  )}
+      {/* An unbilled month renders a grid with every ค่าห้องฯ blank, which is
+          the correct sheet and reads exactly like a broken page. Said plainly,
+          with the way to fix it, and hidden from print: a blank form is still
+          worth carrying round and filling in by hand. */}
+      {billedRows === 0 && (
+        <Notice tone="warn" class="print:hidden">
+          ยังไม่ได้ออกบิลรอบนี้ — ช่อง ค่าห้องฯ จึงว่างทั้งแผ่น ออกบิลที่หน้า{' '}
+          <a href={consolePath('console/bills')} class={LINK}>ออกบิล</a> แล้วกลับมาดูอีกครั้ง
+        </Notice>
+      )}
 
-  <CollectionSheet {sheet} />
+      {/* Phone: printing is left to the computer; here it is who hasn't paid. */}
+      <div class="desk:hidden print:hidden">
+        <p class="mb-3 rounded-[10px] bg-console-spine px-3 py-2.5 text-base leading-relaxed">
+          ใบนี้ไว้พิมพ์จากคอมพิวเตอร์ บนมือถือดูได้ว่าใครยังไม่จ่าย
+        </p>
+        <ul class="m-0 list-none border-t-2 border-console-ink p-0">
+          {owing.map((row) => (
+            <li class="flex min-h-12 items-center gap-2.5 border-b border-console-rule">
+              <span class:list={['w-7 font-hand text-2xl font-semibold', row.done ? 'text-console-ok' : 'text-console-ink']} aria-label={row.done ? 'จ่ายแล้ว' : 'ยังค้าง'}>
+                {row.done ? '✓' : '○'}
+              </span>
+              <span class="w-14 font-hand text-lg font-semibold">{row.label}</span>
+              <span class="flex-1 text-base text-console-ink-soft">{row.sub}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
 
-  <div class="mt-4 flex flex-wrap gap-x-8 gap-y-2 text-sm print:hidden">
-    <p class="mb-0 text-console-ink-soft">
-      รับแล้ว{' '}
-      <span class="font-figure font-semibold tabular-nums text-console-ok">
-        {formatBaht(sheet.collected)}
-      </span>{' '}บาท
-    </p>
-    <p class="mb-0 text-console-ink-soft">
-      คงเหลือ{' '}
-      <span
-        class:list={[
-          'font-figure font-semibold tabular-nums',
-          sheet.outstanding > 0 ? 'text-console-warn' : 'text-console-ink',
-        ]}
-      >
-        {formatBaht(sheet.outstanding)}
-      </span>{' '}บาท
-    </p>
-    {unpaid > 0 && <p class="mb-0 text-console-warn">ยังไม่ได้จ่ายเลย {unpaid} ห้อง</p>}
+      {/* Desk: the A4 sheet itself, as it prints. */}
+      <div class="hidden bg-white px-6 py-5 shadow-[0_2px_10px_rgba(30,45,74,0.15)] desk:block print:block print:p-0 print:shadow-none">
+        <CollectionSheet {sheet} />
+      </div>
+    </div>
   </div>
 </ConsoleFrame>
 

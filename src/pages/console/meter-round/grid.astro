@@ -1,7 +1,10 @@
 ---
 // src/pages/console/meter-round/grid.astro
 import ConsoleFrame from '@/components/console/ConsoleFrame.astro';
+import Button from '@/components/console/Button.astro';
 import ErrorSummary from '@/components/console/ErrorSummary.astro';
+import Notice from '@/components/console/Notice.astro';
+import PageHeader from '@/components/console/PageHeader.astro';
 import LedgerTable from '@/components/console/LedgerTable.astro';
 import { draftsFromForm, METER_GRID_COLUMNS, toMeterGridGroups } from '@/lib/console/meter-grid';
 import { startRound } from '@/lib/console/meter-round';
@@ -98,45 +101,40 @@ const groups = toMeterGridGroups(
 );
 ---
 
-<ConsoleFrame title="จดมิเตอร์ (ตาราง)" activeSection="meter-round">
-  <div class="mb-4 flex flex-wrap items-baseline justify-between gap-2">
-    <div>
-      <h1 class="mb-1 text-xl font-semibold text-console-ink">จดมิเตอร์แบบตาราง</h1>
-      <p class="mb-0 text-sm text-console-ink-soft">
-        กรอกเฉพาะแถวที่ต้องการ แถวที่เว้นว่างจะไม่ถูกบันทึก — การแก้ไขจะบันทึกเป็นรายการใหม่
-        ไม่ทับของเดิม · ช่อง <strong>รอบนี้</strong> บอกว่าจดไปแล้วหรือยัง เลขที่บันทึกแล้วจะ
-        ย้ายไปอยู่ช่อง ครั้งก่อน
-      </p>
-    </div>
+<ConsoleFrame title="จดมิเตอร์" activeSection="meter-round">
+  <PageHeader
+    eyebrow="ขั้น 1 จาก 6"
+    title="จดมิเตอร์ไฟ"
+    subtitle="จดวันที่ 25–26 · กรอกเฉพาะแถวที่ต้องการ แถวที่เว้นว่างไว้ยังไม่ถูกนับ"
+  >
     <a
+      slot="actions"
       href={consolePath('console/meter-round')}
-      class="rounded-sm border border-console-rule/40 px-3 py-2 text-sm text-console-ink hover:bg-console-sunk focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
-      >เดินจดด้วยมือถือ →</a
+      class="flex items-center gap-3 rounded-[10px] border-[1.5px] border-console-ink bg-console-card px-3.5 py-2.5 text-console-ink no-underline hover:bg-console-highlight/30"
     >
-  </div>
+      <span class="flex h-11 w-11 flex-none items-center justify-center rounded-md bg-console-hatch font-hand text-xl font-semibold" aria-hidden="true">✎</span>
+      <span class="text-[15px] font-medium leading-snug">
+        เดินจดด้วยมือถือ →<br /><span class="text-console-ink-soft">แป้นตัวเลข ทีละห้อง</span>
+      </span>
+    </a>
+  </PageHeader>
 
   {saved > 0 && errors.length === 0 && (
-    <p class="mb-4 rounded-sm bg-console-ok-bg px-3 py-2 text-console-ok">
-      บันทึกแล้ว {saved} รายการ
-    </p>
+    <Notice tone="ok" role="status">บันทึกแล้ว {saved} รายการ</Notice>
   )}
   {saved > 0 && errors.length > 0 && (
-    <p class="mb-4 rounded-sm bg-console-warn-bg px-3 py-2 text-console-warn">
-      บันทึกแล้ว {saved} รายการ ส่วนที่เหลือยังไม่ผ่าน — ดูด้านล่าง
-    </p>
+    <Notice tone="warn" role="status">บันทึกแล้ว {saved} รายการ ส่วนที่เหลือยังไม่ผ่าน — ดูด้านล่าง</Notice>
   )}
   <ErrorSummary message={errors.length > 0 ? errors.join('\n') : null} />
 
   <form method="POST">
     <LedgerTable columns={METER_GRID_COLUMNS} groups={groups} />
 
-    <div class="mt-4">
-      <button
-        type="submit"
-        class="rounded-sm bg-console-ink px-4 py-2 font-semibold text-console-paper focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-console-rule"
-      >
-        บันทึก
-      </button>
+    <div class="mt-4 flex flex-col gap-3 desk:flex-row desk:items-center desk:justify-between">
+      <p class="text-[15px] text-console-ink-soft">
+        การแก้ไขบันทึกเป็นรายการใหม่ ไม่ทับของเดิม · เลขที่บันทึกแล้วจะย้ายไปอยู่ช่อง ครั้งก่อน
+      </p>
+      <Button type="submit" size="lg">บันทึกเลขมิเตอร์</Button>
     </div>
   </form>
 </ConsoleFrame>

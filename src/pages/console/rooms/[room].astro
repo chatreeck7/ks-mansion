@@ -1,16 +1,45 @@
 ---
 // src/pages/console/rooms/[room].astro
 import ConsoleFrame from '@/components/console/ConsoleFrame.astro';
-import DetailSheet from '@/components/console/DetailSheet.astro';
-import DetailSection from '@/components/console/DetailSection.astro';
+import Button from '@/components/console/Button.astro';
+import Card from '@/components/console/Card.astro';
+import FactList, { type Fact } from '@/components/console/FactList.astro';
 import LeaseSection from '@/components/console/LeaseSection.astro';
-import { formatFigure } from '@/lib/format/thai';
-import { isUnit, statusLabel } from '@/lib/models/room';
-import { displayName } from '@/lib/models/tenant';
+import Mark from '@/components/console/Mark.astro';
+import PageHeader from '@/components/console/PageHeader.astro';
+import { shortCycleLabel } from '@/lib/console/logbook';
+import type { MarkKind } from '@/lib/console/marks';
 import { consolePath } from '@/lib/console/paths';
-import { getLeaseRepository, getRoomRepository, getTenantRepository } from '@/lib/repositories';
+import { formatBaht, formatReading, formatThaiDate, formatThaiMonth } from '@/lib/format/thai';
+import { cycleFor, cycleFromId, isReadingDay } from '@/lib/models/billing-cycle';
+import { activeLeaseFor, waterChargeFor } from '@/lib/models/lease';
+import { settle } from '@/lib/models/payment';
+import { isTenanted, isUnit, statusLabel } from '@/lib/models/room';
+import { displayName } from '@/lib/models/tenant';
+import {
+  getBillRepository,
+  getLeaseRepository,
+  getMeterReadingRepository,
+  getPaymentRepository,
+  getRoomRepository,
+  getTenantRepository,
+} from '@/lib/repositories';
+
+/**
+ * หน้าห้อง — everything about one room on one page.
+ *
+ * This month's four marks first (ไฟ · น้ำ · บิล · เงินเข้า), because that is
+ * what someone opens a room for during the month; then the tenancy and the
+ * room's own facts side by side, then a line of past bills.
+ *
+ * Still no tabs, as the shell spec decided: this is a page for comparing the
+ * lease against the meter against what is owed, and tabs would hide exactly
+ * the thing being cross-checked.
+ */
 
 const env = Astro.locals.runtime?.env;
+const today = new Date();
+const cycle = cycleFor(today);
 
 // Resolved per request rather than at build time: room data comes from
 // Sheets, where an admin's edit must show up without a redeploy.
@@ -20,74 +49,196 @@ if (!room) {
   return new Response(null, { status: 404, statusText: 'Not Found' });
 }
 
-const leases = await getLeaseRepository(env).listLeasesForRoom(room.id);
-
-// Resolve tenant names once for the leases actually shown, rather than
-// per-lease inside the template — that would be a Sheets read each.
-const tenants = leases.length > 0 ? await getTenantRepository(env).listTenants() : [];
+const [leases, tenants, readings, bills, payments] = await Promise.all([
+  getLeaseRepository(env).listLeasesForRoom(room.id),
+  getTenantRepository(env).listTenants(),
+  getMeterReadingRepository(env).listReadings(),
+  getBillRepository(env).listBills(),
+  getPaymentRepository(env).listPayments(),
+]);
+const tenantById = new Map(tenants.map((t) => [t.id, t]));
 const tenantNameById = new Map(tenants.map((t) => [t.id, displayName(t)]));
 
-const location = isUnit(room) ? `ชั้น ${room.floor}` : 'พื้นที่ส่วนกลาง';
-const rentClause = room.rentRate !== null ? ` · ค่าเช่า ${formatFigure(room.rentRate)} ต่อเดือน` : '';
-const meta = `${location}${rentClause}`;
+const lease = activeLeaseFor(leases, today);
+const tenant = lease ? tenantById.get(lease.tenantId) : undefined;
+const roomBills = bills
+  .filter((b) => b.roomId === room.id && !b.archived)
+  .sort((a, b) => b.cycle.localeCompare(a.cycle));
+const thisBill = roomBills.find((b) => b.cycle === cycle.id) ?? null;
+const thisSettlement = thisBill ? settle(thisBill, payments) : null;
+const reading = readings
+  .filter(
+    (r) => !r.archived && r.roomId === room.id && r.meterType === 'electricity' && isReadingDay(cycle, r.readDate),
+  )
+  .sort((a, b) => b.readDate.getTime() - a.readDate.getTime())[0];
 
-// Named individually rather than as a joined list, so "no TV on record"
-// stays distinguishable from a shorter list of what the room does have.
-// Three states, not two: an em dash means nobody has surveyed it, which is
-// a different claim from 'ไม่มี'.
-const APPLIANCES = [
-  { label: 'แอร์', present: room.appliances.aircon },
-  { label: 'ทีวี', present: room.appliances.tv },
-  { label: 'ตู้เย็น', present: room.appliances.fridge },
-].map(({ label, present }) => ({
-  label,
-  value: present === null ? '—' : present ? 'มี' : 'ไม่มี',
-}));
+const floorText = isUnit(room) ? `ชั้น ${room.floor}` : 'พื้นที่ส่วนกลาง';
+const rent = lease?.rentRate ?? room.rentRate;
+const meta = [floorText, statusLabel(room.status), rent !== null ? `${formatBaht(rent)} บาท/เดือน` : null]
+  .filter(Boolean)
+  .join(' · ');
+
+interface MonthLine {
+  label: string;
+  mark: MarkKind;
+  detail: string;
+  short: string;
+}
+
+const units = reading ? reading.currentReading - reading.previousReading : null;
+const month: MonthLine[] = [
+  !room.hasMeter
+    ? { label: 'มิเตอร์ไฟ', mark: 'none', detail: 'ห้องนี้ไม่มีมิเตอร์ไฟ', short: 'ไม่มี' }
+    : reading
+      ? {
+          label: 'มิเตอร์ไฟ',
+          mark: 'done',
+          detail: `${formatReading(reading.previousReading)} → ${formatReading(reading.currentReading)} · ${formatReading(units!)} หน่วย`,
+          short: `${formatReading(units!)} หน่วย · ${formatBaht(units! * reading.ratePerUnit)}`,
+        }
+      : { label: 'มิเตอร์ไฟ', mark: 'todo', detail: 'ยังไม่ได้จดรอบนี้', short: 'ยังไม่จด' },
+  lease
+    ? {
+        label: 'ค่าน้ำ',
+        mark: 'done',
+        detail: `${lease.occupantCount} คน · ${formatBaht(waterChargeFor(lease))} บาท`,
+        short: `${lease.occupantCount} คน · ${formatBaht(waterChargeFor(lease))}`,
+      }
+    : isTenanted(room)
+      ? { label: 'ค่าน้ำ', mark: 'missing', detail: 'ไม่รู้จำนวนคน — ยังไม่มีสัญญา', short: 'ไม่มีสัญญา' }
+      : { label: 'ค่าน้ำ', mark: 'none', detail: 'ไม่มีผู้พัก', short: '—' },
+  thisSettlement
+    ? {
+        label: 'บิล',
+        mark: 'done',
+        detail: `ออก ${formatThaiDate(thisBill!.issueDate)} · ${formatBaht(thisSettlement.due)} บาท`,
+        short: formatBaht(thisSettlement.due),
+      }
+    : isTenanted(room)
+      ? lease
+        ? { label: 'บิล', mark: 'todo', detail: 'ยังไม่ได้ออกบิลรอบนี้', short: 'ยังไม่ออก' }
+        : { label: 'บิล', mark: 'missing', detail: 'ออกไม่ได้ — ยังไม่มีสัญญา', short: 'ออกไม่ได้' }
+      : { label: 'บิล', mark: 'none', detail: 'ไม่ต้องออกบิล', short: '—' },
+  !thisSettlement
+    ? { label: 'เงินเข้า', mark: 'none', detail: 'ยังไม่มีบิลให้รับเงิน', short: '—' }
+    : thisSettlement.state === 'paid' || thisSettlement.state === 'overpaid'
+      ? { label: 'เงินเข้า', mark: 'done', detail: `รับครบ ${formatBaht(thisSettlement.paid)} บาท`, short: 'รับครบ' }
+      : thisSettlement.state === 'partial'
+        ? {
+            label: 'เงินเข้า',
+            mark: 'partial',
+            detail: `รับแล้ว ${formatBaht(thisSettlement.paid)} · ค้าง ${formatBaht(thisSettlement.outstanding)}`,
+            short: `ค้าง ${formatBaht(thisSettlement.outstanding)}`,
+          }
+        : {
+            label: 'เงินเข้า',
+            mark: 'todo',
+            detail: `ยังไม่รับ · ครบกำหนด ${formatThaiDate(cycle.dueDate)}`,
+            short: 'ยังไม่รับ',
+          },
+];
+
+// Three states, not two: '?' means nobody has surveyed it, which is a
+// different claim from 'ไม่มี' — and only the first one is a job.
+function appliance(label: string, present: boolean | null): Fact {
+  if (present === null) return { label, value: '? ยังไม่ได้สำรวจ', tone: 'missing' };
+  return present ? { label, value: 'มี' } : { label, value: '— ไม่มี', tone: 'none' };
+}
+const facts: Fact[] = [
+  { label: 'ประเภท', value: isUnit(room) ? 'ห้องให้เช่า' : 'พื้นที่ส่วนกลาง' },
+  { label: 'ค่าเช่าตั้งต้น', value: room.rentRate === null ? '—' : `${formatBaht(room.rentRate)} บาท`, tone: 'figure' },
+  { label: 'มิเตอร์ไฟ', value: room.hasMeter ? 'มี' : '— ไม่มี', tone: room.hasMeter ? 'default' : 'none' },
+  appliance('แอร์', room.appliances.aircon),
+  appliance('ทีวี', room.appliances.tv),
+  appliance('ตู้เย็น', room.appliances.fridge),
+];
+
+const history = roomBills.filter((b) => b.cycle !== cycle.id).slice(0, 3).map((b) => {
+  const s = settle(b, payments);
+  const c = cycleFromId(b.cycle);
+  return {
+    href: consolePath(`console/bills/${b.id}`),
+    month: c ? formatThaiMonth(c.utilityMonth) : b.cycle,
+    amount: formatBaht(s.due),
+    paid: s.state === 'paid' || s.state === 'overpaid',
+  };
+});
+
+const payable = thisSettlement && thisSettlement.outstanding > 0;
 ---
 
 <ConsoleFrame title={`ห้อง ${room.label}`} activeSection="rooms">
-  <DetailSheet title={room.label} meta={meta}>
-    <DetailSection heading="ข้อมูลห้อง">
-      <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
-        <dt class="text-console-ink-faint">ประเภท</dt>
-        <dd>{isUnit(room) ? 'ห้องให้เช่า' : 'พื้นที่ส่วนกลาง'}</dd>
-        <dt class="text-console-ink-faint">สถานะ</dt>
-        <dd>{statusLabel(room.status)}</dd>
-        <dt class="text-console-ink-faint">มิเตอร์ไฟ</dt>
-        <dd>{room.hasMeter ? 'มี' : 'ไม่มี'}</dd>
+  <PageHeader
+    title={`ห้อง ${room.label}`}
+    subtitle={tenant ? `${tenant.nickname || tenant.fullName} · ${meta}` : meta}
+    back={{ href: consolePath('console/rooms'), label: `ตึกและห้อง / ${floorText}` }}
+  >
+    <Fragment slot="actions">
+      <Button href={consolePath(`console/rooms/${room.id}/edit`)} variant="secondary">แก้ไขข้อมูลห้อง</Button>
+      {payable && (
+        <Button href={consolePath('console/payments')}>บันทึกเงินเข้า {formatBaht(thisSettlement!.outstanding)}</Button>
+      )}
+      {!lease && isTenanted(room) && (
+        <Button href={consolePath(`console/leases/new?room=${encodeURIComponent(room.id)}`)} variant="danger">
+          ใส่สัญญา
+        </Button>
+      )}
+    </Fragment>
+  </PageHeader>
+
+  <div class="flex flex-col gap-4">
+    <Card>
+      <h2 class="mb-1 font-hand text-[17px] font-semibold">
+        เดือนนี้ <span class="hidden desk:inline">({shortCycleLabel(cycle)})</span>
+      </h2>
+      <ul class="m-0 grid list-none p-0 desk:grid-cols-4">
         {
-          APPLIANCES.map((appliance) => (
-            <>
-              <dt class="text-console-ink-faint">{appliance.label}</dt>
-              <dd>{appliance.value}</dd>
-            </>
+          month.map((line) => (
+            <li class="flex min-h-[46px] items-center gap-2.5 border-t border-console-mute-bg py-1.5 desk:items-start desk:border-r desk:border-t-0 desk:pr-3.5 desk:last:border-r-0 desk:[&:not(:first-child)]:pl-3.5">
+              <Mark kind={line.mark} size="lg" class="w-7 flex-none text-center" />
+              <div class="flex flex-1 justify-between gap-2 desk:flex-col desk:justify-start desk:gap-0 desk:leading-snug">
+                <span class="text-base font-semibold">{line.label}</span>
+                <span class="text-right text-base text-console-ink-soft desk:hidden">{line.short}</span>
+                <span class="hidden text-[15px] text-console-ink-soft desk:inline">{line.detail}</span>
+              </div>
+            </li>
           ))
         }
-      </dl>
-    </DetailSection>
+      </ul>
+    </Card>
 
-    <LeaseSection
-      leases={leases}
-      addHref={consolePath(`console/leases/new?room=${room.id}`)}
-      counterpartLabel="ผู้เช่า"
-      counterpartFor={(lease) => tenantNameById.get(lease.tenantId) ?? lease.tenantId}
-      emptyMessage="ยังไม่มีสัญญาเช่าสำหรับห้องนี้"
-    />
-  </DetailSheet>
+    <div class="grid gap-4 desk:grid-cols-2">
+      <Card padding="sm" class="overflow-hidden p-0 desk:p-0 [&>section]:border-0">
+        <LeaseSection
+          leases={leases}
+          addHref={consolePath(`console/leases/new?room=${room.id}`)}
+          counterpartLabel="ผู้เช่า"
+          counterpartFor={(l) => tenantNameById.get(l.tenantId) ?? l.tenantId}
+          emptyMessage="ยังไม่มีสัญญาเช่าสำหรับห้องนี้"
+        />
+      </Card>
+      <Card>
+        <h2 class="mb-1 font-hand text-[17px] font-semibold">ข้อมูลห้อง</h2>
+        <FactList facts={facts} />
+        <p class="mt-2 text-sm text-console-ink-soft">
+          <b class="font-hand text-console-crit">?</b> ยังไม่ได้สำรวจ · <b class="font-hand">—</b> ไม่มีจริง
+        </p>
+      </Card>
+    </div>
 
-  <p class="mt-4 mb-2 leading-none">
-    <a
-      href={consolePath(`console/rooms/${room.id}/edit`)}
-      class="text-sm text-console-ink underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
-      >แก้ไขข้อมูลห้อง</a
-    >
-  </p>
-
-  <p class="mt-0 mb-0 leading-none text-console-ink-soft">
-    <a
-      href={consolePath('console/rooms')}
-      class="text-sm underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
-      >← กลับไปรายการห้อง</a
-    >
-  </p>
+    {
+      history.length > 0 && (
+        <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-[15px] text-console-ink-soft">
+          <span class="font-hand text-base font-semibold text-console-ink">บิลย้อนหลัง</span>
+          {history.map((h, i) => (
+            <a href={h.href} class="text-console-ink-soft no-underline hover:text-console-ink">
+              {i > 0 && '· '}
+              {h.month} <span class="font-figure">{h.amount}</span>{' '}
+              {h.paid ? <span class="font-hand text-console-ok">✓</span> : <span class="font-hand">○</span>}
+            </a>
+          ))}
+        </div>
+      )
+    }
+  </div>
 </ConsoleFrame>

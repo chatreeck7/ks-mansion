@@ -3,6 +3,7 @@
 // KS-17 (rent rate) and KS-62 (แจ้งออก) — both were only ever missing a way to
 // set what the model already holds.
 import ConsoleFrame from '@/components/console/ConsoleFrame.astro';
+import { INPUT } from '@/lib/console/ui';
 import DetailSheet from '@/components/console/DetailSheet.astro';
 import DetailSection from '@/components/console/DetailSection.astro';
 import ErrorSummary from '@/components/console/ErrorSummary.astro';
@@ -54,12 +55,11 @@ const APPLIANCE_CHOICES = [
   { value: 'false', label: 'ไม่มี' },
 ];
 
-const CONTROL_CLASS =
-  'rounded border border-console-sunk bg-console-card px-3 py-2 text-console-ink ' +
-  'focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule';
+const CONTROL_CLASS = INPUT;
 ---
 
-<ConsoleFrame title={`แก้ไขห้อง ${room.label}`} activeSection="rooms">
+<ConsoleFrame title={`แก้ไขห้อง ${room.label}`} activeSection="rooms" width="reading">
+  <a href={detailHref} class="inline-flex min-h-11 items-center text-base font-medium text-console-ink-soft no-underline hover:text-console-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-console-ink mb-3">← กลับไปข้อมูลห้อง</a>
   <DetailSheet title={room.label} meta="แก้ไขข้อมูลห้อง">
     <DetailSection heading="ข้อมูลห้อง">
       <ErrorSummary message={error} />
@@ -105,7 +105,7 @@ const CONTROL_CLASS =
         </FormField>
 
         <div class="sm:col-span-2">
-          <h3 class="mb-2 font-figure text-xs font-semibold text-console-rule">
+          <h3 class="mb-2 font-hand text-[17px] font-semibold text-console-ink">
             เครื่องใช้ไฟฟ้า
           </h3>
           <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -131,19 +131,11 @@ const CONTROL_CLASS =
         <FormActions submitLabel="บันทึก" cancelHref={detailHref} />
       </form>
 
-      <p class="mt-3 text-xs text-console-ink-faint">
+      <p class="mt-3 text-sm text-console-ink-soft">
         <strong>แจ้งออก</strong> หมายถึงผู้เช่าบอกเลิกแล้วแต่ยังไม่ย้ายออก —
         เดือนนั้นจะคิดเฉพาะค่าน้ำค่าไฟ ไม่คิดค่าเช่า
         เมื่อมีผู้เช่าใหม่ให้เปลี่ยนกลับเป็น <strong>มีผู้เช่า</strong>
       </p>
     </DetailSection>
   </DetailSheet>
-
-  <p class="mt-4 mb-0 leading-none text-console-ink-soft">
-    <a
-      href={detailHref}
-      class="text-sm underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
-      >← กลับไปข้อมูลห้อง</a
-    >
-  </p>
 </ConsoleFrame>

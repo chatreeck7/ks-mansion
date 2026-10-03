@@ -49,18 +49,18 @@ const payee = payeeFrom(env);
 ---
 
 <ConsoleLayout title={`ใบแจ้งค่าห้องพัก ${doc.reference}`}>
-  <main class="mx-auto max-w-2xl px-4 py-6 print:max-w-none print:px-0 print:py-0">
+  <main class="console-root mx-auto max-w-2xl px-4 py-6 print:max-w-none print:px-0 print:py-0">
     <div class="mb-4 flex flex-wrap items-center justify-between gap-3 print:hidden">
       <a
         href={consolePath('console/bills')}
-        class="text-sm text-console-ink-soft underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
+        class="inline-flex min-h-11 items-center text-base font-medium text-console-ink-soft no-underline hover:text-console-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-console-ink"
       >
         ← กลับไปหน้าบิล
       </a>
       <button
         type="button"
         data-print
-        class="rounded-sm border border-console-rule/40 px-3 py-1.5 text-sm text-console-ink hover:bg-console-sunk focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
+        class="inline-flex min-h-11 items-center rounded-[10px] border-[1.5px] border-console-ink px-4 text-[15px] font-semibold text-console-ink no-underline hover:bg-console-ink/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-console-ink"
       >
         พิมพ์ / บันทึกเป็น PDF
       </button>
