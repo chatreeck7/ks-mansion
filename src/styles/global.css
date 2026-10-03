@@ -30,6 +30,27 @@
   p {
     @apply mb-4 text-text-light leading-relaxed;
   }
+
+  /*
+   * The console's own type reset. The rules above are the marketing site's
+   * (light, wide-tracked display headings, grey paragraphs with a bottom
+   * margin) and every console screen used to undo them one class at a time.
+   * `:where()` keeps this at element specificity, so a utility on the element
+   * still wins — it only replaces the marketing defaults, never a choice.
+   */
+  :where(.console-root) :is(h1, h2, h3, h4, h5, h6) {
+    font-size: inherit;
+    font-weight: 600;
+    letter-spacing: normal;
+    line-height: 1.25;
+    margin: 0;
+  }
+
+  :where(.console-root) p {
+    margin: 0;
+    color: inherit;
+    line-height: 1.5;
+  }
 }
 
 @layer components {

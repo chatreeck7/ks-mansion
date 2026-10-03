@@ -1,0 +1,32 @@
+---
+// src/components/console/Legend.astro
+import { MARKS, type MarkKind } from '@/lib/console/marks';
+
+/** The key to the marks on a screen, written under whatever uses them. */
+
+interface Props {
+  items: { mark: MarkKind; label: string; count?: number }[];
+  class?: string;
+}
+
+const { items, class: extra } = Astro.props;
+---
+
+<ul
+  class:list={[
+    'm-0 grid list-none grid-cols-2 gap-x-4 gap-y-1 p-0 text-[15px] text-console-ink sm:flex sm:flex-wrap sm:gap-x-5',
+    extra,
+  ]}
+>
+  {
+    items.map((item) => (
+      <li class:list={[item.mark === 'missing' && 'text-console-crit', item.mark === 'none' && 'text-console-ink-soft']}>
+        <b class:list={['font-hand', MARKS[item.mark].text]} aria-hidden="true">
+          {MARKS[item.mark].glyph}
+        </b>{' '}
+        {item.label}
+        {item.count !== undefined && ` ${item.count}`}
+      </li>
+    ))
+  }
+</ul>

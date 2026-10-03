@@ -1,0 +1,46 @@
+---
+// src/components/console/FactList.astro
+
+/**
+ * Label–value pairs on dotted rules, like a filled-in form.
+ *
+ * `missing` draws the value as a dashed "?" chip — the fact has not been
+ * recorded. `none` is a fact that was recorded as absent ("— ไม่มี"). The two
+ * must not look alike: "nobody checked" and "there isn't one" are different
+ * answers, and only one of them is a job.
+ */
+
+export interface Fact {
+  label: string;
+  value: string;
+  tone?: 'default' | 'missing' | 'none' | 'figure';
+}
+
+interface Props {
+  facts: Fact[];
+  class?: string;
+}
+
+const { facts, class: extra } = Astro.props;
+---
+
+<dl class:list={['m-0 flex flex-col', extra]}>
+  {
+    facts.map((fact) => (
+      <div class="flex min-h-9 items-center justify-between gap-4 border-b border-dotted border-console-line-strong py-1 last:border-b-0">
+        <dt class="text-[15px] text-console-ink-soft">{fact.label}</dt>
+        <dd
+          class:list={[
+            'm-0 text-right text-[15px]',
+            fact.tone === 'missing' &&
+              'rounded border-[1.5px] border-dashed border-console-crit px-1.5 text-console-crit',
+            fact.tone === 'none' && 'text-console-ink-soft',
+            fact.tone === 'figure' && 'font-figure tabular-nums',
+          ]}
+        >
+          {fact.value}
+        </dd>
+      </div>
+    ))
+  }
+</dl>

@@ -1,0 +1,57 @@
+---
+// src/components/console/ProblemCard.astro
+import Card from './Card.astro';
+import Chip from './Chip.astro';
+import Button from './Button.astro';
+
+/**
+ * Everything blocked for the same reason, in one card, with one fix.
+ *
+ * The design's rule: problems are grouped, never one row each. Eight rooms
+ * without a lease is one problem with eight rooms in it, not eight problems —
+ * and the fix ("ใส่สัญญาทีละห้อง") is one button, not eight.
+ */
+
+interface Props {
+  title: string;
+  /** Small red label above the title, e.g. "ต้องตามเรื่อง". */
+  eyebrow?: string;
+  /** The rooms (or whatever) affected. Each may link to its own fix. */
+  items?: { label: string; href?: string }[];
+  action?: { label: string; href: string };
+  /** `row` puts the action beside the text on a desk. */
+  layout?: 'stack' | 'row';
+  class?: string;
+}
+
+const { title, eyebrow, items = [], action, layout = 'stack', class: extra } = Astro.props;
+---
+
+<Card tone="problem" class={extra}>
+  <div
+    class:list={[
+      'flex flex-col gap-3',
+      layout === 'row' && 'desk:flex-row desk:items-center desk:gap-5',
+    ]}
+  >
+    <div class="flex min-w-0 flex-1 flex-col gap-2">
+      {eyebrow && <p class="text-[13px] font-semibold tracking-[0.06em] text-console-crit">{eyebrow}</p>}
+      <p class="text-base font-semibold leading-snug text-console-ink desk:text-[17px]">{title}</p>
+      <slot />
+      {items.length > 0 && (
+        <ul class="m-0 flex list-none flex-wrap gap-1.5 p-0">
+          {items.map((item) => (
+            <li>
+              <Chip tone="missing" href={item.href}>{item.label}</Chip>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+    {action && (
+      <Button variant="danger" size="lg" href={action.href} class="self-stretch desk:self-auto">
+        {action.label}
+      </Button>
+    )}
+  </div>
+</Card>

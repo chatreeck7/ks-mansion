@@ -1,5 +1,6 @@
 ---
 // src/components/console/FormField.astro
+import { INPUT, INPUT_ERROR } from '@/lib/console/ui';
 interface Props {
   name: string;
   label: string;
@@ -49,7 +50,7 @@ const hasControl = Astro.slots.has('default');
 ---
 
 <div class:list={['flex flex-col gap-1', span === 'half' ? 'sm:col-span-1' : 'sm:col-span-2']}>
-  <label class="text-sm text-console-ink-soft" for={name}>
+  <label class="text-[15px] font-medium text-console-ink-soft" for={name}>
     {label}
     {required && <span class="text-console-crit" aria-hidden="true">*</span>}
   </label>
@@ -72,15 +73,11 @@ const hasControl = Astro.slots.has('default');
         maxlength={maxlength}
         aria-describedby={describedBy}
         aria-invalid={error ? 'true' : undefined}
-        class:list={[
-          'rounded border bg-console-card px-3 py-2 text-console-ink',
-          'focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule',
-          error ? 'border-console-crit' : 'border-console-sunk',
-        ]}
+        class:list={[INPUT, error && INPUT_ERROR]}
       />
     )
   }
 
-  {hint && <p id={hintId} class="text-xs text-console-ink-faint">{hint}</p>}
-  {error && <p id={errorId} class="text-xs text-console-crit">{error}</p>}
+  {hint && <p id={hintId} class="text-sm text-console-ink-faint">{hint}</p>}
+  {error && <p id={errorId} class="text-sm font-medium text-console-crit">{error}</p>}
 </div>

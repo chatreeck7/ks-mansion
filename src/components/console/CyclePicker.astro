@@ -2,6 +2,7 @@
 // src/components/console/CyclePicker.astro
 import { cycleLabel, type BillingCycle } from '@/lib/models/billing-cycle';
 import { formatThaiMonth } from '@/lib/format/thai';
+import { buttonClass, INPUT } from '@/lib/console/ui';
 
 /**
  * Pick which billing cycle a screen is showing.
@@ -33,11 +34,11 @@ const { options, selected } = Astro.props;
 ---
 
 <form method="GET" class="flex flex-wrap items-end gap-2" data-cycle-picker>
-  <label class="flex flex-col gap-1 text-sm text-console-ink-soft">
+  <label class="flex flex-col gap-1 text-[15px] font-medium text-console-ink-soft">
     เลือกเดือน
     <select
       name="cycle"
-      class="rounded-sm border border-console-rule/40 bg-console-paper px-2 py-1.5 text-console-ink focus:border-console-rule focus:outline-none"
+      class={INPUT}
     >
       {options.map((option) => (
         <option value={option.id} selected={option.id === selected.id}>
@@ -52,7 +53,7 @@ const { options, selected } = Astro.props;
   <noscript>
     <button
       type="submit"
-      class="rounded-sm border border-console-rule/40 px-3 py-2 text-sm text-console-ink hover:bg-console-sunk focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
+      class={buttonClass('secondary')}
     >
       ดู
     </button>

@@ -1,0 +1,39 @@
+---
+// src/components/console/Card.astro
+
+/**
+ * A card laid on the page.
+ *
+ * - `plain` — white, thin border. Information.
+ * - `problem` — dashed red on a pale ground. Something must be filled in.
+ *   Dashed so it still reads as "missing" in greyscale and on a photocopy.
+ * - `spine` — the sidebar's tone. Quiet asides: "already done", hints.
+ * - `ink` — the dark "ทำต่อ" card. One per screen at most.
+ */
+
+import type { HTMLAttributes } from 'astro/types';
+
+type Props = Omit<HTMLAttributes<'div'>, 'class'> & {
+  tone?: 'plain' | 'problem' | 'spine' | 'ink';
+  as?: 'div' | 'section' | 'aside' | 'article' | 'li';
+  padding?: 'sm' | 'md';
+  class?: string;
+};
+
+const { tone = 'plain', as: Tag = 'div', padding = 'md', class: extra, ...rest } = Astro.props as Props;
+const t: NonNullable<Props['tone']> = tone;
+const pad: NonNullable<Props['padding']> = padding;
+
+const TONE = {
+  plain: 'border border-console-line bg-console-card',
+  problem: 'border-[1.5px] border-dashed border-console-crit bg-console-crit-bg',
+  spine: 'bg-console-spine',
+  ink: 'bg-console-ink text-white',
+} as const;
+
+const PAD = { sm: 'p-3', md: 'p-4 desk:px-5' } as const;
+---
+
+<Tag class:list={['rounded-xl', TONE[t], PAD[pad], extra]} {...rest}>
+  <slot />
+</Tag>

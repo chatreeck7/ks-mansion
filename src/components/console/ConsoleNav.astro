@@ -1,67 +1,165 @@
 ---
 // src/components/console/ConsoleNav.astro
-import { CONSOLE_SECTIONS } from '@/lib/console-sections';
+import {
+  CONSOLE_TABS,
+  MONTH_STEPS,
+  REGISTER_SECTIONS,
+  SYSTEM_SECTIONS,
+  sectionById,
+  tabFor,
+  type ConsoleSection,
+} from '@/lib/console-sections';
+import { MARKS, type MarkKind } from '@/lib/console/marks';
+import type { NavProgress } from '@/lib/console/month-progress';
+import { notebookShortName, shortCycleLabel } from '@/lib/console/logbook';
+import { FOCUS } from '@/lib/console/ui';
+import { cycleFor } from '@/lib/models/billing-cycle';
+
+/**
+ * The console's two navigations, from one list (`console-sections.ts`).
+ *
+ * - **≥900px — the spine.** The notebook's spine down the left: the month's
+ *   six steps in order, then the register. A step's mark shows on the right
+ *   when the page has the figures to say it (the home page always does).
+ * - **<900px — the tab bar.** Four tabs in thumb reach: สมุด / ตึก / ผู้เช่า /
+ *   อื่นๆ. The steps live on the สมุด page itself, so the bar stays short.
+ *
+ * Both are rendered and CSS picks one, so there is no layout flash and no
+ * script.
+ */
 
 interface Props {
   activeSection: string;
+  /** Marks for the spine, keyed by section id. Optional; see ConsoleFrame. */
+  progress?: NavProgress;
 }
 
-const { activeSection } = Astro.props;
+const { activeSection, progress = {} } = Astro.props;
+
+const cycle = cycleFor(new Date());
+const activeTab = tabFor(activeSection);
+const home = sectionById('home')!;
+
+function badgeFor(section: ConsoleSection) {
+  const entry: { mark?: MarkKind; badge?: string; warn?: boolean } | undefined = progress[section.id];
+  if (!entry) return null;
+  if (entry.badge) return { text: entry.badge, cls: entry.warn ? 'text-console-crit' : 'text-console-ink-soft' };
+  if (entry.mark) return { text: MARKS[entry.mark].glyph, cls: MARKS[entry.mark].text, label: MARKS[entry.mark].label };
+  return null;
+}
+
+const groups: { heading: string | null; items: ConsoleSection[] }[] = [
+  { heading: null, items: [home] },
+  { heading: 'งานเดือนนี้', items: MONTH_STEPS },
+  { heading: 'ทะเบียน', items: REGISTER_SECTIONS },
+];
 ---
 
 <nav
   data-console-rail
   aria-label="ส่วนต่างๆ"
-  class="hidden w-36 shrink-0 flex-col border-r border-console-rule/25 md:flex"
+  class="sticky top-0 hidden h-screen w-[250px] flex-none flex-col overflow-y-auto border-r border-console-line bg-console-spine text-console-ink desk:flex"
 >
-  <p
-    class="mb-0 border-b border-console-rule/25 px-3 py-3 text-sm font-semibold leading-none tracking-[0.18em] text-console-ink"
-  >
-    KS
-  </p>
-  {CONSOLE_SECTIONS.map((section) => (
-    <a
-      href={section.href}
-      aria-current={section.id === activeSection ? 'page' : undefined}
-      class:list={[
-        'border-l-[3px] px-3 py-2 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule',
-        section.id === activeSection
-          ? 'border-accent bg-console-sunk font-semibold text-console-ink'
-          : 'border-transparent text-console-ink-soft hover:text-console-ink',
-      ]}
-    >
-      {section.label}
-    </a>
-  ))}
+  <a href={home.href} class:list={['flex flex-col gap-0.5 px-[18px] pb-3 pt-4 no-underline text-console-ink', FOCUS]}>
+    <span class="text-[13px] font-semibold tracking-[0.12em] text-console-ink-soft">KS MANSION</span>
+    <span class="font-hand text-[22px] font-semibold leading-tight">สมุดเดือน {notebookShortName(cycle)}</span>
+    <span class="text-sm font-medium text-console-ink-soft">{shortCycleLabel(cycle)}</span>
+  </a>
 
-  <!-- POST, not a link: a GET logout would fire from any <img> or prefetch. -->
-  <form method="POST" action="/console/logout" class="mt-auto border-t border-console-rule/25">
-    <button
-      type="submit"
-      class="w-full px-3 py-2 text-left text-sm text-console-ink-faint hover:text-console-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
-    >
-      ออกจากระบบ
-    </button>
-  </form>
+  {
+    groups.map((group) => (
+      <div>
+        {group.heading && (
+          <p class="px-[18px] pb-1 pt-3.5 text-xs font-semibold tracking-[0.08em] text-console-ink-soft">
+            {group.heading}
+          </p>
+        )}
+        <ul class="m-0 list-none p-0">
+          {group.items.map((section) => {
+            const active = section.id === activeSection;
+            const badge = badgeFor(section);
+            return (
+              <li>
+                <a
+                  href={section.href}
+                  aria-current={active ? 'page' : undefined}
+                  class:list={[
+                    'flex h-11 items-center gap-2.5 border-l-[3px] pl-[15px] pr-3.5 text-[15px] text-console-ink no-underline',
+                    active
+                      ? 'border-console-ink bg-console-highlight/60 font-semibold'
+                      : 'border-transparent font-medium hover:bg-console-ink/[0.04]',
+                    FOCUS,
+                  ]}
+                >
+                  <span class="flex h-6 w-6 flex-none items-center justify-center rounded-full border-[1.5px] border-console-ink text-[13px] font-semibold">
+                    {section.step ?? section.glyph}
+                  </span>
+                  <span class="flex-1">{section.label}</span>
+                  {badge && (
+                    <span class:list={['font-hand text-base font-semibold', badge.cls]}>
+                      <span aria-hidden="true">{badge.text}</span>
+                      {badge.label && <span class="sr-only">{badge.label}</span>}
+                    </span>
+                  )}
+                </a>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    ))
+  }
+
+  <div class="mt-auto border-t border-console-line px-[18px] py-2">
+    {
+      SYSTEM_SECTIONS.map((section) => (
+        <a
+          href={section.href}
+          aria-current={section.id === activeSection ? 'page' : undefined}
+          class:list={[
+            'flex min-h-9 items-center text-sm no-underline',
+            section.id === activeSection ? 'font-semibold text-console-ink' : 'text-console-ink-soft hover:text-console-ink',
+            FOCUS,
+          ]}
+        >
+          {section.label}
+        </a>
+      ))
+    }
+    <!-- POST, not a link: a GET logout would fire from any <img> or prefetch. -->
+    <form method="POST" action="/console/logout" class="m-0">
+      <button
+        type="submit"
+        class:list={['flex min-h-9 w-full items-center text-left text-sm text-console-ink-soft hover:text-console-ink', FOCUS]}
+      >
+        ออกจากระบบ
+      </button>
+    </form>
+  </div>
 </nav>
 
 <nav
   data-console-tabbar
   aria-label="ส่วนต่างๆ"
-  class="fixed inset-x-0 bottom-0 z-50 flex border-t border-console-rule/25 bg-console-card md:hidden"
+  class="fixed inset-x-0 bottom-0 z-50 grid grid-cols-4 border-t border-console-line bg-console-spine pb-[env(safe-area-inset-bottom)] desk:hidden"
 >
-  {CONSOLE_SECTIONS.map((section) => (
-    <a
-      href={section.href}
-      aria-current={section.id === activeSection ? 'page' : undefined}
-      class:list={[
-        'flex-1 border-t-2 py-3 text-center text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule',
-        section.id === activeSection
-          ? 'border-accent font-semibold text-console-ink'
-          : 'border-transparent text-console-ink-soft',
-      ]}
-    >
-      {section.label}
-    </a>
-  ))}
+  {
+    CONSOLE_TABS.map((tab) => {
+      const active = tab.id === activeTab;
+      return (
+        <a
+          href={tab.href}
+          aria-current={active ? 'page' : undefined}
+          class:list={[
+            'flex h-16 flex-col items-center justify-center gap-px border-t-[3px] no-underline',
+            active ? 'border-console-ink text-console-ink' : 'border-transparent text-console-ink-soft',
+            FOCUS,
+          ]}
+        >
+          <span class="font-hand text-lg font-semibold leading-none" aria-hidden="true">{tab.glyph}</span>
+          <span class:list={['text-[15px]', active ? 'font-semibold' : 'font-medium']}>{tab.label}</span>
+        </a>
+      );
+    })
+  }
 </nav>

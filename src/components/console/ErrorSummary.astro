@@ -1,5 +1,7 @@
 ---
 // src/components/console/ErrorSummary.astro
+import Notice from './Notice.astro';
+
 interface Props {
   /** Nothing renders when empty, so a caller can pass its state unguarded. */
   message?: string | null;
@@ -8,13 +10,4 @@ interface Props {
 const { message } = Astro.props;
 ---
 
-{
-  message && (
-    <p
-      role="alert"
-      class="mb-4 whitespace-pre-wrap break-words bg-console-crit-bg px-3 py-2 text-sm text-console-crit"
-    >
-      {message}
-    </p>
-  )
-}
+{message && <Notice tone="crit" role="alert">{message}</Notice>}

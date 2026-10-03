@@ -18,10 +18,11 @@ describe('DetailSheet', () => {
     expect(html).toContain('ชั้น 2 · ค่าเช่า 2,800');
   });
 
-  it('marks the header with the gold rule', async () => {
+  it('rules the header in ink, not gold (gold fails contrast)', async () => {
     const container = await AstroContainer.create();
     const html = await container.renderToString(DetailSheet, { props: { title: '203' } });
-    expect(html).toContain('border-accent');
+    expect(html).toContain('border-console-ink');
+    expect(html).not.toContain('border-accent');
   });
 
   it('does not inherit the marketing base-layer margin on the meta line', async () => {

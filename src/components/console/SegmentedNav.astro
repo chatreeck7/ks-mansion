@@ -1,0 +1,40 @@
+---
+// src/components/console/SegmentedNav.astro
+import { FOCUS } from '@/lib/console/ui';
+
+/**
+ * A row of joined choices — floors on the meter grid, filters on the
+ * building. Links, not buttons: the choice lives in the URL or an anchor, so
+ * it can be bookmarked and works without JavaScript.
+ */
+
+interface Props {
+  label: string;
+  items: { label: string; href: string; current?: boolean }[];
+  class?: string;
+}
+
+const { label, items, class: extra } = Astro.props;
+---
+
+<nav aria-label={label} class:list={['max-w-full overflow-x-auto', extra]}>
+  <ul class="m-0 inline-flex list-none overflow-hidden rounded-lg border-[1.5px] border-console-ink p-0">
+    {
+      items.map((item) => (
+        <li class="border-l border-console-ink/30 first:border-l-0">
+          <a
+            href={item.href}
+            aria-current={item.current ? 'true' : undefined}
+            class:list={[
+              'flex min-h-11 items-center whitespace-nowrap px-4 text-[15px] font-semibold no-underline desk:min-h-10',
+              item.current ? 'bg-console-ink text-white' : 'text-console-ink hover:bg-console-ink/5',
+              FOCUS,
+            ]}
+          >
+            {item.label}
+          </a>
+        </li>
+      ))
+    }
+  </ul>
+</nav>
