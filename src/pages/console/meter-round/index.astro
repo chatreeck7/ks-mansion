@@ -45,6 +45,7 @@ const readDateIso = new Date().toISOString();
 ---
 
 <ConsoleLayout title="จดมิเตอร์">
+  <div class="console-root">
   <MeterRoundStepper
     client:load
     initialRound={round}
@@ -52,4 +53,5 @@ const readDateIso = new Date().toISOString();
     exitHref={consolePath('console/meter-round/grid')}
     postUrl={consolePath('console/meter-round/reading')}
   />
+  </div>
 </ConsoleLayout>

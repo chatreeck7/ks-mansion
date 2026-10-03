@@ -1,0 +1,63 @@
+---
+// src/pages/console/more.astro
+import ConsoleFrame from '@/components/console/ConsoleFrame.astro';
+import PageHeader from '@/components/console/PageHeader.astro';
+import { MONTH_STEPS, REGISTER_SECTIONS, SYSTEM_SECTIONS, type ConsoleSection } from '@/lib/console-sections';
+import { FOCUS, SECTION_TITLE } from '@/lib/console/ui';
+
+/**
+ * อื่นๆ — the phone's fourth tab.
+ *
+ * The bottom bar has room for four tabs, and the console has more places than
+ * that. Everything is listed here once, so nothing is only reachable from the
+ * desk spine: the month's steps (also on หน้าสมุด), the register, and the
+ * rarely-needed system pages, with logout last.
+ *
+ * On a desk the spine already shows all of this; the page still works there,
+ * it is simply never the quickest way.
+ */
+
+const groups: { heading: string; items: ConsoleSection[] }[] = [
+  { heading: 'งานเดือนนี้', items: MONTH_STEPS },
+  { heading: 'ทะเบียน', items: REGISTER_SECTIONS },
+  { heading: 'ระบบ', items: SYSTEM_SECTIONS },
+];
+---
+
+<ConsoleFrame title="อื่นๆ" activeSection="more" width="reading">
+  <PageHeader title="อื่นๆ" subtitle="ทุกหน้าของคอนโซล" />
+
+  {
+    groups.map((group) => (
+      <section class="mb-6">
+        <h2 class={SECTION_TITLE}>{group.heading}</h2>
+        <ul class="m-0 list-none border-t-2 border-console-ink p-0">
+          {group.items.map((section) => (
+            <li class="border-b border-console-rule">
+              <a
+                href={section.href}
+                class:list={['flex min-h-14 items-center gap-3 text-console-ink no-underline hover:bg-console-ink/[0.03]', FOCUS]}
+              >
+                <span class="flex h-7 w-7 flex-none items-center justify-center rounded-full border-[1.5px] border-console-ink text-sm font-semibold">
+                  {section.step ?? section.glyph}
+                </span>
+                <span class="flex-1 text-[17px] font-semibold">{section.label}</span>
+                <span class="text-lg text-console-ink-soft" aria-hidden="true">›</span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </section>
+    ))
+  }
+
+  <!-- POST, not a link: a GET logout would fire from any <img> or prefetch. -->
+  <form method="POST" action="/console/logout">
+    <button
+      type="submit"
+      class:list={['flex min-h-12 w-full items-center justify-center rounded-[10px] border-[1.5px] border-console-crit text-base font-semibold text-console-crit hover:bg-console-crit-bg', FOCUS]}
+    >
+      ออกจากระบบ
+    </button>
+  </form>
+</ConsoleFrame>

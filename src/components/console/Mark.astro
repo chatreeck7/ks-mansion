@@ -1,0 +1,36 @@
+---
+// src/components/console/Mark.astro
+import { MARKS, type MarkKind } from '@/lib/console/marks';
+
+/**
+ * One logbook mark: ✓ ○ ? — ½. See `lib/console/marks.ts` for the meanings.
+ *
+ * Drawn in Mali, like a tick in the margin of a notebook. The glyph is
+ * decorative to a screen reader; the label is what gets read out, so a
+ * column of ticks is not announced as a column of "check mark".
+ */
+
+interface Props {
+  kind: MarkKind;
+  size?: 'sm' | 'md' | 'lg' | 'xl';
+  /** Overrides the spoken label, e.g. "จ่ายแล้ว" instead of "เสร็จแล้ว". */
+  label?: string;
+  class?: string;
+}
+
+const { kind, size = 'md', label, class: extra } = Astro.props;
+const spec = MARKS[kind];
+
+const SIZE = {
+  sm: 'text-sm',
+  md: 'text-xl',
+  lg: 'text-[26px]',
+  xl: 'text-[32px]',
+} as const;
+---
+
+<span class:list={['inline-block font-hand font-semibold leading-none', SIZE[size], spec.text, extra]}>
+  {/* Mali's em dash is nearly two glyphs wide; drawn narrower so a column
+      of marks keeps one width whichever mark it holds. */}
+  <span aria-hidden="true" class:list={[kind === 'none' && 'inline-block scale-x-[0.6]']}>{spec.glyph}</span><span class="sr-only">{label ?? spec.label}</span>
+</span>

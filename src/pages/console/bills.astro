@@ -1,9 +1,15 @@
 ---
 // src/pages/console/bills.astro
 import ConsoleFrame from '@/components/console/ConsoleFrame.astro';
+import Button from '@/components/console/Button.astro';
 import ErrorSummary from '@/components/console/ErrorSummary.astro';
+import Notice from '@/components/console/Notice.astro';
+import PageHeader from '@/components/console/PageHeader.astro';
+import ProblemCard from '@/components/console/ProblemCard.astro';
+import StatTile from '@/components/console/StatTile.astro';
+import { problemGroups } from '@/lib/console/problems';
+import { SECTION_TITLE } from '@/lib/console/ui';
 import LedgerTable from '@/components/console/LedgerTable.astro';
-import StatusPill from '@/components/console/StatusPill.astro';
 import {
   ARREARS_COLUMNS,
   arrearsUpdatesFromForm,
@@ -143,7 +149,9 @@ if (Astro.request.method === 'POST') {
 // and every note that just saved shows in its field.
 const run = await load();
 const groups = toGroups(run.lines, cycleLabel(cycle));
-const blocked = run.lines.filter((l) => l.problems.length > 0).length;
+const blocked = run.lines.filter((l) => l.problems.length > 0 && !l.alreadyIssued).length;
+const problems = problemGroups(run.lines);
+const issuedCount = run.lines.filter((l) => l.alreadyIssued).length;
 
 const issuedBills = (await getBillRepository(env).listBills()).filter(
   (bill) => bill.cycle === cycle.id,
@@ -157,47 +165,35 @@ const arrearsGroups = toArrearsGroups(
 );
 ---
 
-<ConsoleFrame title="บิล" activeSection="bills">
-  <div class="mb-4">
-    <h1 class="mb-1 text-xl font-semibold text-console-ink">ออกบิลประจำรอบ</h1>
-    <p class="mb-0 text-sm text-console-ink-soft">
-      {cycleLabel(cycle)} — เก็บ{rentLabel(cycle)} และ{utilityLabel(cycle)}
-    </p>
-    <p class="mb-0 text-sm text-console-ink-faint">
-      ห้องว่างไม่ออกบิล · บิลที่ออกแล้วจะไม่ออกซ้ำ · ตรวจตัวเลขก่อนกดออกบิล
-    </p>
-  </div>
+<ConsoleFrame title="ออกบิล" activeSection="bills">
+  <PageHeader
+    eyebrow="ขั้น 3 จาก 6"
+    title="ออกบิลประจำรอบ"
+    subtitle={`${rentLabel(cycle)} + ${utilityLabel(cycle)} · ${cycleLabel(cycle)}`}
+  />
 
-  {/* The run, not the slip. Printing a cycle one bill at a time is the thing
-      KS-24 was actually missing, so the way in belongs on the page where the
-      cycle is issued — not only in the rightmost column of each row. */}
-  {issuedBills.length > 0 && (
-    <p class="mb-4">
-      <a
-        href={`${consolePath('console/bills/print')}?cycle=${cycle.id}`}
-        class="inline-block rounded-sm border border-console-rule/40 px-3 py-2 text-sm text-console-ink hover:bg-console-sunk focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
-      >
-        พิมพ์ใบแจ้งทั้งรอบ {issuedBills.length} ใบ
-      </a>
-    </p>
-  )}
-
-  {issued > 0 && (
-    <p class="mb-4 rounded-sm bg-console-ok-bg px-3 py-2 text-console-ok">
-      ออกบิลแล้ว {issued} ใบ
-    </p>
-  )}
-  {annotated > 0 && (
-    <p class="mb-4 rounded-sm bg-console-ok-bg px-3 py-2 text-console-ok">
-      บันทึกหมายเหตุแล้ว {annotated} รายการ
-    </p>
-  )}
+  {issued > 0 && <Notice tone="ok" role="status">ออกบิลแล้ว {issued} ใบ</Notice>}
+  {annotated > 0 && <Notice tone="ok" role="status">บันทึกหมายเหตุแล้ว {annotated} รายการ</Notice>}
   <ErrorSummary message={errors.length > 0 ? errors.join('\n') : null} />
 
-  {blocked > 0 && (
-    <p class="mb-4 rounded-sm bg-console-warn-bg px-3 py-2 text-sm text-console-warn">
-      มี {blocked} ห้องที่ยังออกบิลไม่ได้ — ดูคอลัมน์สถานะ ห้องเหล่านี้จะถูกข้ามไป
-    </p>
+  <div class="mb-4 grid grid-cols-3 gap-1.5 desk:gap-3.5">
+    <StatTile mark="done" count={issuedCount} label="ออกบิลแล้ว" />
+    <StatTile mark="todo" count={run.issuable.length} label="พร้อมออก" />
+    <StatTile mark={blocked > 0 ? 'missing' : 'none'} count={blocked} label="รอข้อมูล" />
+  </div>
+
+  {/* Blocked rooms, one card per reason with one fix — never a row each. */}
+  {problems.length > 0 && (
+    <div class="mb-5 flex flex-col gap-3">
+      {problems.map((problem) => (
+        <ProblemCard
+          layout="row"
+          title={problem.title}
+          items={problem.rooms.map((r) => ({ label: r.label, href: r.href }))}
+          action={problem.action}
+        />
+      ))}
+    </div>
   )}
 
   <LedgerTable columns={COLUMNS} groups={groups} />
@@ -206,36 +202,43 @@ const arrearsGroups = toArrearsGroups(
       cannot take, and the reader is left wondering what it would have done.
       With nothing to issue there is no action, so there is no button —
       a sentence says why, and points at what is usually the reason. */}
-  {run.issuable.length === 0 ? (
-    <p class="mt-4 rounded-sm bg-console-sunk px-3 py-2 text-sm text-console-ink-soft">
-      {run.lines.length === 0
-        ? 'ยังไม่มีห้องที่ต้องออกบิลรอบนี้'
-        : run.lines.every((line) => line.alreadyIssued)
-          ? 'ออกบิลครบทุกห้องแล้วสำหรับรอบนี้ — เปิดใบแจ้งได้จากคอลัมน์ขวาสุด'
-          : 'ยังออกบิลไม่ได้ — ดูเหตุผลในคอลัมน์สถานะของแต่ละห้อง'}
-    </p>
-  ) : (
-    <form method="POST" class="mt-4 flex flex-wrap items-center justify-between gap-3">
-      <input type="hidden" name="action" value="issue" />
-      <button
-        type="submit"
-        class="rounded-sm bg-console-ink px-4 py-2 font-semibold text-console-paper focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-console-rule"
-      >
-        ออกบิล {run.issuable.length} ใบ
-      </button>
-      <p class="mb-0 font-figure text-console-ink-soft tabular-nums">
-        ยอดที่จะออกรอบนี้{' '}
-        <span class="font-semibold text-console-ink">{formatBaht(run.total)}</span> บาท
-      </p>
-    </form>
-  )}
+  <div class="mt-4 flex flex-col gap-3 desk:flex-row desk:flex-wrap desk:items-center">
+    {run.issuable.length === 0 ? (
+      <Notice tone="mute" flush class="desk:flex-1">
+        {run.lines.length === 0
+          ? 'ยังไม่มีห้องที่ต้องออกบิลรอบนี้'
+          : run.lines.every((line) => line.alreadyIssued)
+            ? 'ออกบิลครบทุกห้องแล้วสำหรับรอบนี้ — เปิดใบแจ้งได้จากคอลัมน์ขวาสุด'
+            : 'ยังออกบิลไม่ได้ — แก้ตามการ์ดสีแดงด้านบนก่อน'}
+      </Notice>
+    ) : (
+      <form method="POST" class="flex flex-col gap-2 desk:flex-row desk:items-center desk:gap-4">
+        <input type="hidden" name="action" value="issue" />
+        <Button type="submit" size="lg">ออกบิล {run.issuable.length} ใบ</Button>
+        <p class="font-figure text-[15px] tabular-nums text-console-ink-soft">
+          ยอดที่จะออกรอบนี้ <span class="font-semibold text-console-ink">{formatBaht(run.total)}</span> บาท
+        </p>
+      </form>
+    )}
+    {/* The run, not the slip. Printing a cycle one bill at a time is the thing
+        KS-24 was actually missing, so the way in belongs on the page where the
+        cycle is issued — not only in the rightmost column of each row. */}
+    {issuedBills.length > 0 && (
+      <Button href={`${consolePath('console/bills/print')}?cycle=${cycle.id}`} variant="secondary" size="lg">
+        พิมพ์ใบแจ้งทั้งหมด ({issuedBills.length})
+      </Button>
+    )}
+    {issuedBills.length > 0 && (
+      <Button href={consolePath('console/payments')} variant="secondary" size="lg">ไปขั้น 4 รับเงิน →</Button>
+    )}
+  </div>
 
   {issuedBills.length > 0 && (
     <section class="mt-10">
-      <h2 class="mb-1 text-lg font-semibold text-console-ink">หมายเหตุ / ยอดค้าง</h2>
-      <p class="mb-3 text-sm text-console-ink-soft">
+      <h2 class={SECTION_TITLE}>หมายเหตุ / ยอดค้าง</h2>
+      <p class="mb-3 text-[15px] text-console-ink-soft">
         เขียนเองทั้งหมด คอนโซลไม่คิดยอดค้างให้ — เว้นว่างไว้คือเคลียร์แล้ว
-        (`ยอดค้าง` กับ `ค้างประกัน` เป็นคนละเรื่องกัน มีแต่คนเท่านั้นที่รู้ว่าอันไหน)
+        (ยอดค้าง กับ ค้างประกัน เป็นคนละเรื่องกัน มีแต่คนเท่านั้นที่รู้ว่าอันไหน)
       </p>
 
       <form method="POST">
@@ -243,12 +246,7 @@ const arrearsGroups = toArrearsGroups(
         <LedgerTable columns={ARREARS_COLUMNS} groups={arrearsGroups} />
 
         <div class="mt-4">
-          <button
-            type="submit"
-            class="rounded-sm border border-console-rule/40 px-4 py-2 text-console-ink hover:bg-console-sunk focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
-          >
-            บันทึกหมายเหตุ
-          </button>
+          <Button type="submit" variant="secondary" size="lg">บันทึกหมายเหตุ</Button>
         </div>
       </form>
     </section>

@@ -1,0 +1,76 @@
+---
+// src/components/console/RoomTile.astro
+import type { RoomTile } from '@/lib/console/building';
+import { MARKS } from '@/lib/console/marks';
+import { TILE_CLASS } from '@/lib/console/tile-style';
+import { FOCUS } from '@/lib/console/ui';
+
+/**
+ * One window of the building.
+ *
+ * - `window` — the full building view: number, who lives there, the mark.
+ * - `compact` — the phone's building view: number and mark.
+ * - `mini` — the snapshot on หน้าสมุด: the mark alone.
+ *
+ * Always a link to the room. On a desk the building page upgrades the click
+ * to open a side card instead (see `rooms/index.astro`); without script the
+ * link still goes to the room page.
+ */
+
+interface Props {
+  tile: RoomTile;
+  size?: 'window' | 'compact' | 'mini';
+  /** Dimmed when a filter is on and this room is not in it. */
+  dim?: boolean;
+  selected?: boolean;
+  class?: string;
+}
+
+const { tile, size = 'window', dim = false, selected = false, class: extra } = Astro.props;
+const mark = MARKS[tile.mark];
+const name = tile.state === 'reno' ? 'ปรับปรุง' : tile.shortName || (tile.state === 'missing' ? 'ไม่มีข้อมูล' : tile.stateLabel);
+const spoken = `ห้อง ${tile.label} · ${tile.tenantName ?? tile.stateLabel} · ${tile.stateLabel}`;
+---
+
+<a
+  href={tile.href}
+  data-room-tile={tile.id}
+  aria-label={spoken}
+  title={spoken}
+  class:list={[
+    'flex min-w-0 flex-col items-center justify-center overflow-hidden rounded-[5px] px-0.5 text-center leading-tight no-underline transition-opacity',
+    TILE_CLASS[tile.state],
+    size === 'window' && 'h-[70px] gap-px',
+    size === 'compact' && 'h-[50px]',
+    size === 'mini' && 'h-6 rounded-[3px] px-0',
+    dim && 'opacity-30',
+    selected && 'outline outline-[3px] outline-offset-0 outline-[#F2B705]',
+    FOCUS,
+    extra,
+  ]}
+>
+  {
+    size !== 'mini' && (
+      <span
+        class:list={[
+          'max-w-full font-semibold',
+          tile.label.length > 4 && 'truncate',
+          size === 'window' ? 'font-hand text-[15px] xl:text-[17px]' : 'truncate text-[15px]',
+        ]}
+      >
+        {tile.label}
+      </span>
+    )
+  }
+  {
+    size === 'window' && (
+      <span class="max-w-full truncate text-xs font-medium">{name}</span>
+    )
+  }
+  <span
+    aria-hidden="true"
+    class:list={['font-hand font-semibold leading-none', size === 'mini' ? 'text-[11px]' : 'text-sm']}
+  >
+    {mark.glyph}
+  </span>
+</a>

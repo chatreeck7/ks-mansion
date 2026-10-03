@@ -1,14 +1,268 @@
 ---
 // src/pages/console/rooms/index.astro
 import ConsoleFrame from '@/components/console/ConsoleFrame.astro';
+import Button from '@/components/console/Button.astro';
+import Card from '@/components/console/Card.astro';
+import Chip from '@/components/console/Chip.astro';
 import LedgerTable from '@/components/console/LedgerTable.astro';
+import Mark from '@/components/console/Mark.astro';
+import PageHeader from '@/components/console/PageHeader.astro';
+import RoomTile from '@/components/console/RoomTile.astro';
+import {
+  buildingTiles,
+  floorsOf,
+  matchesFilter,
+  parseTileFilter,
+  tileCounts,
+  type TileFilter,
+} from '@/lib/console/building';
+import { shortCycleLabel } from '@/lib/console/logbook';
+import type { MarkKind } from '@/lib/console/marks';
+import { consolePath } from '@/lib/console/paths';
 import { ROOM_COLUMNS, toRoomGroups } from '@/lib/console/room-ledger';
-import { getRoomRepository } from '@/lib/repositories';
+import { TILE_CLASS, TILE_LEGEND } from '@/lib/console/tile-style';
+import { formatBaht } from '@/lib/format/thai';
+import { cycleFor, isReadingDay } from '@/lib/models/billing-cycle';
+import {
+  getBillRepository,
+  getLeaseRepository,
+  getMeterReadingRepository,
+  getPaymentRepository,
+  getRoomRepository,
+  getTenantRepository,
+} from '@/lib/repositories';
 
-const rooms = await getRoomRepository(Astro.locals.runtime?.env).listRooms();
-const groups = toRoomGroups(rooms);
+/**
+ * ตึกและห้อง — the room register, drawn as the building.
+ *
+ * Every room is a window showing who lives there and this cycle's mark, top
+ * floor first like looking up at the façade. Filters **highlight**, they never
+ * hide: an admin hunting the unpaid rooms still sees where they are in the
+ * building, which is how the family thinks about them ("the one above the
+ * shop").
+ *
+ * Choosing a room opens a side card on a desk and the room page on a phone.
+ * The tiles are plain links to the room page; a few lines of script upgrade
+ * them on a wide screen, so nothing depends on JavaScript.
+ *
+ * `?view=list` keeps the old ruled list for anyone who wants a table.
+ */
+
+const env = Astro.locals.runtime?.env;
+const today = new Date();
+const cycle = cycleFor(today);
+const filter = parseTileFilter(Astro.url.searchParams.get('show'));
+const listView = Astro.url.searchParams.get('view') === 'list';
+
+const [rooms, leases, tenants, bills, payments, readings] = await Promise.all([
+  getRoomRepository(env).listRooms(),
+  getLeaseRepository(env).listLeases(),
+  getTenantRepository(env).listTenants(),
+  getBillRepository(env).listBillsForCycle(cycle.id),
+  getPaymentRepository(env).listPayments(),
+  getMeterReadingRepository(env).listReadings(),
+]);
+
+const tiles = buildingTiles({ rooms, leases, tenants, bills, payments, today });
+const floors = floorsOf(tiles);
+const counts = tileCounts(tiles);
+const residentialFloors = floors.filter((f) => f.label !== 'ชั้นล่าง').length;
+
+const FILTERS: { id: TileFilter; label: string; tone: 'solid' | 'ink' | 'ok' | 'missing' | 'mute' }[] = [
+  { id: 'all', label: `ทั้งหมด ${counts.all}`, tone: 'ink' },
+  { id: 'unpaid', label: `○ รอจ่าย ${counts.unpaid}`, tone: 'ink' },
+  { id: 'paid', label: `✓ จ่ายแล้ว ${counts.paid}`, tone: 'ok' },
+  { id: 'missing', label: `? ไม่มีข้อมูล ${counts.missing}`, tone: 'missing' },
+  { id: 'idle', label: `— ว่าง/ปรับปรุง ${counts.idle}`, tone: 'mute' },
+];
+const filterHref = (id: TileFilter) => (id === 'all' ? '?' : `?show=${id}`);
+
+/** The four marks a room's side card shows: ไฟ · น้ำ · บิล · จ่าย. */
+function quickMarks(tileId: string): { label: string; mark: MarkKind }[] {
+  const tile = tiles.find((t) => t.id === tileId)!;
+  const room = rooms.find((r) => r.id === tileId)!;
+  const readThisCycle = readings.some(
+    (r) => !r.archived && r.roomId === room.id && r.meterType === 'electricity' && isReadingDay(cycle, r.readDate),
+  );
+  const inPlay = !['vacant', 'reno', 'common'].includes(tile.state);
+  const s = tile.settlement;
+  return [
+    { label: 'ไฟ', mark: !room.hasMeter ? 'none' : readThisCycle ? 'done' : 'todo' },
+    { label: 'น้ำ', mark: !inPlay ? 'none' : tile.occupantCount === null ? 'missing' : 'done' },
+    { label: 'บิล', mark: s ? 'done' : !inPlay ? 'none' : tile.state === 'missing' ? 'missing' : 'todo' },
+    {
+      label: 'จ่าย',
+      mark: !s ? 'none' : s.state === 'paid' || s.state === 'overpaid' ? 'done' : s.state === 'partial' ? 'partial' : 'todo',
+    },
+  ];
+}
 ---
 
-<ConsoleFrame title="ห้อง" activeSection="rooms">
-  <LedgerTable columns={ROOM_COLUMNS} groups={groups} />
+<ConsoleFrame title="ตึกและห้อง" activeSection="rooms">
+  <div class="flex gap-6">
+    <div class="min-w-0 flex-1">
+      <PageHeader
+        title="ตึกและห้อง"
+        subtitle={`${counts.all} ห้อง · ${residentialFloors} ชั้น · ${shortCycleLabel(cycle)}`}
+      >
+        <div slot="actions" class="flex flex-wrap gap-2">
+          <Button href={listView ? '?' : '?view=list'} variant="secondary" size="sm">
+            {listView ? 'ดูเป็นตึก' : 'ดูเป็นรายการ'}
+          </Button>
+        </div>
+      </PageHeader>
+
+      {
+        listView ? (
+          <LedgerTable columns={ROOM_COLUMNS} groups={toRoomGroups(rooms)} />
+        ) : (
+          <>
+            <nav aria-label="กรองห้อง" class="-mx-4 mb-3 overflow-x-auto px-4 desk:mx-0 desk:px-0">
+              <ul class="m-0 flex list-none gap-1.5 p-0">
+                {FILTERS.map((f) => (
+                  <li>
+                    <Chip
+                      href={filterHref(f.id)}
+                      size="md"
+                      tone={f.id === filter ? 'solid' : f.tone}
+                      class="min-h-10 rounded-full"
+                    >
+                      {f.label}
+                    </Chip>
+                  </li>
+                ))}
+              </ul>
+            </nav>
+
+            <div class="rounded-t-lg border-2 border-console-ink bg-console-card">
+              <div class="bg-console-ink py-1 text-center font-hand text-[13px] font-semibold tracking-[0.2em] text-console-paper desk:text-[15px]">
+                K S · M A N S I O N
+              </div>
+              {floors.map((floor) => (
+                <div class="flex items-center gap-1.5 border-t-[1.5px] border-console-ink p-1.5 desk:gap-2.5 desk:p-2.5">
+                  <span class="w-7 flex-none text-center font-hand text-sm font-semibold text-console-ink-soft desk:w-12 desk:text-base">
+                    <span class="desk:hidden">{floor.short}</span>
+                    <span class="hidden desk:inline">{floor.label}</span>
+                  </span>
+                  <div class="grid flex-1 grid-cols-5 gap-[5px] desk:grid-cols-10 desk:gap-1 xl:gap-1.5">
+                    {floor.tiles.map((tile) => (
+                      <>
+                        <RoomTile tile={tile} size="compact" dim={!matchesFilter(tile, filter)} class="desk:hidden" />
+                        <RoomTile tile={tile} size="window" dim={!matchesFilter(tile, filter)} class="hidden desk:flex" />
+                      </>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <ul class="m-0 mt-3 grid list-none grid-cols-2 gap-x-4 gap-y-1.5 p-0 text-[15px] sm:flex sm:flex-wrap sm:gap-x-5">
+              {TILE_LEGEND.map((item) => (
+                <li class="flex items-center gap-2">
+                  <span class:list={['h-4 w-5 flex-none rounded-[3px]', TILE_CLASS[item.state]]} aria-hidden="true" />
+                  {item.label}
+                </li>
+              ))}
+            </ul>
+          </>
+        )
+      }
+    </div>
+
+    {
+      !listView && (
+        <aside class="hidden w-[250px] flex-none pt-[76px] desk:block xl:w-[290px]" aria-live="polite">
+          <Card data-room-card="" class="text-[15px] text-console-ink-soft">
+            เลือกห้องจากตึก เพื่อดูสรุปของห้องนั้นตรงนี้
+          </Card>
+          {tiles.map((tile) => (
+            <Card data-room-card={tile.id} hidden class="flex flex-col gap-3 [&[hidden]]:hidden">
+              <div class="flex items-baseline gap-2.5">
+                <span class="font-hand text-[32px] font-semibold leading-none">{tile.label}</span>
+                <span class="text-[15px] font-medium text-console-ink-soft">
+                  {tile.floor > 0 ? `ชั้น ${tile.floor} · ` : ''}
+                  {tile.stateLabel}
+                </span>
+              </div>
+              {tile.tenantName ? (
+                <p class="text-lg font-semibold">
+                  {tile.shortName}{' '}
+                  {tile.shortName !== tile.tenantName && (
+                    <span class="font-normal text-console-ink-soft">({tile.tenantName})</span>
+                  )}
+                </p>
+              ) : (
+                tile.state === 'missing' && (
+                  <p class="text-[15px] font-semibold text-console-crit">มีผู้เช่า แต่ยังไม่มีสัญญาในสมุด</p>
+                )
+              )}
+              <div class="grid grid-cols-4 border-y border-console-rule">
+                {quickMarks(tile.id).map((m) => (
+                  <div class="flex flex-col items-center py-2">
+                    <Mark kind={m.mark} size="md" />
+                    <span class="text-[13px] text-console-ink-soft">{m.label}</span>
+                  </div>
+                ))}
+              </div>
+              {tile.rentRate !== null && (
+                <div class="flex justify-between text-[15px]">
+                  <span class="text-console-ink-soft">ค่าเช่า</span>
+                  <span>{formatBaht(tile.rentRate)} บาท/เดือน</span>
+                </div>
+              )}
+              {tile.settlement && (
+                <div class="flex justify-between gap-2 text-[15px]">
+                  <span class="text-console-ink-soft">บิลรอบนี้</span>
+                  <span class="text-right font-semibold">
+                    {formatBaht(tile.settlement.due)} บาท · {tile.stateLabel}
+                  </span>
+                </div>
+              )}
+              <Button href={tile.href}>เปิดหน้าห้อง {tile.label}</Button>
+              {tile.state === 'missing' ? (
+                <Button href={consolePath(`console/leases/new?room=${encodeURIComponent(tile.id)}`)} variant="danger">
+                  ใส่สัญญา
+                </Button>
+              ) : (
+                tile.settlement &&
+                tile.settlement.outstanding > 0 && (
+                  <Button href={consolePath('console/payments')} variant="secondary">
+                    บันทึกเงินเข้า
+                  </Button>
+                )
+              )}
+            </Card>
+          ))}
+        </aside>
+      )
+    }
+  </div>
 </ConsoleFrame>
+
+<script>
+  // Desk only: a room click opens its side card instead of leaving the page.
+  // Below 900px — or without this script — the tile is a link to the room.
+  const wide = window.matchMedia('(min-width: 900px)');
+  const cards = document.querySelectorAll<HTMLElement>('[data-room-card]');
+  const tiles = document.querySelectorAll<HTMLAnchorElement>('[data-room-tile]');
+
+  function select(id: string) {
+    for (const card of cards) card.hidden = card.dataset.roomCard !== id;
+    for (const tile of tiles) {
+      const on = tile.dataset.roomTile === id;
+      tile.classList.toggle('outline', on);
+      tile.classList.toggle('outline-[3px]', on);
+      tile.classList.toggle('outline-[#F2B705]', on);
+      if (on) tile.setAttribute('aria-current', 'true');
+      else tile.removeAttribute('aria-current');
+    }
+  }
+
+  for (const tile of tiles) {
+    tile.addEventListener('click', (event) => {
+      if (!wide.matches || event.metaKey || event.ctrlKey || event.shiftKey) return;
+      event.preventDefault();
+      select(tile.dataset.roomTile!);
+    });
+  }
+</script>

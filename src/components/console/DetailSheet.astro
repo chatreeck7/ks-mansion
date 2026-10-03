@@ -1,5 +1,11 @@
 ---
 // src/components/console/DetailSheet.astro
+
+/**
+ * A card holding one record — a room, a tenant, a lease form — headed by its
+ * name in Mali and split into ruled sections (`DetailSection`).
+ */
+
 interface Props {
   title: string;
   meta?: string;
@@ -8,10 +14,10 @@ interface Props {
 const { title, meta } = Astro.props;
 ---
 
-<article class="border border-console-rule/25 bg-console-card">
-  <header class="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b-2 border-accent px-4 py-3">
-    <h1 class="font-figure text-2xl font-semibold tracking-normal tabular-nums">{title}</h1>
-    {meta && <p class="mb-0 text-sm text-console-ink-soft">{meta}</p>}
+<article class="overflow-hidden rounded-xl border border-console-line bg-console-card">
+  <header class="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b-2 border-console-ink px-4 py-3 desk:px-5">
+    <h1 class="font-hand text-[26px] font-semibold leading-tight tracking-normal text-console-ink">{title}</h1>
+    {meta && <p class="mb-0 text-[15px] text-console-ink-soft">{meta}</p>}
   </header>
   <slot />
 </article>

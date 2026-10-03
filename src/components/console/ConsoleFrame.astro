@@ -2,13 +2,31 @@
 // src/components/console/ConsoleFrame.astro
 import ConsoleLayout from '@/layouts/ConsoleLayout.astro';
 import ConsoleNav from './ConsoleNav.astro';
+import type { NavProgress } from '@/lib/console/month-progress';
+
+/**
+ * Every console page except the meter round and the printable documents.
+ *
+ * The page is a sheet of notebook paper: a red margin line ruled down the
+ * left on a desk, the spine beside it, and the content written to the right
+ * of the margin. On a phone the margin goes (there is no room for it) and the
+ * tab bar sits under the thumb.
+ */
 
 interface Props {
   title: string;
   activeSection: string;
+  /**
+   * Marks for the spine. Only pages that already hold the month's figures
+   * pass these — computing them on every page would cost five extra sheet
+   * reads per request, and reads are deliberately uncached (KS-55).
+   */
+  progress?: NavProgress;
+  /** Caps the line length for reading pages (forms, documents). */
+  width?: 'full' | 'reading';
 }
 
-const { title, activeSection } = Astro.props;
+const { title, activeSection, progress, width = 'full' } = Astro.props;
 ---
 
 <!--
@@ -19,12 +37,16 @@ const { title, activeSection } = Astro.props;
   Harmless on the screens nobody prints.
 -->
 <ConsoleLayout title={title}>
-  <div class="flex min-h-screen print:block print:min-h-0">
-    <div class="print:hidden">
-      <ConsoleNav activeSection={activeSection} />
+  <div class="console-root flex min-h-screen print:block print:min-h-0">
+    <div class="contents print:hidden">
+      <ConsoleNav activeSection={activeSection} progress={progress} />
     </div>
-    <main class="min-w-0 flex-1 px-4 py-4 pb-20 md:pb-4 print:p-0">
-      <slot />
+    <main
+      class="min-w-0 flex-1 px-4 pb-24 pt-4 desk:bg-console-ruled desk:pb-10 desk:pl-14 desk:pr-8 desk:pt-6 print:bg-none print:p-0"
+    >
+      <div class:list={[width === 'reading' && 'max-w-[860px]']}>
+        <slot />
+      </div>
     </main>
   </div>
 </ConsoleLayout>

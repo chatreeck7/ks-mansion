@@ -1,0 +1,51 @@
+---
+// src/components/console/StepList.astro
+import Mark from './Mark.astro';
+import type { MonthStep } from '@/lib/console/month-progress';
+import { FOCUS } from '@/lib/console/ui';
+
+/**
+ * The month's six steps as ruled lines in the notebook. The step being worked
+ * on is highlighted, the way someone runs a highlighter over the line they
+ * are on. Each line is one link to its step.
+ */
+
+interface Props {
+  steps: MonthStep[];
+}
+
+const { steps } = Astro.props;
+---
+
+<ol class="m-0 list-none border-t-2 border-console-ink p-0">
+  {
+    steps.map((step) => (
+      <li class:list={['border-b border-console-rule', step.current && 'bg-console-highlight/55']}>
+        <a
+          href={step.href}
+          class:list={[
+            'flex min-h-14 items-center gap-3 px-2 py-1 text-console-ink no-underline hover:bg-console-ink/[0.03] desk:min-h-[62px] desk:gap-3.5 desk:px-3',
+            FOCUS,
+          ]}
+        >
+          <span class="flex h-7 w-7 flex-none items-center justify-center rounded-full border-[1.5px] border-console-ink bg-console-paper text-[15px] font-semibold desk:h-[30px] desk:w-[30px]">
+            {step.n}
+          </span>
+          <span class="flex min-w-0 flex-1 flex-col pl-1 leading-snug desk:pl-0">
+            <span class="text-[17px] font-semibold">{step.label}</span>
+            <span class:list={['text-[15px]', step.warn ? 'text-console-crit' : 'text-console-ink-soft']}>
+              <span class="desk:hidden">{step.subShort}</span>
+              <span class="hidden desk:inline">{step.sub}</span>
+            </span>
+          </span>
+          <span class="w-9 flex-none text-center">
+            {step.mark && <Mark kind={step.mark} size="lg" />}
+          </span>
+          <span class="hidden w-[70px] flex-none text-right text-[15px] font-semibold desk:inline">
+            {step.action}
+          </span>
+        </a>
+      </li>
+    ))
+  }
+</ol>

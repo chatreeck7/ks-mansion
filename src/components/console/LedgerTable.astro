@@ -2,7 +2,18 @@
 // src/components/console/LedgerTable.astro
 import type { LedgerColumn, LedgerGroup } from '@/lib/models/ledger';
 import { formatFigure, formatReadingFigure } from '@/lib/format/thai';
+import { FOCUS, INPUT } from '@/lib/console/ui';
 import StatusPill from './StatusPill.astro';
+
+/**
+ * The ruled ledger every list screen is written in.
+ *
+ * Drawn like a page of the notebook: a heavy ink rule at the top, a light
+ * blue rule under every line, figures in a monospaced column so they line
+ * up, and the room number in Mali at the start of each line — the way it
+ * would be hand-written in the margin. A column keyed `room` is the room
+ * number; that is the one rule for which column is hand-written.
+ */
 
 interface Props {
   columns: LedgerColumn[];
@@ -10,17 +21,18 @@ interface Props {
 }
 
 const { columns, groups } = Astro.props;
+const showGroupHeadings = groups.length > 1 || groups.some((g) => g.label);
 ---
 
 <div class="overflow-x-auto">
-  <table class="w-full border-collapse bg-console-card text-sm">
+  <table class="w-full border-collapse border-t-2 border-console-ink text-[15px]">
     <thead>
       <tr>
         {columns.map((column) => (
           <th
             scope="col"
             class:list={[
-              'border-b border-console-rule/25 px-3 py-2 font-figure text-xs font-semibold text-console-ink-faint',
+              'whitespace-nowrap border-b border-console-rule px-3 py-2 text-sm font-semibold text-console-ink-soft',
               column.align === 'right' ? 'text-right' : 'text-left',
             ]}
           >
@@ -31,17 +43,19 @@ const { columns, groups } = Astro.props;
     </thead>
     {groups.map((group) => (
       <tbody>
-        <tr>
-          <th
-            scope="rowgroup"
-            colspan={columns.length}
-            class="border-b border-console-rule/25 bg-console-sunk px-3 py-1.5 text-left font-figure text-xs font-semibold text-console-rule"
-          >
-            {group.label}
-          </th>
-        </tr>
+        {showGroupHeadings && (
+          <tr>
+            <th
+              scope="rowgroup"
+              colspan={columns.length}
+              class="border-b border-console-rule bg-console-spine/70 px-3 pb-1 pt-3 text-left font-hand text-base font-semibold text-console-ink-soft"
+            >
+              {group.label}
+            </th>
+          </tr>
+        )}
         {group.rows.map((row) => (
-            <tr class="border-b border-console-rule/10 last:border-b-0">
+            <tr class="border-b border-console-rule">
               {columns.map((column, index) => {
                 const cell = row.cells[column.key];
                 if (!cell) {
@@ -58,13 +72,15 @@ const { columns, groups } = Astro.props;
                       `either make the first column a text cell, or remove href.`
                   );
                 }
+                const hand = column.key === 'room' && cell.kind === 'text';
                 return (
                   <td
                     class:list={[
-                      'px-3 py-2',
+                      'h-[46px] px-3 py-1.5 align-middle',
                       column.align === 'right' && 'text-right',
                       (cell.kind === 'figure' || cell.kind === 'input') &&
                         'font-figure tabular-nums',
+                      hand && 'whitespace-nowrap font-hand text-[17px] font-semibold',
                     ]}
                   >
                     {cell.kind === 'figure' &&
@@ -78,9 +94,9 @@ const { columns, groups } = Astro.props;
                         aria-label={cell.label}
                         placeholder={cell.placeholder}
                         class:list={[
-                          'w-full min-w-20 rounded-sm border border-console-rule/30 bg-console-paper px-2 py-1',
-                          'focus:border-console-rule focus:outline-none',
-                          cell.mode === 'text' ? 'font-sans' : 'font-figure tabular-nums',
+                          INPUT,
+                          'min-h-9 min-w-24 py-1',
+                          cell.mode === 'text' ? 'font-console' : 'font-figure tabular-nums',
                           column.align === 'right' && 'text-right',
                         ]}
                       />
@@ -89,7 +105,7 @@ const { columns, groups } = Astro.props;
                     {cell.kind === 'link' && (
                       <a
                         href={cell.href}
-                        class="text-console-ink underline underline-offset-2 hover:no-underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
+                        class:list={['whitespace-nowrap font-semibold text-console-ink underline-offset-2 hover:underline', FOCUS]}
                       >
                         {cell.label}
                       </a>
@@ -98,12 +114,12 @@ const { columns, groups } = Astro.props;
                       index === 0 && row.href ? (
                         <a
                           href={row.href}
-                          class="font-figure font-semibold text-console-ink underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
+                          class:list={['text-console-ink underline-offset-2 hover:underline', !hand && 'font-semibold', FOCUS]}
                         >
                           {cell.value}
                         </a>
                       ) : (
-                        <span class={cell.muted ? 'text-console-ink-faint' : ''}>{cell.value}</span>
+                        <span class={cell.muted ? 'text-sm text-console-ink-soft' : ''}>{cell.value}</span>
                       )
                     )}
                 </td>

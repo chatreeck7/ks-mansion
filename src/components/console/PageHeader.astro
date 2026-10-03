@@ -1,0 +1,66 @@
+---
+// src/components/console/PageHeader.astro
+import { FOCUS } from '@/lib/console/ui';
+
+/**
+ * The top of every console page: where you are, what this page is, and the
+ * one or two actions that belong to the whole page.
+ *
+ * The title is in Mali — the one hand-written line on the page, like the
+ * heading someone pens at the top of a notebook page. Everything under it is
+ * Sarabun.
+ *
+ * Slots: `actions` (right of the title on a desk, under it on a phone) and
+ * `subtitle` when the subtitle needs markup such as a link.
+ */
+
+interface Props {
+  title: string;
+  /** "ขั้น 3 จาก 6" — where this page sits in the month. */
+  eyebrow?: string;
+  subtitle?: string;
+  /** The way back, for pages one level down. */
+  back?: { href: string; label: string };
+  /** Hidden when printing, for screens whose body is a printable document. */
+  printHidden?: boolean;
+}
+
+const { title, eyebrow, subtitle, back, printHidden = false } = Astro.props;
+const hasActions = Astro.slots.has('actions');
+const hasSubtitleSlot = Astro.slots.has('subtitle');
+---
+
+<header class:list={['mb-5 flex flex-col gap-3 desk:mb-6', printHidden && 'print:hidden']}>
+  {
+    back && (
+      <a
+        href={back.href}
+        class:list={[
+          'inline-flex min-h-11 items-center self-start text-base font-medium text-console-ink-soft hover:text-console-ink desk:min-h-0',
+          FOCUS,
+        ]}
+      >
+        ← {back.label}
+      </a>
+    )
+  }
+  <div class="flex flex-col gap-3 desk:flex-row desk:items-end desk:justify-between desk:gap-6">
+    <div class="min-w-0">
+      {eyebrow && <p class="mb-0 text-sm font-semibold text-console-ink-soft">{eyebrow}</p>}
+      <h1 class="font-hand text-2xl font-semibold leading-[1.4] tracking-normal text-console-ink desk:text-[30px]">
+        {title}
+      </h1>
+      {subtitle && <p class="mt-0.5 text-base text-console-ink-soft">{subtitle}</p>}
+      {hasSubtitleSlot && (
+        <div class="mt-0.5 text-base text-console-ink-soft">
+          <slot name="subtitle" />
+        </div>
+      )}
+    </div>
+    {hasActions && (
+      <div class="flex flex-wrap items-center gap-2 desk:flex-none desk:justify-end">
+        <slot name="actions" />
+      </div>
+    )}
+  </div>
+</header>

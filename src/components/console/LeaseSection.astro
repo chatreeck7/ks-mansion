@@ -3,6 +3,9 @@
 // Shared by the room and tenant detail screens: the same lease facts, with
 // the counterpart column swapped depending on which side you arrived from.
 import DetailSection from './DetailSection.astro';
+import Button from './Button.astro';
+import Chip from './Chip.astro';
+import { FOCUS } from '@/lib/console/ui';
 import {
   activeLeaseFor,
   endReasonLabel,
@@ -46,45 +49,36 @@ const history = [...leases].sort((a, b) => b.startDate.getTime() - a.startDate.g
   {
     addHref && (
       <p class="mb-3">
-        <a
-          href={addHref}
-          class="rounded border border-console-sunk px-3 py-1.5 text-sm text-console-ink hover:bg-console-sunk focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
-        >
-          เพิ่มสัญญาเช่า
-        </a>
+        <Button href={addHref} variant="secondary" size="sm">+ เพิ่มสัญญาเช่า</Button>
       </p>
     )
   }
 
   {
     history.length === 0 ? (
-      <p class="mb-0 text-sm text-console-ink-faint">{emptyMessage}</p>
+      <p class="mb-0 text-[15px] text-console-ink-soft">{emptyMessage}</p>
     ) : (
       <ul class="m-0 list-none space-y-3 p-0">
         {history.map((lease) => (
-          <li class="border-l-2 pl-3" class:list={[lease.id === active?.id ? 'border-accent' : 'border-console-sunk']}>
-            <p class="mb-1 flex flex-wrap items-baseline gap-x-2 text-sm">
+          <li class:list={['border-l-[3px] pl-3', lease.id === active?.id ? 'border-console-ok' : 'border-console-line']}>
+            <p class="mb-1 flex flex-wrap items-baseline gap-x-2 text-[15px]">
               <span class="font-medium text-console-ink">{counterpartFor(lease)}</span>
               <span class="text-console-ink-faint">{counterpartLabel}</span>
               {lease.id === active?.id && (
-                <span class="rounded bg-console-ok-bg px-1.5 py-0.5 text-xs text-console-ok">
-                  ปัจจุบัน
-                </span>
+                <Chip tone="ok">สัญญาปัจจุบัน</Chip>
               )}
               {lease.endReason === 'absconded' && (
-                <span class="rounded bg-console-crit-bg px-1.5 py-0.5 text-xs text-console-crit">
-                  {endReasonLabel(lease.endReason)}
-                </span>
+                <Chip tone="missing">{endReasonLabel(lease.endReason)}</Chip>
               )}
             </p>
-            <dl class="m-0 grid grid-cols-[auto_1fr] gap-x-4 gap-y-0.5 text-sm">
-              <dt class="text-console-ink-faint">ระยะสัญญา</dt>
+            <dl class="m-0 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-[15px]">
+              <dt class="text-console-ink-soft">ระยะสัญญา</dt>
               <dd class="m-0">{leaseTermLabel(lease)}</dd>
-              <dt class="text-console-ink-faint">ค่าเช่า</dt>
+              <dt class="text-console-ink-soft">ค่าเช่า</dt>
               <dd class="m-0 font-figure">{formatBaht(lease.rentRate)} ต่อเดือน</dd>
-              <dt class="text-console-ink-faint">เงินประกัน</dt>
+              <dt class="text-console-ink-soft">เงินประกัน</dt>
               <dd class="m-0 font-figure">{formatBaht(lease.deposit)}</dd>
-              <dt class="text-console-ink-faint">ค่าเช่าล่วงหน้า</dt>
+              <dt class="text-console-ink-soft">ค่าเช่าล่วงหน้า</dt>
               <dd class="m-0 font-figure">{formatBaht(lease.advanceRent)}</dd>
               {/*
                 Headcount only, not the water charge it implies. ค่าน้ำ is
@@ -93,7 +87,7 @@ const history = [...leases].sort((a, b) => b.startDate.getTime() - a.startDate.g
                 figure here would quietly print the wrong one for the shop.
                 It belongs in billing (KS-21), where that exception lives.
               */}
-              <dt class="text-console-ink-faint">จำนวนผู้พัก</dt>
+              <dt class="text-console-ink-soft">จำนวนผู้พัก</dt>
               <dd class="m-0"><span class="font-figure">{lease.occupantCount}</span> คน</dd>
 
               {/*
@@ -104,7 +98,7 @@ const history = [...leases].sort((a, b) => b.startDate.getTime() - a.startDate.g
               */}
               {lease.moveInDue !== null && (
                 <Fragment>
-                  <dt class="text-console-ink-faint">ยอดวันเข้า</dt>
+                  <dt class="text-console-ink-soft">ยอดวันเข้า</dt>
                   <dd class="m-0 font-figure">
                     {formatBaht(lease.moveInDue)}
                     {lease.moveInPaid !== null && lease.moveInPaid !== lease.moveInDue && (
@@ -116,7 +110,7 @@ const history = [...leases].sort((a, b) => b.startDate.getTime() - a.startDate.g
 
               {lease.moveOutDue !== null && (
                 <Fragment>
-                  <dt class="text-console-ink-faint">ยอดวันออก</dt>
+                  <dt class="text-console-ink-soft">ยอดวันออก</dt>
                   <dd class="m-0 font-figure">
                     <span class:list={[lease.moveOutDue < 0 ? 'text-console-ok' : 'text-console-crit']}>
                       {settlementLabel(lease.moveOutDue)}
@@ -136,7 +130,7 @@ const history = [...leases].sort((a, b) => b.startDate.getTime() - a.startDate.g
             <p class="mb-0 mt-1">
               <a
                 href={consolePath(`console/leases/${lease.id}/end`)}
-                class="text-xs text-console-ink-soft underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
+                class:list={['inline-flex min-h-9 items-center text-sm font-medium text-console-crit underline-offset-2 hover:underline', FOCUS]}
               >
                 {lease.endDate ? 'แก้วันสิ้นสุด' : 'บันทึกวันสิ้นสุด'}
               </a>

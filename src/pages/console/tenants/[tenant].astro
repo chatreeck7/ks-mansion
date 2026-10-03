@@ -1,6 +1,7 @@
 ---
 // src/pages/console/tenants/[tenant].astro
 import ConsoleFrame from '@/components/console/ConsoleFrame.astro';
+import Button from '@/components/console/Button.astro';
 import DetailSheet from '@/components/console/DetailSheet.astro';
 import DetailSection from '@/components/console/DetailSection.astro';
 import LeaseSection from '@/components/console/LeaseSection.astro';
@@ -20,34 +21,35 @@ const rooms = leases.length > 0 ? await getRoomRepository(env).listRooms() : [];
 const roomLabelById = new Map(rooms.map((r) => [r.id, r.label]));
 ---
 
-<ConsoleFrame title={`ผู้เช่า ${tenant.fullName}`} activeSection="tenants">
+<ConsoleFrame title={`ผู้เช่า ${tenant.fullName}`} activeSection="tenants" width="reading">
+  <a href={consolePath('console/tenants')} class="inline-flex min-h-11 items-center text-base font-medium text-console-ink-soft no-underline hover:text-console-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-console-ink mb-3">← กลับไปรายชื่อผู้เช่า</a>
   <DetailSheet title={displayName(tenant)} meta="ข้อมูลผู้เช่า">
     <DetailSection heading="ข้อมูลติดต่อ">
-      <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
-        <dt class="text-console-ink-faint">โทรศัพท์</dt>
+      <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-[15px]">
+        <dt class="text-console-ink-soft">โทรศัพท์</dt>
         <dd>{tenant.phone || '—'}</dd>
-        <dt class="text-console-ink-faint">ที่อยู่ตามทะเบียนบ้าน</dt>
+        <dt class="text-console-ink-soft">ที่อยู่ตามทะเบียนบ้าน</dt>
         <dd>{formatAddress(tenant.address)}</dd>
-        <dt class="text-console-ink-faint">อาชีพ</dt>
+        <dt class="text-console-ink-soft">อาชีพ</dt>
         <dd>{tenant.occupation || '—'}</dd>
       </dl>
     </DetailSection>
 
     <DetailSection heading="ผลประเมิน">
-      <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
-        <dt class="text-console-ink-faint">เกรด</dt>
+      <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-[15px]">
+        <dt class="text-console-ink-soft">เกรด</dt>
         <dd>{formatGrade(tenant.evaluationGrade)}</dd>
-        <dt class="text-console-ink-faint">หมายเหตุ</dt>
+        <dt class="text-console-ink-soft">หมายเหตุ</dt>
         <dd>{tenant.note || '—'}</dd>
       </dl>
     </DetailSection>
 
     <DetailSection heading="เอกสาร">
-      <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
-        <dt class="text-console-ink-faint">บัตรประชาชน</dt>
+      <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-[15px]">
+        <dt class="text-console-ink-soft">บัตรประชาชน</dt>
         <dd class="font-figure">{maskIdCard(tenant.idCardLast4)}</dd>
       </dl>
-      <p class="mt-2 text-xs text-console-ink-faint">
+      <p class="mt-2 text-sm text-console-ink-soft">
         เก็บเฉพาะเลข 4 หลักท้าย เพื่อใช้ตรวจสอบกับสัญญาเช่าเท่านั้น
       </p>
     </DetailSection>
@@ -60,20 +62,7 @@ const roomLabelById = new Map(rooms.map((r) => [r.id, r.label]));
       emptyMessage="ยังไม่มีสัญญาเช่าสำหรับผู้เช่ารายนี้"
     />
   </DetailSheet>
-
-  <p class="mt-4 mb-2 leading-none">
-    <a
-      href={consolePath(`console/tenants/${tenant.id}/edit`)}
-      class="text-sm text-console-ink underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
-      >แก้ไขข้อมูลผู้เช่า</a
-    >
-  </p>
-
-  <p class="mt-0 mb-0 leading-none text-console-ink-soft">
-    <a
-      href={consolePath('console/tenants')}
-      class="text-sm underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
-      >← กลับไปรายชื่อผู้เช่า</a
-    >
+  <p class="mt-4">
+    <Button href={consolePath(`console/tenants/${tenant.id}/edit`)} variant="secondary">แก้ไขข้อมูลผู้เช่า</Button>
   </p>
 </ConsoleFrame>

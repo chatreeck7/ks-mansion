@@ -1,0 +1,40 @@
+---
+// src/components/console/StatTile.astro
+import { MARKS, type MarkKind } from '@/lib/console/marks';
+
+/**
+ * A count with its mark: "✓ 16 ออกบิลแล้ว". Tiles sit in a row of three at
+ * the top of a step, so the state of the step reads before any table does.
+ */
+
+interface Props {
+  mark: MarkKind;
+  count: number | string;
+  label: string;
+}
+
+const { mark, count, label } = Astro.props;
+const spec = MARKS[mark];
+
+const TONE: Record<MarkKind, string> = {
+  done: 'border border-console-line bg-console-card',
+  todo: 'border border-console-line bg-console-card',
+  partial: 'border-[1.5px] border-dashed border-console-crit bg-console-crit-bg',
+  missing: 'border-[1.5px] border-dashed border-console-crit bg-console-crit-bg',
+  none: 'border border-console-line bg-console-spine',
+};
+---
+
+<div
+  class:list={[
+    'flex flex-col items-center gap-0.5 rounded-[10px] px-2 py-2 text-center desk:flex-row desk:gap-3 desk:px-4 desk:py-3 desk:text-left',
+    TONE[mark],
+  ]}
+>
+  <span class:list={['font-hand text-2xl font-semibold leading-none desk:text-[32px]', spec.text]}>
+    <span aria-hidden="true" class:list={[mark === 'none' && 'inline-block scale-x-[0.6]']}>{spec.glyph}</span>{' '}{count}
+  </span>
+  <span class:list={['text-[15px] font-medium desk:text-base', mark === 'none' ? 'text-console-ink-soft' : 'text-console-ink']}>
+    {label}
+  </span>
+</div>

@@ -1,0 +1,50 @@
+---
+// src/components/console/Button.astro
+import type { HTMLAttributes } from 'astro/types';
+import { buttonClass, type ButtonSize, type ButtonVariant } from '@/lib/console/ui';
+
+/**
+ * Every console button and button-shaped link.
+ *
+ * With `href` it renders an `<a>` — navigation stays a link, so it can be
+ * opened in a new tab and works without JavaScript. Without, a `<button>`
+ * (type `button` unless told otherwise, so a stray one never submits a form).
+ *
+ * One primary per screen. The variants are deliberately few; see
+ * docs/console-design-system.md before adding one.
+ */
+
+type Props = {
+  variant?: ButtonVariant;
+  size?: ButtonSize;
+  href?: string;
+  type?: 'button' | 'submit';
+  full?: boolean;
+  class?: string;
+} & Omit<HTMLAttributes<'button'>, 'type' | 'class'> &
+  Omit<HTMLAttributes<'a'>, 'type' | 'class'>;
+
+const {
+  variant = 'primary',
+  size = 'md',
+  href,
+  type = 'button',
+  full = false,
+  class: extra,
+  ...rest
+} = Astro.props;
+
+const classes = [buttonClass(variant, size, full), extra].filter(Boolean).join(' ');
+---
+
+{
+  href ? (
+    <a href={href} class={classes} {...rest}>
+      <slot />
+    </a>
+  ) : (
+    <button type={type} class={classes} {...rest}>
+      <slot />
+    </button>
+  )
+}

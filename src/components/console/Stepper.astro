@@ -1,0 +1,62 @@
+---
+// src/components/console/Stepper.astro
+import { FOCUS } from '@/lib/console/ui';
+
+/**
+ * − [n] + for a small count, such as occupants.
+ *
+ * The number stays an ordinary text field inside the page's form, so it can
+ * be typed and is submitted with no script at all. The − and + buttons are
+ * the enhancement: they nudge the field by one and are inert without script
+ * (type="button", never a submit).
+ */
+
+interface Props {
+  name: string;
+  value: string;
+  label: string;
+  unit?: string;
+  min?: number;
+  max?: number;
+}
+
+const { name, value, label, unit = 'คน', min = 0, max = 20 } = Astro.props;
+const BTN = `flex w-11 flex-none items-center justify-center text-xl font-semibold text-console-ink hover:bg-console-ink/5 ${FOCUS}`;
+---
+
+<div
+  data-stepper
+  data-min={min}
+  data-max={max}
+  class="inline-flex h-11 overflow-hidden rounded-[10px] border-[1.5px] border-console-ink bg-console-card"
+>
+  <button type="button" data-step="-1" class={`${BTN} border-r border-console-line-strong`} aria-label={`ลด ${label}`}>−</button>
+  <label class="flex items-center gap-1 px-1">
+    <span class="sr-only">{label}</span>
+    <input
+      type="text"
+      inputmode="numeric"
+      name={name}
+      value={value}
+      class="w-8 bg-transparent text-center text-base font-semibold tabular-nums focus:outline-none"
+    />
+    <span class="text-[15px] font-semibold">{unit}</span>
+  </label>
+  <button type="button" data-step="1" class={`${BTN} border-l border-console-line-strong`} aria-label={`เพิ่ม ${label}`}>+</button>
+</div>
+
+<script>
+  for (const root of document.querySelectorAll<HTMLElement>('[data-stepper]')) {
+    const input = root.querySelector('input')!;
+    const min = Number(root.dataset.min);
+    const max = Number(root.dataset.max);
+    for (const button of root.querySelectorAll<HTMLButtonElement>('[data-step]')) {
+      button.addEventListener('click', () => {
+        const current = Number.parseInt(input.value, 10);
+        const next = (Number.isNaN(current) ? 0 : current) + Number(button.dataset.step);
+        input.value = String(Math.min(max, Math.max(min, next)));
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+    }
+  }
+</script>

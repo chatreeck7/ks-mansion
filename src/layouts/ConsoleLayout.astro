@@ -2,6 +2,11 @@
 // Separate from BaseLayout.astro on purpose: the console shares the brand
 // but not the grid, and the marketing layout carries a language switcher
 // and Google Sans that do not belong here.
+//
+// Three faces, each with one job (docs/console-design-system.md):
+// Sarabun for everything you read, Mali for what would be hand-written in a
+// notebook — page titles, room numbers, digits and ticks — and IBM Plex Mono
+// for money and dial figures, so columns line up.
 import '../styles/global.css';
 
 interface Props {
@@ -22,7 +27,7 @@ const { title } = Astro.props;
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600&display=swap"
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Mali:wght@500;600&family=Sarabun:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
   </head>

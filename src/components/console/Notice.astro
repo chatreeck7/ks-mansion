@@ -1,0 +1,39 @@
+---
+// src/components/console/Notice.astro
+
+/**
+ * A one-line message about what just happened: "บันทึกแล้ว 3 รายการ",
+ * "ยังไม่ได้ออกบิลรอบนี้". Not for problems that need a fix — those are a
+ * `ProblemCard`, grouped, with one action.
+ */
+
+interface Props {
+  tone?: 'ok' | 'warn' | 'crit' | 'info' | 'mute';
+  role?: 'alert' | 'status';
+  /** Drops the bottom margin, for a notice sitting in a row of actions. */
+  flush?: boolean;
+  class?: string;
+}
+
+const { tone = 'info', role, flush = false, class: extra } = Astro.props;
+
+const TONE = {
+  ok: 'border-console-ok bg-console-ok-bg text-console-ok',
+  warn: 'border-console-warn bg-console-warn-bg text-console-warn',
+  crit: 'border-console-crit bg-console-crit-bg text-console-crit',
+  info: 'border-console-info bg-console-info-bg text-console-info',
+  mute: 'border-console-line-strong bg-console-spine text-console-ink-soft',
+} as const;
+---
+
+<div
+  role={role}
+  class:list={[
+    'whitespace-pre-wrap break-words rounded-lg border-l-4 px-4 py-2.5 text-[15px] font-medium',
+    !flush && 'mb-4',
+    TONE[tone],
+    extra,
+  ]}
+>
+  <slot />
+</div>

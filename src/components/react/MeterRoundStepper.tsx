@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import {
   canClose,
   currentStop,
@@ -13,9 +13,12 @@ import {
   previewEntry,
   type EntryFields,
 } from '@/lib/console/meter-round-view';
+import { padKeyFrom, pressKey, type PadKey } from '@/lib/console/keypad';
+import { buttonClass, FOCUS } from '@/lib/console/ui';
 
 /**
- * The meter round, one stop at a time (KS-72).
+ * The meter round, one stop at a time (KS-72), drawn as a line in the
+ * logbook with a PIN-style keypad under the thumb.
  *
  * Full screen with the console navigation left off the page entirely: this is
  * 27 repetitions done one-handed while walking the building, and chrome in
@@ -50,6 +53,12 @@ export default function MeterRoundStepper({
   const [busy, setBusy] = useState(false);
   /** True once ข้าม is tapped, while the reason is being chosen. */
   const [skipping, setSkipping] = useState(false);
+  /**
+   * Which figure the keypad is typing into. Almost always the current
+   * reading; a stop with nothing on record also needs its previous figure
+   * and rate, and each of those is chosen by tapping its line.
+   */
+  const [target, setTarget] = useState<keyof EntryFields>('currentReading');
 
   const stop = currentStop(round);
   const view = stop ? describeStop(stop) : null;
@@ -64,7 +73,29 @@ export default function MeterRoundStepper({
     setFields(EMPTY_FIELDS);
     setError(null);
     setSkipping(false);
+    setTarget('currentReading');
   }
+
+  function press(key: PadKey) {
+    if (busy) return;
+    setError(null);
+    setFields((f) => ({ ...f, [target]: pressKey(f[target] ?? '', key) }));
+  }
+
+  // A keyboard still works — the pad replaces the phone's keyboard, it does
+  // not lock out a real one.
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      const key = padKeyFrom(event.key);
+      if (key) {
+        event.preventDefault();
+        press(key);
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
 
   /**
    * Readings post as they are entered, not in one batch at the end.
@@ -153,146 +184,149 @@ export default function MeterRoundStepper({
   }
 
   const ready = preview.status === 'ok';
+  const index = round.cursor ?? 0;
+  const before = round.stops[index - 1] ?? null;
+  const after = round.stops[index + 1] ?? null;
+  /** As many boxes as the dial has digits, so a short entry looks short. */
+  const width = Math.max(4, (view.previousText ?? '').replace(/[^0-9]/g, '').length);
+  const note =
+    preview.status === 'invalid'
+      ? { text: preview.message, tone: 'text-console-crit' }
+      : preview.status === 'ok'
+        ? { text: preview.summary, tone: 'text-console-ok' }
+        : { text: 'กดตัวเลขตามหน้าปัดมิเตอร์', tone: 'text-console-ink-soft' };
 
   return (
-    <div className="flex min-h-screen flex-col bg-console-paper">
-      <header className="border-b border-console-rule/25 px-4 py-3">
-        <div className="flex items-baseline justify-between gap-3">
-          <span className="text-sm text-console-ink-soft">{bar.countText}</span>
-          <div className="flex items-center gap-3">
+    <div className="mx-auto flex min-h-[100dvh] max-w-md flex-col bg-console-paper font-console text-console-ink">
+      <header className="px-4 pt-2">
+        <div className="flex items-center justify-between">
+          <a
+            href={exitHref}
+            aria-label="ออกจากรอบจด"
+            className={`flex min-h-11 items-center text-base font-medium text-console-ink-soft hover:text-console-ink ${FOCUS}`}
+          >
+            ✕ พักก่อน
+          </a>
+          <span className="flex items-center gap-2 text-[15px] font-semibold text-console-ink-soft">
             {bar.passLabel && (
-              <span className="rounded-sm bg-console-warn-bg px-2 py-0.5 text-sm font-semibold text-console-warn">
+              <span className="rounded-md border-[1.5px] border-dashed border-console-crit bg-console-crit-bg px-2 text-console-crit">
                 {bar.passLabel}
               </span>
             )}
-            <a
-              href={exitHref}
-              aria-label="ออกจากรอบจด"
-              className="text-sm text-console-ink-faint hover:text-console-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
-            >
-              ✕
-            </a>
-          </div>
+            {bar.countText}
+          </span>
         </div>
-        <div className="mt-2 h-1 w-full rounded-full bg-console-sunk">
+        <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-console-sunk">
           <div
-            className="h-1 rounded-full bg-console-ok transition-all"
+            className="h-full rounded-full bg-console-ok transition-all"
             style={{ width: `${Math.round(bar.fraction * 100)}%` }}
           />
         </div>
+        <h1 className="mt-2 font-hand text-[21px] font-semibold leading-[1.4]">
+          ขั้น 1 · จดมิเตอร์{view.meterLabel}
+        </h1>
       </header>
 
-      <form onSubmit={submit} className="flex flex-1 flex-col px-4 pt-8">
-        <div className="flex-1">
-          <p className="mb-1 text-sm uppercase tracking-widest text-console-ink-faint">
-            {view.meterLabel}
-          </p>
-          <h1 className="mb-2 text-5xl font-semibold leading-none text-console-ink">
-            {view.roomLabel}
-          </h1>
-
-          <p className="mb-6 text-console-ink-soft">
-            {view.previousText === null
-              ? 'ยังไม่เคยจดจุดนี้'
-              : `ครั้งก่อน ${view.previousText}`}
-            {view.rateText && ` · ${view.rateText}`}
-          </p>
-
-          {view.deferredNote && (
-            <p className="mb-4 rounded-sm bg-console-warn-bg px-3 py-2 text-sm text-console-warn">
-              ข้ามไว้: {view.deferredNote}
-            </p>
+      <form onSubmit={submit} className="flex flex-1 flex-col">
+        {/* The page of the logbook: the line before, this line, the next. */}
+        <div className="mt-1 border-t border-console-rule bg-[linear-gradient(90deg,transparent_58px,#E7B9B2_58px_59.5px,transparent_59.5px)]">
+          {before && (
+            <div className="flex h-11 items-center border-b border-console-rule text-base text-console-ink-soft">
+              <span className="w-[58px] text-center font-hand font-semibold">{before.roomLabel}</span>
+              <span className="pl-3">
+                {before.state === 'entered' ? '✓ จดแล้ว' : before.state === 'skipped' ? '○ ข้ามไว้' : ''}
+              </span>
+            </div>
           )}
-
+          <div className="flex min-h-28 items-center border-b border-console-rule bg-console-highlight/50">
+            <div className="w-[58px] flex-none text-center font-hand text-[22px] font-semibold">{view.roomLabel}</div>
+            <div className="flex flex-1 flex-col gap-1.5 px-3 py-2">
+              <div className="text-base text-console-ink-soft">
+                {view.previousText === null ? 'ยังไม่เคยจดจุดนี้' : `ครั้งก่อน ${view.previousText}`}
+                {view.rateText && ` · ${view.rateText}`}
+              </div>
+              <Digits
+                value={fields.currentReading}
+                width={width}
+                active={target === 'currentReading'}
+                label="เลขมิเตอร์ตอนนี้"
+                onSelect={() => setTarget('currentReading')}
+              />
+            </div>
+          </div>
           {view.needsPreviousReading && (
-            <label className="mb-4 block">
-              <span className="mb-1 block text-sm text-console-ink-soft">เลขครั้งก่อน</span>
-              <input
-                type="text"
-                inputMode="decimal"
-                value={fields.previousReading}
-                onChange={(e) => setFields({ ...fields, previousReading: e.target.value })}
-                className="w-full rounded-sm border border-console-rule/40 bg-console-card px-3 py-3 text-2xl tabular-nums focus:border-console-rule focus:outline-none"
-              />
-            </label>
-          )}
-
-          <label className="block">
-            <span className="mb-1 block text-sm text-console-ink-soft">เลขมิเตอร์ตอนนี้</span>
-            <input
-              type="text"
-              inputMode="decimal"
-              autoFocus
-              // Large enough to read at arm's length in a stairwell, and to
-              // hit without looking.
-              className="w-full rounded-sm border border-console-rule/40 bg-console-card px-4 py-5 text-5xl tabular-nums focus:border-console-rule focus:outline-none"
-              value={fields.currentReading}
-              onChange={(e) => setFields({ ...fields, currentReading: e.target.value })}
+            <FigureLine
+              label="เลขครั้งก่อน"
+              value={fields.previousReading ?? ''}
+              active={target === 'previousReading'}
+              onSelect={() => setTarget('previousReading')}
             />
-          </label>
-
-          {view.needsRate && (
-            <label className="mt-4 block">
-              <span className="mb-1 block text-sm text-console-ink-soft">บาท/หน่วย</span>
-              <input
-                type="text"
-                inputMode="decimal"
-                value={fields.ratePerUnit}
-                onChange={(e) => setFields({ ...fields, ratePerUnit: e.target.value })}
-                className="w-full rounded-sm border border-console-rule/40 bg-console-card px-3 py-3 text-2xl tabular-nums focus:border-console-rule focus:outline-none"
-              />
-            </label>
           )}
-
-          <p
-            aria-live="polite"
-            className={`mt-4 min-h-[1.5rem] text-lg ${
-              preview.status === 'invalid' ? 'text-console-crit' : 'text-console-ink-soft'
-            }`}
-          >
-            {preview.status === 'invalid'
-              ? preview.message
-              : preview.status === 'ok'
-                ? preview.summary
-                : ''}
-          </p>
-
-          {error && (
-            <p role="alert" className="mt-2 rounded-sm bg-console-crit-bg px-3 py-2 text-console-crit">
-              {error}
-            </p>
+          {view.needsRate && (
+            <FigureLine
+              label="บาท/หน่วย"
+              value={fields.ratePerUnit ?? ''}
+              active={target === 'ratePerUnit'}
+              onSelect={() => setTarget('ratePerUnit')}
+            />
+          )}
+          {after && (
+            <div className="flex h-11 items-center border-b border-console-rule text-base text-console-ink-soft">
+              <span className="w-[58px] text-center font-hand font-semibold">{after.roomLabel}</span>
+              <span className="pl-3">ถัดไป</span>
+            </div>
           )}
         </div>
 
-        {/* The thumb zone: the two actions, and nothing else. */}
-        <div className="sticky bottom-0 flex flex-col gap-2 bg-console-paper py-4">
+        {view.deferredNote && (
+          <p className="mx-4 mt-2 rounded-md bg-console-spine px-3 py-1.5 text-[15px] text-console-ink-soft">
+            ข้ามไว้รอบแรก: {view.deferredNote}
+          </p>
+        )}
+
+        <p aria-live="polite" className={`min-h-[54px] px-4 py-2 text-center text-base font-semibold leading-snug ${note.tone}`}>
+          {note.text}
+        </p>
+
+        {error && (
+          <p role="alert" className="mx-4 mb-2 rounded-lg border-l-4 border-console-crit bg-console-crit-bg px-3 py-2 text-[15px] font-medium text-console-crit">
+            {error}
+          </p>
+        )}
+
+        {/* The thumb zone: the pad, the one action, and the quiet way out. */}
+        <div className="sticky bottom-0 mt-auto bg-console-paper px-3.5 pb-[max(14px,env(safe-area-inset-bottom))] pt-1">
+          <div className="grid grid-cols-3 gap-[7px]">
+            {(['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0'] as const).map((key) => (
+              <PadButton key={key} onPress={() => press(key)} label={key === '.' ? 'จุดทศนิยม' : key}>
+                {key}
+              </PadButton>
+            ))}
+            <PadButton onPress={() => press('back')} label="ลบ" quiet>
+              ลบ
+            </PadButton>
+          </div>
           <button
             type="submit"
             disabled={!ready || busy}
-            className="w-full rounded-sm bg-console-ink px-4 py-4 text-lg font-semibold text-console-paper disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-console-rule"
+            className={`mt-2 ${buttonClass('primary', 'lg', true)} min-h-[54px] text-[17px]`}
           >
-            {busy ? 'กำลังบันทึก…' : 'ถัดไป'}
+            {busy ? 'กำลังบันทึก…' : 'จดลงสมุด →'}
           </button>
-          {/* Quieter than ถัดไป on purpose — skipping is the exception. */}
           {skipping ? (
-            <div className="flex gap-2">
+            <div className="mt-2 flex gap-2">
               {['ไม่อยู่', 'ประตูล็อก'].map((reason) => (
                 <button
                   key={reason}
                   type="button"
                   onClick={() => skip(reason)}
                   disabled={busy}
-                  className="flex-1 rounded-sm border border-console-rule/40 px-2 py-3 text-console-ink-soft disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
+                  className={`flex-1 ${buttonClass('secondary', 'md')}`}
                 >
                   {reason}
                 </button>
               ))}
-              <button
-                type="button"
-                onClick={() => skip()}
-                disabled={busy}
-                className="flex-1 rounded-sm border border-console-rule/40 px-2 py-3 text-console-ink-soft disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
-              >
+              <button type="button" onClick={() => skip()} disabled={busy} className={`flex-1 ${buttonClass('secondary', 'md')}`}>
                 ข้ามเลย
               </button>
             </div>
@@ -301,14 +335,104 @@ export default function MeterRoundStepper({
               type="button"
               onClick={() => setSkipping(true)}
               disabled={busy}
-              className="w-full px-4 py-3 text-console-ink-soft underline-offset-4 hover:underline disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
+              className={`mt-1 ${buttonClass('quiet', 'md', true)} font-medium text-console-ink-soft`}
             >
-              ข้าม
+              ข้ามห้องนี้ไปก่อน
             </button>
           )}
         </div>
       </form>
     </div>
+  );
+}
+
+/** The reading as boxes on a ruled line, in Mali, like digits written in by hand. */
+function Digits({
+  value,
+  width,
+  active,
+  label,
+  onSelect,
+}: {
+  value: string;
+  width: number;
+  active: boolean;
+  label: string;
+  onSelect: () => void;
+}) {
+  const chars = value.split('');
+  const boxes = Math.max(width, chars.length + (active ? 1 : 0));
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-label={`${label}: ${value || 'ยังไม่ได้กด'}`}
+      className={`flex gap-1.5 self-start rounded ${FOCUS}`}
+    >
+      {Array.from({ length: boxes }, (_, i) => (
+        <span
+          key={i}
+          aria-hidden="true"
+          className={`h-[46px] w-[34px] border-b-[2.5px] text-center font-hand text-[34px] font-semibold leading-[46px] ${
+            active && i === chars.length ? 'border-console-crit' : 'border-console-ink'
+          }`}
+        >
+          {chars[i] ?? ''}
+        </span>
+      ))}
+    </button>
+  );
+}
+
+/** A second figure some stops need: tap the line, then type on the pad. */
+function FigureLine({
+  label,
+  value,
+  active,
+  onSelect,
+}: {
+  label: string;
+  value: string;
+  active: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={`flex min-h-12 w-full items-center border-b border-console-rule text-left ${
+        active ? 'bg-console-highlight/50' : ''
+      } ${FOCUS}`}
+    >
+      <span className="w-[58px] flex-none" />
+      <span className="flex-1 pl-3 text-base text-console-ink-soft">{label}</span>
+      <span className="min-w-20 pr-4 text-right font-hand text-2xl font-semibold">{value || '—'}</span>
+    </button>
+  );
+}
+
+function PadButton({
+  children,
+  onPress,
+  label,
+  quiet = false,
+}: {
+  children: ReactNode;
+  onPress: () => void;
+  label: string;
+  quiet?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onPress}
+      aria-label={label}
+      className={`h-[54px] rounded-[10px] border-[1.5px] border-console-ink text-console-ink active:bg-console-highlight ${
+        quiet ? 'bg-transparent text-base font-semibold' : 'bg-console-card font-hand text-2xl font-semibold'
+      } ${FOCUS}`}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -334,12 +458,10 @@ function RoundComplete({
 
   if (counts.total === 0) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center px-6 text-center">
-        <h1 className="mb-2 text-2xl font-semibold">ไม่มีจุดให้จด</h1>
-        <p className="mb-6 text-console-ink-soft">
-          ยังไม่มีห้องที่ตั้งค่ามิเตอร์ไว้ในทะเบียนห้อง
-        </p>
-        <a href={exitHref} className="underline underline-offset-4">
+      <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-2 px-6 text-center font-console text-console-ink">
+        <h1 className="font-hand text-2xl font-semibold">ไม่มีจุดให้จด</h1>
+        <p className="mb-4 text-base text-console-ink-soft">ยังไม่มีห้องที่ตั้งค่ามิเตอร์ไว้ในทะเบียนห้อง</p>
+        <a href={exitHref} className={buttonClass('secondary', 'lg')}>
           กลับหน้าคอนโซล
         </a>
       </div>
@@ -347,24 +469,28 @@ function RoundComplete({
   }
 
   return (
-    <div className="flex min-h-screen flex-col px-6 py-10">
-      <h1 className="mb-2 text-3xl font-semibold">{closed ? 'ปิดรอบแล้ว' : 'จบรอบ'}</h1>
-      <p className="mb-6 text-console-ink-soft">
+    <div className="mx-auto flex min-h-[100dvh] max-w-md flex-col px-5 py-8 font-console text-console-ink">
+      <span className={`font-hand text-5xl font-semibold ${closed ? 'text-console-ok' : 'text-console-ink'}`} aria-hidden="true">
+        {closed ? '✓' : '○'}
+      </span>
+      <h1 className="mb-1 mt-2 font-hand text-[28px] font-semibold leading-[1.4]">{closed ? 'ปิดรอบแล้ว' : 'จบรอบ'}</h1>
+      <p className="mb-6 text-base text-console-ink-soft">
         บันทึกแล้ว {counts.entered} จาก {counts.total} จุด
         {/* Written as they were entered — nothing is waiting to be sent. */}
-        <span className="block text-sm">ทุกรายการบันทึกลงชีตแล้วระหว่างเดิน</span>
+        <span className="block text-[15px]">ทุกรายการบันทึกลงชีตแล้วระหว่างเดิน</span>
       </p>
 
       {unread.length > 0 && (
         <div className="mb-6">
-          <h2 className="mb-2 text-sm uppercase tracking-widest text-console-ink-faint">
-            ยังไม่ได้จด
-          </h2>
-          <ul className="flex flex-col gap-1">
+          <h2 className="mb-2 font-hand text-[17px] font-semibold text-console-crit">ยังไม่ได้จด</h2>
+          <ul className="m-0 flex list-none flex-col border-t-2 border-console-ink p-0">
             {unread.map((stop) => (
-              <li key={stop.key} className="text-console-ink-soft">
-                {stop.roomLabel} · {stop.meterType === 'water' ? 'น้ำ' : 'ไฟฟ้า'}
-                {stop.note && ` — ${stop.note}`}
+              <li key={stop.key} className="flex min-h-11 items-center gap-3 border-b border-console-rule text-base">
+                <span className="w-12 font-hand font-semibold">{stop.roomLabel}</span>
+                <span className="text-console-ink-soft">
+                  {stop.meterType === 'water' ? 'น้ำ' : 'ไฟฟ้า'}
+                  {stop.note && ` — ${stop.note}`}
+                </span>
               </li>
             ))}
           </ul>
@@ -373,7 +499,7 @@ function RoundComplete({
 
       <a
         href={exitHref}
-        className="mt-auto w-full rounded-sm bg-console-ink px-4 py-4 text-center text-lg font-semibold text-console-paper focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
+        className={`mt-auto ${buttonClass('primary', 'lg', true)} min-h-[54px]`}
       >
         เสร็จสิ้น
       </a>

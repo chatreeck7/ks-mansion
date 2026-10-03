@@ -1,0 +1,50 @@
+---
+// src/components/console/Chip.astro
+import { FOCUS } from '@/lib/console/ui';
+
+/**
+ * A small tag: a room number in a problem card, a "? เบอร์โทร" gap on a
+ * tenant row, a filter.
+ *
+ * `missing` is the dashed-red "?" chip — the only way the console marks data
+ * that has to be filled in, so it looks the same on every screen.
+ */
+
+interface Props {
+  tone?: 'missing' | 'ink' | 'ok' | 'mute' | 'solid';
+  href?: string;
+  size?: 'sm' | 'md';
+  class?: string;
+}
+
+const { tone = 'ink', href, size = 'sm', class: extra } = Astro.props;
+
+const TONE = {
+  missing: 'border-[1.5px] border-dashed border-console-crit bg-console-card text-console-crit',
+  ink: 'border-[1.5px] border-console-ink bg-console-card text-console-ink',
+  ok: 'bg-console-ok-bg text-console-ok',
+  mute: 'bg-console-mute-bg text-console-ink-soft',
+  solid: 'bg-console-ink text-white',
+} as const;
+
+const SIZE = { sm: 'px-2 py-px text-sm', md: 'min-h-9 px-3 text-[15px]' } as const;
+const classes = [
+  'inline-flex items-center gap-1 rounded-md font-semibold whitespace-nowrap',
+  TONE[tone],
+  SIZE[size],
+  href && `no-underline hover:brightness-95 ${FOCUS}`,
+  extra,
+];
+---
+
+{
+  href ? (
+    <a href={href} class:list={classes}>
+      <slot />
+    </a>
+  ) : (
+    <span class:list={classes}>
+      <slot />
+    </span>
+  )
+}

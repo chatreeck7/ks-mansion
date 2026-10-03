@@ -1,29 +1,167 @@
 ---
 // src/pages/console/tenants/index.astro
 import ConsoleFrame from '@/components/console/ConsoleFrame.astro';
-import LedgerTable from '@/components/console/LedgerTable.astro';
-import { TENANT_COLUMNS, toTenantGroups } from '@/lib/console/tenant-ledger';
+import Button from '@/components/console/Button.astro';
+import Chip from '@/components/console/Chip.astro';
+import PageHeader from '@/components/console/PageHeader.astro';
 import { consolePath } from '@/lib/console/paths';
-import { getTenantRepository } from '@/lib/repositories';
+import { tenantRegister, type TenantLine } from '@/lib/console/tenant-register';
+import { FOCUS, INPUT, SECTION_TITLE } from '@/lib/console/ui';
+import { formatThaiDate } from '@/lib/format/thai';
+import { getLeaseRepository, getRoomRepository, getTenantRepository } from '@/lib/repositories';
 
-const tenants = await getTenantRepository(Astro.locals.runtime?.env).listTenants();
-const groups = toTenantGroups(tenants);
+/**
+ * ผู้เช่าและสัญญา — the people register.
+ *
+ * The "ขาดข้อมูล" group comes first because it blocks billing: a room with
+ * someone living in it and no lease cannot be charged rent or water. Missing
+ * details on a tenant are dashed "?" chips on their line, the same mark as
+ * everywhere else.
+ *
+ * Search is a plain GET (`?q=`) so it works without script and the result
+ * can be bookmarked.
+ */
+
+const env = Astro.locals.runtime?.env;
+const query = Astro.url.searchParams.get('q') ?? '';
+const [tenants, leases, rooms] = await Promise.all([
+  getTenantRepository(env).listTenants(),
+  getLeaseRepository(env).listLeases(),
+  getRoomRepository(env).listRooms(),
+]);
+const reg = tenantRegister(tenants, leases, rooms, new Date(), query);
+const tenantHref = (line: TenantLine) => consolePath(`console/tenants/${line.tenant.id}`);
+const shortName = (line: TenantLine) => line.tenant.nickname.trim() || line.tenant.fullName;
 ---
 
-<ConsoleFrame title="ผู้เช่า" activeSection="tenants">
-  <p class="mb-4">
-    <a
-      href={consolePath('console/tenants/new')}
-      class="rounded bg-console-ink px-3 py-1.5 text-sm text-console-card hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-rule"
-      >เพิ่มผู้เช่า</a
-    >
-  </p>
+<ConsoleFrame title="ผู้เช่าและสัญญา" activeSection="tenants">
+  <PageHeader
+    title="ผู้เช่าและสัญญา"
+    subtitle={`มีสัญญา ${reg.current.length} ห้อง · ยังไม่มีสัญญา ${reg.missingLease.length} ห้อง`}
+  >
+    <Fragment slot="actions">
+      <form method="GET" role="search" class="flex w-full gap-2 desk:w-auto">
+        <label class="sr-only" for="tenant-q">ค้นหา</label>
+        <input
+          id="tenant-q"
+          name="q"
+          type="search"
+          value={query}
+          placeholder="ค้นหาชื่อ เลขห้อง หรือเบอร์โทร"
+          class:list={[INPUT, 'desk:w-[280px]']}
+        />
+      </form>
+      <Button href={consolePath('console/tenants/new')}>+ เพิ่มผู้เช่า</Button>
+    </Fragment>
+  </PageHeader>
 
   {
-    groups.length > 0 ? (
-      <LedgerTable columns={TENANT_COLUMNS} groups={groups} />
-    ) : (
-      <p class="text-sm text-console-ink-faint">ยังไม่มีข้อมูลผู้เช่า</p>
+    reg.missingLease.length > 0 && (
+      <section class="mb-6">
+        <h2 class:list={[SECTION_TITLE, 'text-console-crit']}>ขาดข้อมูล — ห้องมีคนอยู่แต่ยังไม่มีสัญญา</h2>
+        <ul class="m-0 grid list-none grid-cols-2 gap-2 p-0 sm:grid-cols-3 desk:grid-cols-4">
+          {reg.missingLease.map((room) => (
+            <li>
+              <a
+                href={consolePath(`console/leases/new?room=${encodeURIComponent(room.id)}`)}
+                class:list={[
+                  'flex min-h-12 items-center justify-between rounded-[10px] border-[1.5px] border-dashed border-console-crit bg-console-crit-bg px-3 text-console-ink no-underline hover:brightness-[0.98]',
+                  FOCUS,
+                ]}
+              >
+                <span class="font-hand text-[17px] font-semibold text-console-crit">{room.label}</span>
+                <span class="text-sm font-semibold">+ ใส่สัญญา</span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </section>
+    )
+  }
+
+  <section class="mb-6">
+    <h2 class={SECTION_TITLE}>มีสัญญา</h2>
+    {
+      reg.current.length === 0 ? (
+        <p class="text-[15px] text-console-ink-soft">{query ? 'ไม่พบผู้เช่าที่ตรงกับคำค้น' : 'ยังไม่มีสัญญาที่ใช้อยู่'}</p>
+      ) : (
+        <>
+          {/* Desk: a ruled table. */}
+          <table class="hidden w-full border-collapse border-t-2 border-console-ink text-[15px] desk:table">
+            <thead>
+              <tr class="border-b border-console-rule text-left text-sm text-console-ink-soft">
+                <th scope="col" class="px-3 py-2 font-semibold">ห้อง</th>
+                <th scope="col" class="px-3 py-2 font-semibold">ชื่อ</th>
+                <th scope="col" class="px-3 py-2 font-semibold">โทร</th>
+                <th scope="col" class="px-3 py-2 font-semibold">เริ่มเช่า</th>
+                <th scope="col" class="px-3 py-2 font-semibold">ผู้พัก</th>
+                <th scope="col" class="px-3 py-2 font-semibold">ข้อมูลที่ขาด</th>
+              </tr>
+            </thead>
+            <tbody>
+              {reg.current.map((line) => (
+                <tr class="border-b border-console-rule">
+                  <td class="h-[46px] px-3 font-hand text-[17px] font-semibold">{line.roomLabel}</td>
+                  <td class="px-3">
+                    <a href={tenantHref(line)} class:list={['font-semibold text-console-ink underline-offset-2 hover:underline', FOCUS]}>
+                      {line.tenant.fullName}
+                    </a>
+                    {line.tenant.nickname && <span class="text-console-ink-soft"> ({line.tenant.nickname})</span>}
+                  </td>
+                  <td class="px-3 font-figure text-sm">{line.tenant.phone || '—'}</td>
+                  <td class="px-3">{line.lease ? formatThaiDate(line.lease.startDate) : '—'}</td>
+                  <td class="px-3">{line.lease ? `${line.lease.occupantCount} คน` : '—'}</td>
+                  <td class="px-3">
+                    <span class="flex flex-wrap gap-1">
+                      {line.gaps.map((gap) => (
+                        <Chip tone="missing">? {gap}</Chip>
+                      ))}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          {/* Phone: one line per person, big enough to tap. */}
+          <ul class="m-0 list-none border-t-2 border-console-ink p-0 desk:hidden">
+            {reg.current.map((line) => (
+              <li class="border-b border-console-rule">
+                <a href={tenantHref(line)} class:list={['flex min-h-[58px] items-center gap-2.5 text-console-ink no-underline', FOCUS]}>
+                  <span class="w-12 flex-none font-hand text-lg font-semibold">{line.roomLabel}</span>
+                  <span class="flex min-w-0 flex-1 flex-col leading-snug">
+                    <span class="truncate text-base font-semibold">{shortName(line)}</span>
+                    <span class="text-[15px] text-console-ink-soft">{line.tenant.phone || '—'}</span>
+                  </span>
+                  {line.gaps.length > 0 && (
+                    <Chip tone="missing" aria-label={`ขาด ${line.gaps.join(', ')}`}>?</Chip>
+                  )}
+                  <span class="text-lg text-console-ink-soft" aria-hidden="true">›</span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </>
+      )
+    }
+  </section>
+
+  {
+    reg.others.length > 0 && (
+      <section>
+        <h2 class:list={[SECTION_TITLE, 'text-console-ink-soft']}>ไม่มีสัญญาที่ใช้อยู่ (ย้ายออกแล้ว / ยังไม่เข้าห้อง)</h2>
+        <ul class="m-0 list-none border-t border-console-rule p-0">
+          {reg.others.map((line) => (
+            <li class="border-b border-console-rule">
+              <a href={tenantHref(line)} class:list={['flex min-h-12 items-center gap-2.5 text-console-ink-soft no-underline hover:text-console-ink', FOCUS]}>
+                <span class="w-12 flex-none font-hand text-base font-semibold">{line.roomLabel ?? '—'}</span>
+                <span class="flex-1">{line.tenant.fullName}</span>
+                {line.gaps.length > 0 && <Chip tone="missing">? {line.gaps.length}</Chip>}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </section>
     )
   }
 </ConsoleFrame>

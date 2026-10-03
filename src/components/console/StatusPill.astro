@@ -2,6 +2,14 @@
 // src/components/console/StatusPill.astro
 import type { PillTone } from '@/lib/models/pill-tone';
 
+/**
+ * A short state word on a tinted ground: "จ่ายบางส่วน", "พร้อมออก".
+ *
+ * For a plain done / not-done / missing answer, prefer a `Mark` — the
+ * logbook's ticks are its main status language. A pill is for states that
+ * need a word, and it never uses the gold accent: gold fails contrast as text.
+ */
+
 interface Props {
   tone: PillTone;
   label: string;
@@ -12,12 +20,12 @@ const { tone, label } = Astro.props;
 const TONE_CLASS: Record<PillTone, string> = {
   ok: 'bg-console-ok-bg text-console-ok',
   warn: 'bg-console-warn-bg text-console-warn',
-  crit: 'bg-console-crit-bg text-console-crit',
+  crit: 'border border-dashed border-console-crit bg-console-crit-bg text-console-crit',
   info: 'bg-console-info-bg text-console-info',
   mute: 'bg-console-mute-bg text-console-ink-soft',
 };
 ---
 
-<span class:list={['inline-block px-1.5 py-0.5 text-xs font-figure', TONE_CLASS[tone]]}>
+<span class:list={['inline-block whitespace-nowrap rounded-md px-2 py-0.5 text-sm font-semibold', TONE_CLASS[tone]]}>
   {label}
 </span>

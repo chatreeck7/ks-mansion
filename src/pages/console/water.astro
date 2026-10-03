@@ -1,15 +1,18 @@
 ---
 // src/pages/console/water.astro
 import ConsoleFrame from '@/components/console/ConsoleFrame.astro';
+import Button from '@/components/console/Button.astro';
 import ErrorSummary from '@/components/console/ErrorSummary.astro';
-import LedgerTable from '@/components/console/LedgerTable.astro';
+import Notice from '@/components/console/Notice.astro';
+import PageHeader from '@/components/console/PageHeader.astro';
+import Stepper from '@/components/console/Stepper.astro';
 import { formatBaht } from '@/lib/format/thai';
+import { formatFigure } from '@/lib/format/thai';
 import {
   occupantUpdatesFromForm,
   toWaterGroups,
   waterRows,
   waterTotal,
-  WATER_COLUMNS,
 } from '@/lib/console/water-ledger';
 import {
   getLeaseRepository,
@@ -18,16 +21,17 @@ import {
 } from '@/lib/repositories';
 
 /**
- * ค่าน้ำ for the cycle (KS-19).
+ * ขั้น 2 · ค่าน้ำ for the cycle (KS-19).
  *
  * The card corrected what AC-1.4 implies: water is not a free amount typed
  * per room, it is `จำนวนผู้พัก × 100`. So this screen edits the **count** and
  * shows the charge it produces, rather than offering an amount field that
- * would let the two drift apart.
+ * would let the two drift apart. − / + change the count; the baht is never
+ * typed.
  *
  * Step 3.3 of the source spreadsheet's own instructions is a *check* — "เช็ค
- * ค่าน้ำเหมา สำหรับแต่ละห้องว่าถูกต้องไหม" — so the screen is laid out to be
- * checked down a column, with the basis of each figure spelled out beside it.
+ * ค่าน้ำเหมา สำหรับแต่ละห้องว่าถูกต้องไหม" — so the job here is mostly reading
+ * down the list, with the basis of each figure spelled out beside it.
  */
 
 const env = Astro.locals.runtime?.env;
@@ -75,39 +79,60 @@ if (submitted) {
 
 // Keep what was typed only while something is still wrong; a clean save shows
 // the sheet's own figures back.
-const groups = toWaterGroups(rows, cycleDate, errors.length > 0 ? submitted : undefined);
+const lines = toWaterGroups(rows, cycleDate, errors.length > 0 ? submitted : undefined)[0]?.rows ?? [];
 const total = waterTotal(rows);
+const text = (cell: unknown) => (cell as { value: string }).value;
 ---
 
 <ConsoleFrame title="ค่าน้ำ" activeSection="water">
-  <div class="mb-4">
-    <h1 class="mb-1 text-xl font-semibold text-console-ink">ค่าน้ำประจำรอบ</h1>
-    <p class="mb-0 text-sm text-console-ink-soft">
-      ค่าน้ำคิดจากจำนวนผู้พัก ห้องละ 100 บาทต่อคน — แก้ที่จำนวนผู้พัก ไม่ใช่ที่ยอดเงิน
-      ร้านซักผ้ามีมิเตอร์น้ำของตัวเอง คิดตามหน่วยที่ใช้จริง
-    </p>
-  </div>
+  <PageHeader
+    eyebrow="ขั้น 2 จาก 6"
+    title="ค่าน้ำ"
+    subtitle="คนละ 100 บาท · ร้านซักผ้าคิดตามมิเตอร์น้ำของร้าน"
+  >
+    <div slot="actions" class="desk:text-right">
+      <p class="text-[15px] text-console-ink-soft">รวมค่าน้ำรอบนี้</p>
+      <p class="font-hand text-2xl font-semibold desk:text-[30px]">{formatBaht(total)} บาท</p>
+    </div>
+  </PageHeader>
 
-  {saved > 0 && (
-    <p class="mb-4 rounded-sm bg-console-ok-bg px-3 py-2 text-console-ok">
-      แก้จำนวนผู้พักแล้ว {saved} ห้อง
-    </p>
-  )}
+  {saved > 0 && <Notice tone="ok" role="status">แก้จำนวนผู้พักแล้ว {saved} ห้อง</Notice>}
   <ErrorSummary message={errors.length > 0 ? errors.join('\n') : null} />
 
   <form method="POST">
-    <LedgerTable columns={WATER_COLUMNS} groups={groups} />
+    {
+      lines.length === 0 ? (
+        <p class="border-t-2 border-console-ink py-4 text-[15px] text-console-ink-soft">
+          ยังไม่มีห้องที่มีสัญญาเช่า — ค่าน้ำคิดจากจำนวนผู้พักในสัญญา
+        </p>
+      ) : (
+        <ul class="m-0 grid list-none gap-x-7 border-t-2 border-console-ink p-0 desk:grid-cols-2">
+          {lines.map((line) => {
+            const occ = line.cells.occupants!;
+            return (
+              <li class="flex min-h-[60px] items-center gap-2.5 border-b border-console-rule desk:min-h-[52px]">
+                <span class="min-w-14 flex-none whitespace-nowrap font-hand text-lg font-semibold">{text(line.cells.room)}</span>
+                <span class="min-w-0 flex-1 text-[15px] text-console-ink-soft">{text(line.cells.basis)}</span>
+                {occ.kind === 'input' ? (
+                  <Stepper name={occ.name} value={occ.value} label={occ.label} />
+                ) : (
+                  <span class="w-[134px] text-center text-console-ink-faint">มิเตอร์</span>
+                )}
+                <span class="w-16 flex-none text-right font-figure text-[15px] font-semibold tabular-nums">
+                  {formatFigure((line.cells.charge as { value: number | null }).value)}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )
+    }
 
-    <div class="mt-4 flex flex-wrap items-center justify-between gap-3">
-      <button
-        type="submit"
-        class="rounded-sm bg-console-ink px-4 py-2 font-semibold text-console-paper focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-console-rule"
-      >
-        บันทึกจำนวนผู้พัก
-      </button>
-      <p class="mb-0 font-figure text-console-ink-soft tabular-nums">
-        รวมค่าน้ำทั้งหมด <span class="font-semibold text-console-ink">{formatBaht(total)}</span> บาท
-      </p>
+    <div class="sticky bottom-16 -mx-4 mt-4 flex flex-col gap-2 border-t border-console-line bg-console-paper px-4 py-3 desk:static desk:mx-0 desk:flex-row desk:items-center desk:justify-between desk:border-0 desk:bg-transparent desk:p-0">
+      <p class="text-[15px] text-console-ink-soft">ห้องว่าง ห้องปรับปรุง และห้องที่ยังไม่มีสัญญาไม่แสดงในหน้านี้</p>
+      <Button type="submit" variant="ok" size="lg" disabled={lines.length === 0} class="desk:min-w-56">
+        ✓ บันทึกจำนวนผู้พัก
+      </Button>
     </div>
   </form>
 </ConsoleFrame>
