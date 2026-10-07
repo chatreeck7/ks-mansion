@@ -1,6 +1,7 @@
 ---
 // src/pages/console/bills.astro
 import ConsoleFrame from '@/components/console/ConsoleFrame.astro';
+import CyclePicker from '@/components/console/CyclePicker.astro';
 import Button from '@/components/console/Button.astro';
 import ErrorSummary from '@/components/console/ErrorSummary.astro';
 import Notice from '@/components/console/Notice.astro';
@@ -8,7 +9,7 @@ import PageHeader from '@/components/console/PageHeader.astro';
 import ProblemCard from '@/components/console/ProblemCard.astro';
 import StatTile from '@/components/console/StatTile.astro';
 import { problemGroups } from '@/lib/console/problems';
-import { SECTION_TITLE } from '@/lib/console/ui';
+import { LINK, SECTION_TITLE } from '@/lib/console/ui';
 import LedgerTable from '@/components/console/LedgerTable.astro';
 import {
   ARREARS_COLUMNS,
@@ -16,9 +17,11 @@ import {
   toArrearsGroups,
 } from '@/lib/console/arrears';
 import { draftsFrom, planBillRun, type BillLine } from '@/lib/console/bill-run';
+import { issuedLines, viewedCycle, type IssuedLine } from '@/lib/console/history';
 import { consolePath } from '@/lib/console/paths';
 import { formatBaht } from '@/lib/format/thai';
-import { cycleFor, cycleLabel, rentLabel, utilityLabel } from '@/lib/models/billing-cycle';
+import { billTotal } from '@/lib/models/bill';
+import { cycleLabel, cycleOptions, rentLabel, utilityLabel } from '@/lib/models/billing-cycle';
 import type { LedgerColumn, LedgerGroup } from '@/lib/models/ledger';
 import {
   getBillRepository,
@@ -40,6 +43,12 @@ import {
  * Nothing is written until the button is pressed, and the plan is recomputed
  * on POST from fresh reads — so what gets issued is what the sheet supports at
  * that moment, not what the page happened to show a minute ago.
+ *
+ * **Earlier cycles are read, not issued.** `?cycle=` opens a past month to
+ * look at what went out — the bills as they were issued, their documents and
+ * their notes — but the issue action exists only for the cycle you are in.
+ * A past month is shown from its bills rather than re-planned: a plan works
+ * from today's rooms and rates, and would restate what was charged.
  */
 
 const env = Astro.locals.runtime?.env;
@@ -54,6 +63,32 @@ const COLUMNS: LedgerColumn[] = [
   { key: 'state', header: 'สถานะ' },
   { key: 'document', header: 'ใบแจ้ง' },
 ];
+
+/** A past cycle: every row was issued, and its figures are the bill's own. */
+function toIssuedGroups(lines: IssuedLine[], label: string): LedgerGroup[] {
+  return [
+    {
+      label,
+      rows: lines.map((line) => ({
+        id: line.bill.id,
+        cells: {
+          room: { kind: 'text', value: line.roomLabel },
+          rent: { kind: 'figure', value: line.bill.rentAmount },
+          electricity: { kind: 'figure', value: line.bill.electricityAmount },
+          working: { kind: 'text', value: line.electricityBasis, muted: true },
+          water: { kind: 'figure', value: line.bill.waterAmount },
+          total: { kind: 'figure', value: line.total },
+          state: { kind: 'pill', tone: 'mute', label: 'ออกแล้ว' },
+          document: {
+            kind: 'link',
+            href: consolePath(`console/bills/${line.bill.id}`),
+            label: 'เปิด / พิมพ์',
+          },
+        },
+      })),
+    },
+  ];
+}
 
 function toGroups(lines: BillLine[], label: string): LedgerGroup[] {
   return [
@@ -94,10 +129,13 @@ let annotated = 0;
 let errors: string[] = [];
 let submittedNotes: FormData | undefined;
 
-// The cycle is taken from today rather than chosen: a bill run belongs to the
-// cycle you are in, and letting someone pick one invites issuing into a
-// closed month by accident.
-const cycle = cycleFor(new Date());
+// Issuing always belongs to the cycle you are in — letting someone issue
+// into another invites billing a closed month by accident. Other cycles can
+// be *opened* to look back at, which is what `past` gates below.
+const now = new Date();
+const viewed = viewedCycle(Astro.url.searchParams.get('cycle'), now);
+const { cycle, past } = viewed;
+const options = cycleOptions(now, cycle);
 
 async function load() {
   const [rooms, leases, readings, existing] = await Promise.all([
@@ -129,6 +167,10 @@ if (Astro.request.method === 'POST') {
         errors.push(`${update.billId}: ${cause instanceof Error ? cause.message : String(cause)}`);
       }
     }
+  } else if (past) {
+    // The page never offers this, so it is a stale tab or a hand-made POST —
+    // refused here rather than trusted to the missing button.
+    errors.push('ออกบิลย้อนหลังไม่ได้ — ออกบิลได้เฉพาะรอบปัจจุบัน');
   } else {
     // Re-planned from a fresh read rather than trusting the rendered page: a
     // reading corrected in another tab must change what is issued.
@@ -147,15 +189,16 @@ if (Astro.request.method === 'POST') {
 
 // Reloaded after writing, so every room that just landed shows as ออกแล้ว
 // and every note that just saved shows in its field.
-const run = await load();
-const groups = toGroups(run.lines, cycleLabel(cycle));
-const blocked = run.lines.filter((l) => l.problems.length > 0 && !l.alreadyIssued).length;
-const problems = problemGroups(run.lines);
-const issuedCount = run.lines.filter((l) => l.alreadyIssued).length;
-
-const issuedBills = (await getBillRepository(env).listBills()).filter(
-  (bill) => bill.cycle === cycle.id,
-);
+const issuedBills = await getBillRepository(env).listBillsForCycle(cycle.id);
+// A past cycle is never planned — see the note at the top.
+const run = past ? null : await load();
+const groups = run
+  ? toGroups(run.lines, cycleLabel(cycle))
+  : toIssuedGroups(issuedLines(issuedBills, await getRoomRepository(env).listRooms()), cycleLabel(cycle));
+const blocked = run ? run.lines.filter((l) => l.problems.length > 0 && !l.alreadyIssued).length : 0;
+const problems = run ? problemGroups(run.lines) : [];
+const issuedCount = run ? run.lines.filter((l) => l.alreadyIssued).length : issuedBills.length;
+const issuedTotal = issuedBills.reduce((sum, bill) => sum + billTotal(bill), 0);
 // Only re-fill from the submission while something is still wrong; a clean
 // save shows what the sheet now holds.
 const arrearsGroups = toArrearsGroups(
@@ -168,19 +211,28 @@ const arrearsGroups = toArrearsGroups(
 <ConsoleFrame title="ออกบิล" activeSection="bills">
   <PageHeader
     eyebrow="ขั้น 3 จาก 6"
-    title="ออกบิลประจำรอบ"
+    title={past ? 'บิลที่ออกไปแล้ว' : 'ออกบิลประจำรอบ'}
     subtitle={`${rentLabel(cycle)} + ${utilityLabel(cycle)} · ${cycleLabel(cycle)}`}
-  />
+  >
+    <CyclePicker slot="actions" {options} selected={cycle} />
+  </PageHeader>
+
+  {viewed.problem && <Notice tone="warn">{viewed.problem}</Notice>}
+  {past && (
+    <Notice tone="info">รอบย้อนหลัง — ดูได้อย่างเดียว ออกบิลได้เฉพาะ<a href={consolePath('console/bills')} class={LINK}>รอบปัจจุบัน</a></Notice>
+  )}
 
   {issued > 0 && <Notice tone="ok" role="status">ออกบิลแล้ว {issued} ใบ</Notice>}
   {annotated > 0 && <Notice tone="ok" role="status">บันทึกหมายเหตุแล้ว {annotated} รายการ</Notice>}
   <ErrorSummary message={errors.length > 0 ? errors.join('\n') : null} />
 
-  <div class="mb-4 grid grid-cols-3 gap-1.5 desk:gap-3.5">
-    <StatTile mark="done" count={issuedCount} label="ออกบิลแล้ว" />
-    <StatTile mark="todo" count={run.issuable.length} label="พร้อมออก" />
-    <StatTile mark={blocked > 0 ? 'missing' : 'none'} count={blocked} label="รอข้อมูล" />
-  </div>
+  {run && (
+    <div class="mb-4 grid grid-cols-3 gap-1.5 desk:gap-3.5">
+      <StatTile mark="done" count={issuedCount} label="ออกบิลแล้ว" />
+      <StatTile mark="todo" count={run.issuable.length} label="พร้อมออก" />
+      <StatTile mark={blocked > 0 ? 'missing' : 'none'} count={blocked} label="รอข้อมูล" />
+    </div>
+  )}
 
   {/* Blocked rooms, one card per reason with one fix — never a row each. */}
   {problems.length > 0 && (
@@ -203,7 +255,13 @@ const arrearsGroups = toArrearsGroups(
       With nothing to issue there is no action, so there is no button —
       a sentence says why, and points at what is usually the reason. */}
   <div class="mt-4 flex flex-col gap-3 desk:flex-row desk:flex-wrap desk:items-center">
-    {run.issuable.length === 0 ? (
+    {!run ? (
+      <Notice tone="mute" flush class="desk:flex-1">
+        {issuedBills.length === 0
+          ? 'รอบนี้ไม่ได้ออกบิลไว้'
+          : `ออกไป ${issuedBills.length} ใบ รวม ${formatBaht(issuedTotal)} บาท`}
+      </Notice>
+    ) : run.issuable.length === 0 ? (
       <Notice tone="mute" flush class="desk:flex-1">
         {run.lines.length === 0
           ? 'ยังไม่มีห้องที่ต้องออกบิลรอบนี้'
@@ -229,7 +287,13 @@ const arrearsGroups = toArrearsGroups(
       </Button>
     )}
     {issuedBills.length > 0 && (
-      <Button href={consolePath('console/payments')} variant="secondary" size="lg">ไปขั้น 4 รับเงิน →</Button>
+      <Button
+        href={past ? `${consolePath('console/payments')}?cycle=${cycle.id}` : consolePath('console/payments')}
+        variant="secondary"
+        size="lg"
+      >
+        {past ? 'ดูการรับเงินรอบนี้ →' : 'ไปขั้น 4 รับเงิน →'}
+      </Button>
     )}
   </div>
 

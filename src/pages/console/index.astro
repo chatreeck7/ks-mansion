@@ -11,6 +11,7 @@ import { buildingTiles, floorsOf, tileCounts } from '@/lib/console/building';
 import { dueLabel, notebookTitle, shortCycleLabel, todayLabel } from '@/lib/console/logbook';
 import { monthProgress } from '@/lib/console/month-progress';
 import { consolePath } from '@/lib/console/paths';
+import { FOCUS } from '@/lib/console/ui';
 import { formatBaht } from '@/lib/format/thai';
 import { cycleFor } from '@/lib/models/billing-cycle';
 import {
@@ -78,6 +79,18 @@ const nextShort =
     <p class="text-base text-console-ink-soft">
       <span class="desk:hidden">{shortCycleLabel(cycle)} · </span>{todayLabel(today)} · {dueLabel(cycle, today)}
     </p>
+    {/* The way back to earlier months. This page is only ever this month —
+        its marks are about what is left to do — so history is a page of
+        its own rather than a month switcher here. */}
+    <a
+      href={consolePath('console/history')}
+      class:list={[
+        'mt-1 inline-flex min-h-11 items-center text-[15px] font-medium text-console-ink-soft underline-offset-4 hover:text-console-ink hover:underline desk:min-h-0',
+        FOCUS,
+      ]}
+    >
+      ↺ ดูเดือนก่อนๆ
+    </a>
   </header>
 
   <div class="grid gap-5 desk:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)] desk:gap-7">

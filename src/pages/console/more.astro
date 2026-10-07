@@ -2,7 +2,13 @@
 // src/pages/console/more.astro
 import ConsoleFrame from '@/components/console/ConsoleFrame.astro';
 import PageHeader from '@/components/console/PageHeader.astro';
-import { MONTH_STEPS, REGISTER_SECTIONS, SYSTEM_SECTIONS, type ConsoleSection } from '@/lib/console-sections';
+import {
+  HOME_SECTIONS,
+  MONTH_STEPS,
+  REGISTER_SECTIONS,
+  SYSTEM_SECTIONS,
+  type ConsoleSection,
+} from '@/lib/console-sections';
 import { FOCUS, SECTION_TITLE } from '@/lib/console/ui';
 
 /**
@@ -18,6 +24,7 @@ import { FOCUS, SECTION_TITLE } from '@/lib/console/ui';
  */
 
 const groups: { heading: string; items: ConsoleSection[] }[] = [
+  { heading: 'สมุด', items: HOME_SECTIONS },
   { heading: 'งานเดือนนี้', items: MONTH_STEPS },
   { heading: 'ทะเบียน', items: REGISTER_SECTIONS },
   { heading: 'ระบบ', items: SYSTEM_SECTIONS },
