@@ -11,6 +11,8 @@ describe('CONSOLE_SECTIONS', () => {
     expect(CONSOLE_SECTIONS.map((s) => s.id)).toEqual([
       // หน้าสมุด — this month's page (the logbook redesign).
       'home',
+      // Every earlier month, each opening the step screens on that cycle.
+      'history',
       // The month's six steps, in the order they are worked.
       'meter-round',
       'water',
@@ -35,6 +37,7 @@ describe('tabFor', () => {
   it('puts every month step under สมุด and the rest under their own tab', () => {
     for (const step of MONTH_STEPS) expect(tabFor(step.id)).toBe('book');
     expect(tabFor('home')).toBe('book');
+    expect(tabFor('history')).toBe('book');
     expect(tabFor('rooms')).toBe('building');
     expect(tabFor('tenants')).toBe('tenants');
     expect(tabFor('health')).toBe('more');

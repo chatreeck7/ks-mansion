@@ -10,10 +10,15 @@ import type { BillingCycle } from '@/lib/models/billing-cycle';
  * October's rent. That is how the family already says it.
  */
 
+/** 'กันยายน 2569' — the month a notebook page is named after. */
+export function notebookMonth(cycle: BillingCycle): string {
+  const month = cycle.utilityMonth;
+  return `${formatThaiMonthName(month)} ${toBuddhistYear(month.getFullYear())}`;
+}
+
 /** 'สมุดเดือนกันยายน 2569' */
 export function notebookTitle(cycle: BillingCycle): string {
-  const month = cycle.utilityMonth;
-  return `สมุดเดือน${formatThaiMonthName(month)} ${toBuddhistYear(month.getFullYear())}`;
+  return `สมุดเดือน${notebookMonth(cycle)}`;
 }
 
 /** 'ก.ย.' — the notebook's short name, for the spine. */

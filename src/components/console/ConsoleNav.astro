@@ -2,6 +2,7 @@
 // src/components/console/ConsoleNav.astro
 import {
   CONSOLE_TABS,
+  HOME_SECTIONS,
   MONTH_STEPS,
   REGISTER_SECTIONS,
   SYSTEM_SECTIONS,
@@ -49,7 +50,7 @@ function badgeFor(section: ConsoleSection) {
 }
 
 const groups: { heading: string | null; items: ConsoleSection[] }[] = [
-  { heading: null, items: [home] },
+  { heading: null, items: HOME_SECTIONS },
   { heading: 'งานเดือนนี้', items: MONTH_STEPS },
   { heading: 'ทะเบียน', items: REGISTER_SECTIONS },
 ];

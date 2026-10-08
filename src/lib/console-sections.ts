@@ -31,6 +31,10 @@ export interface ConsoleSection {
 
 export const CONSOLE_SECTIONS: ConsoleSection[] = [
   { id: 'home', label: 'หน้าสมุด', href: consolePath('console'), group: 'home', glyph: '◉' },
+  // The notebook's earlier pages. Beside หน้าสมุด rather than among the steps:
+  // it is not a step of the month, it is every month, and each line on it
+  // opens the step screens on that month.
+  { id: 'history', label: 'สมุดย้อนหลัง', href: consolePath('console/history'), group: 'home', glyph: '↺' },
   // Points at the desk grid (KS-60), not the round itself. The round takes
   // over the whole screen and hides every way out but its own ✕, so a nav
   // item that starts one would mean you cannot look at the meter section
@@ -55,6 +59,7 @@ export const CONSOLE_SECTIONS: ConsoleSection[] = [
   { id: 'health', label: 'สถานะระบบ', href: consolePath('console/health'), group: 'system', glyph: '⚙' },
 ];
 
+export const HOME_SECTIONS = CONSOLE_SECTIONS.filter((s) => s.group === 'home');
 export const MONTH_STEPS = CONSOLE_SECTIONS.filter((s) => s.group === 'month');
 export const REGISTER_SECTIONS = CONSOLE_SECTIONS.filter((s) => s.group === 'register');
 export const SYSTEM_SECTIONS = CONSOLE_SECTIONS.filter((s) => s.group === 'system');
@@ -80,7 +85,7 @@ export const CONSOLE_TABS: ConsoleTab[] = [
   { id: 'more', label: 'อื่นๆ', glyph: '≡', href: consolePath('console/more') },
 ];
 
-/** Which tab lights up for a section. The month's steps all live under สมุด. */
+/** Which tab lights up for a section. The month's steps — and its history — live under สมุด. */
 export function tabFor(sectionId: string): TabId {
   if (sectionId === 'rooms') return 'building';
   if (sectionId === 'tenants') return 'tenants';

@@ -1,12 +1,14 @@
 ---
 // src/pages/console/payments.astro
 import ConsoleFrame from '@/components/console/ConsoleFrame.astro';
+import CyclePicker from '@/components/console/CyclePicker.astro';
 import Button from '@/components/console/Button.astro';
 import Card from '@/components/console/Card.astro';
 import ErrorSummary from '@/components/console/ErrorSummary.astro';
 import Notice from '@/components/console/Notice.astro';
 import PageHeader from '@/components/console/PageHeader.astro';
 import StatusPill from '@/components/console/StatusPill.astro';
+import { viewedCycle } from '@/lib/console/history';
 import { daysUntilDue } from '@/lib/console/logbook';
 import { FOCUS, INPUT, SECTION_TITLE } from '@/lib/console/ui';
 import { consolePath } from '@/lib/console/paths';
@@ -17,7 +19,7 @@ import {
   toPaymentGroups,
 } from '@/lib/console/payment-ledger';
 import { formatBaht, formatThaiDate } from '@/lib/format/thai';
-import { cycleFor, cycleLabel } from '@/lib/models/billing-cycle';
+import { cycleLabel, cycleOptions } from '@/lib/models/billing-cycle';
 import { paymentMethodLabel, type PaymentMethod } from '@/lib/models/payment';
 import {
   getBillRepository,
@@ -36,13 +38,20 @@ import {
  *
  * Every recorded payment gets a receipt, and the list below the grid is how
  * you reach one after recording it.
+ *
+ * `?cycle=` opens an earlier cycle. Unlike ออกบิล, recording stays open
+ * there: money for last month's bill arriving this month is ordinary — that is
+ * what ยอดค้าง is — and a payment is filed against its bill, so it lands on
+ * the right month whichever day it is written down.
  */
 
 const env = Astro.locals.runtime?.env;
 
 /** The day the screen is being used; also the default day money arrived. */
 const today = new Date();
-const cycle = cycleFor(today);
+const viewed = viewedCycle(Astro.url.searchParams.get('cycle'), today);
+const { cycle, past } = viewed;
+const options = cycleOptions(today, cycle);
 
 let errors: string[] = [];
 let recorded = 0;
@@ -135,7 +144,14 @@ const outstanding = rows.reduce(
     eyebrow="ขั้น 4 จาก 6"
     title="บันทึกเงินเข้า"
     subtitle={`ตรวจสลิปใน LINE OA ก่อน แล้วค่อยบันทึกที่นี่ · ${cycleLabel(cycle)}`}
-  />
+  >
+    <CyclePicker slot="actions" {options} selected={cycle} />
+  </PageHeader>
+
+  {viewed.problem && <Notice tone="warn">{viewed.problem}</Notice>}
+  {past && (
+    <Notice tone="info">รอบย้อนหลัง — ยังบันทึกเงินที่มาจ่ายช้าได้ เงินจะเข้าบิลของรอบนี้ ไม่ใช่รอบปัจจุบัน</Notice>
+  )}
 
   {recorded > 0 && (
     <Notice tone="ok" role="status">
@@ -150,7 +166,7 @@ const outstanding = rows.reduce(
     </p>
   )}
   {rows.length === 0 && (
-    <Notice tone="warn">ยังไม่มีบิลของรอบนี้ — ออกบิลก่อนจึงจะบันทึกการรับเงินได้</Notice>
+    <Notice tone="warn">{past ? 'รอบนี้ไม่ได้ออกบิลไว้ — ไม่มีอะไรให้บันทึก' : 'ยังไม่มีบิลของรอบนี้ — ออกบิลก่อนจึงจะบันทึกการรับเงินได้'}</Notice>
   )}
 
   <div class="flex flex-col gap-6 desk:flex-row desk:items-start">
@@ -252,7 +268,7 @@ const outstanding = rows.reduce(
 
     <aside class="flex w-full flex-col gap-3.5 desk:w-[270px] desk:flex-none">
       <Card class="flex flex-col gap-2">
-        <h2 class="font-hand text-[17px] font-semibold">รอบนี้</h2>
+        <h2 class="font-hand text-[17px] font-semibold">{past ? 'รอบที่เลือก' : 'รอบนี้'}</h2>
         <div class="flex justify-between text-[15px]">
           <span class="text-console-ink-soft">ยอดบิลทั้งหมด</span><span class="font-figure">{formatBaht(billed)}</span>
         </div>
