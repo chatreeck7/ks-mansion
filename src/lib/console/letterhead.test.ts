@@ -72,3 +72,27 @@ describe('payeeFrom', () => {
     });
   });
 });
+
+describe('letterhead and payee from แม่แบบเอกสาร settings', () => {
+  it('prefers the settings, and falls back to env and the constants', async () => {
+    const { resolveSettings } = await import('@/lib/models/settings');
+    const settings = resolveSettings([
+      { key: 'mansion_phone', value: '081-111-1111', note: '', archived: false },
+      { key: 'receiver_name', value: 'นาง ผู้รับ', note: '', archived: false },
+      { key: 'payee_bank', value: 'ธ.กรุงไทย', note: '', archived: false },
+      { key: 'payee_account_name', value: 'บัญชี ก', note: '', archived: false },
+      { key: 'payee_account_number', value: '552-1-000000', note: '', archived: false },
+    ]);
+    const head = letterheadFrom({ MANSION_PHONE: '099' }, settings);
+    expect(head).toMatchObject({ phone: '081-111-1111', receiverName: 'นาง ผู้รับ', name: 'KS MANSION' });
+    expect(head.addressLines).toHaveLength(2);
+    expect(payeeFrom({}, settings)).toEqual({
+      configured: true,
+      payee: { bank: 'ธ.กรุงไทย', accountName: 'บัญชี ก', accountNumber: '552-1-000000' },
+    });
+    // No account in settings: the Cloudflare variables still work.
+    expect(
+      payeeFrom({ PAYEE_BANK: 'b', PAYEE_ACCOUNT_NAME: 'n', PAYEE_ACCOUNT_NUMBER: '1' }, resolveSettings([])),
+    ).toMatchObject({ configured: true });
+  });
+});

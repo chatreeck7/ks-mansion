@@ -8,7 +8,7 @@ import { letterheadFrom, payeeFrom, PAYEE_KEYS } from '@/lib/console/letterhead'
 import { consolePath } from '@/lib/console/paths';
 import { formatBaht } from '@/lib/format/thai';
 import { cycleFor, cycleFromId, cycleLabel, cycleOptions } from '@/lib/models/billing-cycle';
-import { getBillRepository, getPaymentRepository, getRoomRepository } from '@/lib/repositories';
+import { getBillRepository, getPaymentRepository, getRoomRepository, getSettingsRepository } from '@/lib/repositories';
 
 /**
  * The whole cycle's bills, one per sheet of paper (KS-24).
@@ -47,8 +47,9 @@ const [bills, rooms, payments] = await Promise.all([
 ]);
 
 const batch = billBatchFor(cycle, bills, rooms, payments);
-const letterhead = letterheadFrom(env);
-const payee = payeeFrom(env);
+const documentSettings = await getSettingsRepository(env).resolveSettings();
+const letterhead = letterheadFrom(env, documentSettings);
+const payee = payeeFrom(env, documentSettings);
 ---
 
 <ConsoleLayout title={`ใบแจ้งค่าห้องพัก ${cycleLabel(cycle)}`}>
@@ -95,7 +96,7 @@ const payee = payeeFrom(env);
 
       {!payee.configured && (
         <p class="mt-3 mb-0 rounded-sm bg-console-crit-bg px-3 py-2 text-sm text-console-crit">
-          ยังไม่ได้ตั้งค่าบัญชีรับโอน ({PAYEE_KEYS.join(', ')}) — พิมพ์ออกไปตอนนี้
+          ยังไม่ได้ตั้งค่าบัญชีรับโอน (หน้าแม่แบบเอกสาร) — พิมพ์ออกไปตอนนี้
           ผู้เช่าจะโอนเงินไม่ได้ ตั้งค่าใน Cloudflare Pages ก่อน แล้วพิมพ์ใหม่ได้เลย
           ไม่ต้องออกบิลใหม่
         </p>

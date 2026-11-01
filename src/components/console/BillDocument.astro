@@ -152,7 +152,9 @@ const { doc, letterhead, payee } = Astro.props;
       <div>
         <p class="mb-1 text-console-ink-soft">{role}</p>
         <p class="mb-0 border-b border-console-print/40 pb-6"></p>
-        <p class="mb-0 pt-1 text-center text-console-ink-soft">(&nbsp;)</p>
+        <p class="mb-0 pt-1 text-center text-console-ink-soft">
+          ({role === 'ผู้รับเงิน' && letterhead.receiverName ? letterhead.receiverName : '\u00a0'})
+        </p>
       </div>
     ))}
   </div>
@@ -171,7 +173,7 @@ const { doc, letterhead, payee } = Astro.props;
          the bill to show payment instructions, and a bill handed over
          without them looks complete and cannot be paid from. */
       <span class="text-console-crit">
-        ยังไม่ได้ตั้งค่าบัญชีรับโอน — ตั้งค่า {payee.missing.join(', ')} ก่อนส่งบิลให้ผู้เช่า
+        ยังไม่ได้ตั้งค่าบัญชีรับโอน — ตั้งในหน้าแม่แบบเอกสาร ก่อนส่งบิลให้ผู้เช่า
       </span>
     )}
   </p>

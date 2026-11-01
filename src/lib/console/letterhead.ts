@@ -1,3 +1,4 @@
+import { settingLines, type SettingValues } from '@/lib/models/settings';
 /**
  * Who the building is on a printed document, and where a tenant sends money
  * (KS-24).
@@ -26,6 +27,8 @@ export interface Letterhead {
   addressLines: string[];
   /** Null until `MANSION_PHONE` is set — see `phoneFrom`. */
   phone: string | null;
+  /** Printed under the ผู้รับเงิน line; null leaves it for a pen. */
+  receiverName?: string | null;
 }
 
 export const MANSION_NAME = 'KS MANSION';
@@ -48,11 +51,18 @@ function phoneFrom(env: Record<string, unknown> | undefined): string | null {
   return phone === '' ? null : phone;
 }
 
-export function letterheadFrom(env?: Record<string, unknown>): Letterhead {
+/**
+ * The letterhead, from แม่แบบเอกสาร's settings when given (KS-31), falling
+ * back to the constants and `MANSION_PHONE` that predate them — so a page
+ * that has not loaded settings, or a sheet without the tab yet, still prints.
+ */
+export function letterheadFrom(env?: Record<string, unknown>, settings?: SettingValues): Letterhead {
+  const lines = settings ? settingLines(settings, 'mansion_address') : [];
   return {
-    name: MANSION_NAME,
-    addressLines: [...MANSION_ADDRESS_LINES],
-    phone: phoneFrom(env),
+    name: settings?.mansion_name.trim() || MANSION_NAME,
+    addressLines: lines.length > 0 ? lines : [...MANSION_ADDRESS_LINES],
+    phone: settings?.mansion_phone.trim() || phoneFrom(env),
+    receiverName: settings?.receiver_name.trim() || null,
   };
 }
 
@@ -83,10 +93,13 @@ export type PayeeConfig =
   | { configured: true; payee: Payee }
   | { configured: false; missing: string[] };
 
-export function payeeFrom(env?: Record<string, unknown>): PayeeConfig {
-  const bank = String(env?.PAYEE_BANK ?? '').trim();
-  const accountName = String(env?.PAYEE_ACCOUNT_NAME ?? '').trim();
-  const accountNumber = String(env?.PAYEE_ACCOUNT_NUMBER ?? '').trim();
+export function payeeFrom(env?: Record<string, unknown>, settings?: SettingValues): PayeeConfig {
+  // แม่แบบเอกสาร first (KS-31); the Cloudflare variables remain a fallback
+  // so nothing that already prints stops printing when this ships.
+  const bank = settings?.payee_bank.trim() || String(env?.PAYEE_BANK ?? '').trim();
+  const accountName = settings?.payee_account_name.trim() || String(env?.PAYEE_ACCOUNT_NAME ?? '').trim();
+  const accountNumber =
+    settings?.payee_account_number.trim() || String(env?.PAYEE_ACCOUNT_NUMBER ?? '').trim();
 
   const missing = [
     bank === '' ? 'PAYEE_BANK' : null,

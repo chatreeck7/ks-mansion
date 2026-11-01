@@ -23,8 +23,8 @@ describe('the registry', () => {
     expect(TYPES.map((type) => type.id)).toEqual([...DOCUMENT_TYPE_IDS]);
   });
 
-  it('marks the two that are built, and only those', () => {
-    expect(TYPES.filter(isReady).map((type) => type.id)).toEqual(['bills', 'collection']);
+  it('marks the three that are built, and only those', () => {
+    expect(TYPES.filter(isReady).map((type) => type.id)).toEqual(['bills', 'collection', 'evaluations']);
   });
 
   it('points a built document at the cycle it was asked for', () => {
@@ -66,7 +66,7 @@ describe('the registry', () => {
 describe('selectionFrom', () => {
   /** Arriving at the page: the month's paperwork, ready to go. */
   it('ticks everything producible when there is no ?include= at all', () => {
-    expect(selectionFrom(null, TYPES)).toEqual(['bills', 'collection']);
+    expect(selectionFrom(null, TYPES)).toEqual(['bills', 'collection', 'evaluations']);
   });
 
   /**
