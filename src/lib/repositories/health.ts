@@ -4,6 +4,8 @@ import {
   getLeaseRepository,
   getMeterReadingRepository,
   getPaymentRepository,
+  getSettingsRepository,
+  getDocumentTemplateRepository,
   getRoomRepository,
   getTenantRepository,
   sheetsClientFrom,
@@ -13,6 +15,8 @@ import { BILLS_TAB } from './sheets/sheets-bill-repository';
 import { LEASES_TAB } from './sheets/sheets-lease-repository';
 import { METER_READINGS_TAB } from './sheets/sheets-meter-reading-repository';
 import { PAYMENTS_TAB } from './sheets/sheets-payment-repository';
+import { SETTINGS_TAB } from './sheets/sheets-settings-repository';
+import { DOCUMENT_TEMPLATES_TAB } from './sheets/sheets-document-template-repository';
 import { ROOMS_TAB } from './sheets/sheets-room-repository';
 import { TENANTS_TAB } from './sheets/sheets-tenant-repository';
 import { diagnoseTab, type TabDiagnostic } from './tab-diagnostics';
@@ -121,6 +125,18 @@ export function repositoryProbes(env?: Record<string, unknown>): TabProbe[] {
       label: 'การรับเงิน',
       read: () => getPaymentRepository(env).listPayments(),
       inspect: () => diagnoseTab(client(), PAYMENTS_TAB),
+    },
+    {
+      tab: 'settings',
+      label: 'ค่าตั้งต้นเอกสาร',
+      read: () => getSettingsRepository(env).listSettings(),
+      inspect: () => diagnoseTab(client(), SETTINGS_TAB),
+    },
+    {
+      tab: 'document_templates',
+      label: 'แม่แบบเอกสาร',
+      read: () => getDocumentTemplateRepository(env).listBlocks('contract'),
+      inspect: () => diagnoseTab(client(), DOCUMENT_TEMPLATES_TAB),
     },
   ];
 }

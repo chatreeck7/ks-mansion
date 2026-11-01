@@ -133,6 +133,8 @@ describe('checkDatastoreHealth', () => {
       'meter_readings',
       'bills',
       'payments',
+      'settings',
+      'document_templates',
     ]);
     // Seeds must round-trip through the real parsers, or local dev is
     // demonstrating something production would reject.

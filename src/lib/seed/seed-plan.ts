@@ -1,7 +1,7 @@
 import { parseThaiDate } from '@/lib/format/thai-parse';
 import type { BillDraft } from '@/lib/models/bill';
 import type { EvaluationGrade } from '@/lib/models/tenant';
-import { EMPTY_ADDRESS } from '@/lib/models/tenant';
+import { EMPTY_ADDRESS, EMPTY_CONTRACT_DETAILS } from '@/lib/models/tenant';
 import type { MeterReadingDraft, MeterType } from '@/lib/models/meter-reading';
 import type { RoomAppliances, RoomStatus } from '@/lib/models/room';
 import type { LeaseDraft } from '@/lib/repositories/lease-repository';
@@ -177,6 +177,7 @@ export function planSeed(dataset: SeedDataset, knownRoomIds: readonly string[]):
         occupation: seed.tenant.occupation ?? '',
         evaluationGrade: seed.tenant.evaluationGrade ?? null,
         note: seed.tenant.note ?? '',
+        contractDetails: { ...EMPTY_CONTRACT_DETAILS },
       },
       lease: {
         roomId: seed.roomId,
@@ -193,6 +194,8 @@ export function planSeed(dataset: SeedDataset, knownRoomIds: readonly string[]):
         moveInPaid: lease.moveInPaid,
         moveOutDue: null,
         moveOutPaid: null,
+        coTenantName: null,
+        bookingFee: null,
       },
     };
   });

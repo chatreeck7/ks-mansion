@@ -127,7 +127,13 @@ const history = [...leases].sort((a, b) => b.startDate.getTime() - a.startDate.g
               tenant side. Shown on ended leases too — a wrong end date is
               exactly the thing someone comes here to correct.
             */}
-            <p class="mb-0 mt-1">
+            <p class="mb-0 mt-1 flex flex-wrap gap-x-4">
+              <a
+                href={consolePath(`console/leases/${lease.id}/contract`)}
+                class:list={['inline-flex min-h-9 items-center text-sm font-medium text-console-ink underline-offset-2 hover:underline', FOCUS]}
+              >
+                พิมพ์สัญญาเช่า
+              </a>
               <a
                 href={consolePath(`console/leases/${lease.id}/end`)}
                 class:list={['inline-flex min-h-9 items-center text-sm font-medium text-console-crit underline-offset-2 hover:underline', FOCUS]}

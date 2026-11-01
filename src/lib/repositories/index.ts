@@ -4,6 +4,8 @@ import type { LeaseRepository } from './lease-repository';
 import type { MeterReadingRepository } from './meter-reading-repository';
 import type { BillRepository } from './bill-repository';
 import type { PaymentRepository } from './payment-repository';
+import type { SettingsRepository } from './settings-repository';
+import type { DocumentTemplateRepository } from './document-template-repository';
 import type { SheetsClient } from './sheets/sheets-client';
 import { sharedSeedSheets } from './memory/seed-sheet';
 import { createSheetsRoomRepository } from './sheets/sheets-room-repository';
@@ -12,6 +14,8 @@ import { createSheetsLeaseRepository } from './sheets/sheets-lease-repository';
 import { createSheetsMeterReadingRepository } from './sheets/sheets-meter-reading-repository';
 import { createSheetsBillRepository } from './sheets/sheets-bill-repository';
 import { createSheetsPaymentRepository } from './sheets/sheets-payment-repository';
+import { createSheetsSettingsRepository } from './sheets/sheets-settings-repository';
+import { createSheetsDocumentTemplateRepository } from './sheets/sheets-document-template-repository';
 import { getSheetsClient } from './sheets/client-cache';
 
 /**
@@ -125,4 +129,14 @@ export function getBillRepository(env?: Record<string, unknown>): BillRepository
 
 export function getPaymentRepository(env?: Record<string, unknown>): PaymentRepository {
   return createSheetsPaymentRepository(sheetsClientFrom(env));
+}
+
+export function getSettingsRepository(env?: Record<string, unknown>): SettingsRepository {
+  return createSheetsSettingsRepository(sheetsClientFrom(env));
+}
+
+export function getDocumentTemplateRepository(
+  env?: Record<string, unknown>,
+): DocumentTemplateRepository {
+  return createSheetsDocumentTemplateRepository(sheetsClientFrom(env));
 }

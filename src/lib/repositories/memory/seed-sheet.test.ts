@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { EMPTY_CONTRACT_DETAILS } from '@/lib/models/tenant';
 import { formatThaiDate } from '@/lib/format/thai';
 import { isUnit } from '@/lib/models/room';
 import { createSheetsLeaseRepository } from '../sheets/sheets-lease-repository';
@@ -260,6 +261,7 @@ describe('the seed store refuses what Sheets would refuse', () => {
     occupation: '',
     evaluationGrade: null,
     note: '',
+    contractDetails: { ...EMPTY_CONTRACT_DETAILS },
     address: {
       houseNo: '', road: '', subdistrict: '',
       district: '', province: '', postcode: '',
@@ -377,6 +379,7 @@ describe('the composition root fallback validates too', () => {
         occupation: '',
         evaluationGrade: null,
         note: '',
+        contractDetails: { ...EMPTY_CONTRACT_DETAILS },
         address: {
           houseNo: '', road: '', subdistrict: '',
           district: '', province: '', postcode: '',

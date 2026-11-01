@@ -1,4 +1,5 @@
 import type { EvaluationGrade } from '@/lib/models/tenant';
+import { dateFromInput } from './lease-form';
 import type { TenantDraft } from '@/lib/repositories/tenant-repository';
 
 /**
@@ -28,6 +29,18 @@ export function tenantDraftFromForm(form: FormData): TenantDraft {
     // Blank is "not yet assessed", which is null rather than the string "".
     evaluationGrade: grade === '' ? null : (grade as EvaluationGrade),
     note: text('note'),
+    contractDetails: {
+      // A blank or unparseable birth date stays null; the store accepts
+      // null, and the form shows the field empty again rather than guessing.
+      birthDate: dateFromInput(text('contract.birthDate')),
+      position: text('contract.position'),
+      workplace: text('contract.workplace'),
+      vehicleType: text('contract.vehicleType'),
+      vehicleBrand: text('contract.vehicleBrand'),
+      vehicleModel: text('contract.vehicleModel'),
+      vehicleColor: text('contract.vehicleColor'),
+      vehiclePlate: text('contract.vehiclePlate'),
+    },
     address: {
       houseNo: text('address.houseNo'),
       road: text('address.road'),

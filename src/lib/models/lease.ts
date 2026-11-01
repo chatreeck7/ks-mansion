@@ -82,6 +82,14 @@ export interface Lease extends Archivable {
   moveInPaid: number | null;
   moveOutDue: number | null;
   moveOutPaid: number | null;
+  /**
+   * ผู้เช่าคนที่ 2 — the contract has a second signature line, and the room
+   * allows two occupants. A name only: they are not a tenant record of their
+   * own, and billing never reads it.
+   */
+  coTenantName: string | null;
+  /** ค่ามัดจำ/จองห้อง, deducted on the contract's หักแล้ว คงจ่าย line. */
+  bookingFee: number | null;
 }
 
 export type LeaseEndReason = 'normal' | 'absconded';

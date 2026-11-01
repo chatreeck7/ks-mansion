@@ -1,0 +1,303 @@
+---
+// src/pages/console/templates.astro
+import ConsoleFrame from '@/components/console/ConsoleFrame.astro';
+import DetailSection from '@/components/console/DetailSection.astro';
+import DetailSheet from '@/components/console/DetailSheet.astro';
+import ErrorSummary from '@/components/console/ErrorSummary.astro';
+import Notice from '@/components/console/Notice.astro';
+import { consolePath } from '@/lib/console/paths';
+import { blockChangesFromForm, newBlockFromForm, settingChangesFromForm } from '@/lib/console/template-form';
+import { buttonClass, INPUT, LINK } from '@/lib/console/ui';
+import { contractPlaceholders } from '@/lib/documents/contract';
+import { DEFAULT_CONTRACT_BLOCKS } from '@/lib/documents/default-contract';
+import { unknownPlaceholders } from '@/lib/documents/template';
+import { TEMPLATE_BLOCK_KIND_LABELS, TEMPLATE_BLOCK_KINDS } from '@/lib/models/document-template';
+import { SETTING_DEFINITIONS, SETTING_GROUP_LABELS, type SettingGroup } from '@/lib/models/settings';
+import { activeLeaseFor } from '@/lib/models/lease';
+import {
+  getDocumentTemplateRepository,
+  getLeaseRepository,
+  getRoomRepository,
+  getSettingsRepository,
+} from '@/lib/repositories';
+
+/**
+ * แม่แบบเอกสาร — the building's printable facts and the contract wording,
+ * edited without a developer (KS-31, KS-24).
+ *
+ * Plain POSTs to this route, one form per job, the way every console form
+ * works: no client script is needed to save. Each save writes **only what
+ * changed** (see `template-form.ts`) so the Sheets quota is spent on edits,
+ * not on restating thirty unchanged clauses.
+ */
+
+const env = Astro.locals.runtime?.env;
+const settingsRepo = getSettingsRepository(env);
+const templatesRepo = getDocumentTemplateRepository(env);
+
+let notice: string | null = null;
+const errors: string[] = [];
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const action = String(form.get('action') ?? '');
+  try {
+    if (action === 'settings') {
+      const changes = settingChangesFromForm(form, await settingsRepo.resolveSettings());
+      for (const { key, value } of changes) {
+        try {
+          await settingsRepo.saveSetting(key, value);
+        } catch (cause) {
+          errors.push(cause instanceof Error ? cause.message : String(cause));
+        }
+      }
+      notice = changes.length === 0 ? 'ไม่มีค่าที่เปลี่ยน' : `บันทึกค่าตั้งต้น ${changes.length - errors.length} รายการแล้ว`;
+    } else if (action === 'blocks') {
+      const blocks = await templatesRepo.listBlocks('contract');
+      const changes = blockChangesFromForm(form, blocks);
+      for (const change of changes) {
+        if (Object.keys(change.changes).length > 0) await templatesRepo.updateBlock(change.id, change.changes);
+        if (change.archive) await templatesRepo.archiveBlock(change.id);
+      }
+      notice = changes.length === 0 ? 'ไม่มีข้อความที่เปลี่ยน' : `บันทึกข้อความสัญญา ${changes.length} ส่วนแล้ว`;
+    } else if (action === 'add') {
+      const draft = newBlockFromForm(form, await templatesRepo.listBlocks('contract'));
+      if (draft) {
+        await templatesRepo.addBlock(draft);
+        notice = 'เพิ่มข้อความแล้ว';
+      } else {
+        errors.push('ยังไม่ได้พิมพ์ข้อความที่จะเพิ่ม');
+      }
+    } else if (action === 'seed') {
+      if ((await templatesRepo.listBlocks('contract')).length === 0) {
+        for (const block of DEFAULT_CONTRACT_BLOCKS) await templatesRepo.addBlock(block);
+        notice = 'บันทึกข้อความสัญญาตั้งต้นลงชีตแล้ว — แก้ได้ทีละข้อด้านล่าง';
+      }
+    }
+  } catch (cause) {
+    errors.push(cause instanceof Error ? cause.message : String(cause));
+  }
+}
+
+const [settings, blocks, leases, rooms] = await Promise.all([
+  settingsRepo.resolveSettings(),
+  templatesRepo.listBlocks('contract'),
+  getLeaseRepository(env).listLeases(),
+  getRoomRepository(env).listRooms(),
+]);
+
+const placeholders = contractPlaceholders();
+const known = placeholders.map((p) => p.name);
+const groups = Object.keys(SETTING_GROUP_LABELS) as SettingGroup[];
+
+// Preview: one current tenancy per room, newest first, so the admin can see
+// the wording filled with a real contract.
+const today = new Date();
+const previewable = rooms
+  .map((room) => ({ room, lease: activeLeaseFor(leases.filter((l) => l.roomId === room.id), today) }))
+  .filter((entry): entry is { room: typeof entry.room; lease: NonNullable<typeof entry.lease> } => entry.lease !== null);
+const previewId = Astro.url.searchParams.get('preview') ?? previewable[0]?.lease.id ?? '';
+const needsHeading = (kind: string) => kind === 'clause' || kind === 'fee_row' || kind === 'item_row';
+---
+
+<ConsoleFrame title="แม่แบบเอกสาร" activeSection="templates" width="reading">
+  <DetailSheet title="แม่แบบเอกสาร" meta="ค่าตั้งต้นที่พิมพ์ในเอกสารทุกฉบับ และข้อความสัญญาเช่า">
+    {(notice || errors.length > 0) && (
+      <div class="px-4 pt-4 desk:px-5">
+        {notice && <Notice tone="ok" role="status">{notice}</Notice>}
+        <ErrorSummary message={errors.length > 0 ? errors.join(' · ') : null} />
+      </div>
+    )}
+
+    <DetailSection heading="ดูตัวอย่างสัญญา">
+      <form method="GET" action={consolePath('console/leases/__/contract')} class="flex flex-wrap items-end gap-3" data-preview>
+        <label class="flex flex-col gap-1 text-[15px] font-medium text-console-ink-soft">
+          สัญญาของห้อง
+          <select name="lease" class={`${INPUT} w-56`}>
+            {previewable.map(({ room, lease }) => (
+              <option value={lease.id} selected={lease.id === previewId}>ห้อง {room.label}</option>
+            ))}
+          </select>
+        </label>
+        <noscript><p class="m-0 text-sm text-console-ink-soft">เปิดจากหน้าห้อง → พิมพ์สัญญาเช่า</p></noscript>
+        <button type="submit" class={buttonClass('secondary', 'md', false)}>เปิดสัญญา (แท็บใหม่)</button>
+      </form>
+      <p class="mb-0 mt-2 text-sm text-console-ink-soft">
+        แก้ข้อความหรือค่าด้านล่างแล้วกดบันทึก จากนั้นกดเปิดสัญญาอีกครั้งเพื่อดูผล — สัญญาจะพิมพ์ตามข้อความล่าสุดเสมอ
+      </p>
+    </DetailSection>
+
+    <DetailSection heading="ค่าตั้งต้นเอกสาร">
+      <form method="POST" class="flex flex-col gap-6">
+        <input type="hidden" name="action" value="settings" />
+        {groups.map((group) => (
+          <fieldset class="m-0 grid grid-cols-1 gap-4 border-0 p-0 sm:grid-cols-2">
+            <legend class="mb-2 font-hand text-[17px] font-semibold text-console-ink">{SETTING_GROUP_LABELS[group]}</legend>
+            {SETTING_DEFINITIONS.filter((d) => d.group === group).map((definition) => (
+              <label class:list={['flex flex-col gap-1 text-[15px] font-medium text-console-ink-soft', definition.kind === 'multiline' ? 'sm:col-span-2' : '']}>
+                <span>
+                  {definition.label}
+                  <code class="ml-2 text-[13px] font-normal text-console-ink-faint">{`{${definition.placeholder}}`}</code>
+                </span>
+                {definition.kind === 'multiline' ? (
+                  <textarea name={`setting.${definition.key}`} rows="2" class={`${INPUT} py-2`}>{settings[definition.key]}</textarea>
+                ) : (
+                  <input
+                    name={`setting.${definition.key}`}
+                    value={settings[definition.key]}
+                    inputmode={definition.kind === 'text' ? 'text' : 'decimal'}
+                    class={INPUT}
+                  />
+                )}
+                {definition.hint && <span class="text-sm font-normal text-console-ink-faint">{definition.hint}</span>}
+              </label>
+            ))}
+          </fieldset>
+        ))}
+        <div>
+          <button type="submit" class={buttonClass('primary', 'md', false)}>บันทึกค่าตั้งต้น</button>
+        </div>
+      </form>
+    </DetailSection>
+
+    <DetailSection heading="ช่องเติมอัตโนมัติที่ใช้ได้">
+      <details>
+        <summary class="cursor-pointer text-[15px] font-medium text-console-ink">ดูรายการ ({placeholders.length} ช่อง)</summary>
+        <p class="mt-2 text-sm text-console-ink-soft">
+          พิมพ์ชื่อช่องในวงเล็บปีกกา เช่น <code>{'{ผู้เช่า}'}</code> ไว้ในข้อความ ระบบจะเติมจากข้อมูลจริงตอนพิมพ์
+          ถ้าไม่มีข้อมูลจะพิมพ์เป็นเส้นจุดให้เขียนมือ
+        </p>
+        <dl class="m-0 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+          {placeholders.map((p) => (
+            <>
+              <dt><code>{`{${p.name}}`}</code></dt>
+              <dd class="m-0 text-console-ink-soft">{p.description}</dd>
+            </>
+          ))}
+        </dl>
+      </details>
+    </DetailSection>
+
+    <DetailSection heading="ข้อความสัญญาเช่า">
+      {blocks.length === 0 ? (
+        <form method="POST" class="flex flex-col gap-2">
+          <input type="hidden" name="action" value="seed" />
+          <p class="m-0 text-[15px] text-console-ink-soft">
+            ยังไม่มีข้อความสัญญาในชีต ตอนนี้สัญญาพิมพ์จากข้อความตั้งต้นของระบบ (ร่างสัญญา พ.ย. 2569)
+            กดปุ่มเพื่อคัดลอกลงชีต แล้วจะแก้ได้ทีละข้อ
+          </p>
+          <div><button type="submit" class={buttonClass('primary', 'md', false)}>คัดลอกข้อความตั้งต้นลงชีต</button></div>
+        </form>
+      ) : (
+        <form method="POST" class="flex flex-col gap-4">
+          <input type="hidden" name="action" value="blocks" />
+          <p class="m-0 text-sm text-console-ink-soft">
+            กดที่หัวข้อเพื่อแก้ · ลำดับ = ตัวเลขเรียงจากน้อยไปมาก (เว้นระยะทีละ 10 เพื่อแทรกข้อใหม่ได้) · แต่ละบรรทัดในช่องข้อความพิมพ์เป็นหนึ่งบรรทัด · แก้หลายข้อแล้วกดบันทึกครั้งเดียวได้
+          </p>
+          {blocks.map((block) => {
+            const unknown = unknownPlaceholders(`${block.heading}\n${block.body}\n${block.extra}`, known);
+            return (
+              <details class="group rounded-lg border border-console-line" open={unknown.length > 0}>
+                <summary class="flex min-h-11 cursor-pointer items-center gap-3 px-3 py-2 text-[15px] marker:text-console-ink-faint">
+                  <span class="w-10 shrink-0 font-figure text-sm text-console-ink-faint">{block.position}</span>
+                  <span class="shrink-0 rounded bg-console-mute-bg px-1.5 text-xs text-console-ink-soft">{TEMPLATE_BLOCK_KIND_LABELS[block.kind]}</span>
+                  <span class="truncate text-console-ink">{block.heading || block.body.split('\n')[0]}</span>
+                  {unknown.length > 0 && <span class="shrink-0 text-sm text-console-crit">ช่องผิด</span>}
+                </summary>
+              <fieldset class="m-0 flex flex-col gap-2 border-0 border-t border-console-line p-3">
+                <div class="flex flex-wrap items-end gap-3">
+                  <label class="flex w-24 flex-col gap-1 text-sm text-console-ink-soft">
+                    ลำดับ
+                    <input name={`block.${block.id}.position`} value={block.position} inputmode="numeric" class={INPUT} />
+                  </label>
+                  {needsHeading(block.kind) && (
+                    <label class="flex min-w-[14rem] flex-1 flex-col gap-1 text-sm text-console-ink-soft">
+                      {block.kind === 'clause' ? 'หัวข้อ' : 'รายการ'}
+                      <input name={`block.${block.id}.heading`} value={block.heading} class={INPUT} />
+                    </label>
+                  )}
+                </div>
+                <label class="flex flex-col gap-1 text-sm text-console-ink-soft">
+                  {block.kind === 'fee_row' ? 'ค่าปรับ' : block.kind === 'item_row' ? 'จำนวน' : 'ข้อความ'}
+                  <textarea
+                    name={`block.${block.id}.body`}
+                    rows={Math.min(12, Math.max(1, block.body.split('\n').length + (block.body.length > 120 ? 2 : 0)))}
+                    class={`${INPUT} py-2 leading-relaxed`}
+                  >{block.body}</textarea>
+                </label>
+                {block.kind === 'fee_row' && (
+                  <label class="flex flex-col gap-1 text-sm text-console-ink-soft">
+                    ค่าซ่อมแซม
+                    <input name={`block.${block.id}.extra`} value={block.extra} class={INPUT} />
+                  </label>
+                )}
+                {unknown.length > 0 && (
+                  <p class="m-0 text-sm text-console-crit">ระบบไม่รู้จักช่อง: {unknown.map((name) => `{${name}}`).join(', ')}</p>
+                )}
+                <label class="inline-flex items-center gap-2 text-sm text-console-ink-soft">
+                  <input type="checkbox" name={`block.${block.id}.archive`} class="h-4 w-4" />
+                  ลบส่วนนี้ออกจากสัญญา (เก็บเข้าคลัง กู้คืนได้ในชีต)
+                </label>
+              </fieldset>
+              </details>
+            );
+          })}
+          <div class="sticky bottom-0 -mx-1 bg-console-card/95 px-1 py-2">
+            <button type="submit" class={buttonClass('primary', 'md', false)}>บันทึกข้อความสัญญา</button>
+          </div>
+        </form>
+      )}
+    </DetailSection>
+
+    {blocks.length > 0 && (
+      <DetailSection heading="เพิ่มข้อความ">
+        <form method="POST" class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <input type="hidden" name="action" value="add" />
+          <label class="flex flex-col gap-1 text-sm text-console-ink-soft">
+            ชนิด
+            <select name="new.kind" class={INPUT}>
+              {TEMPLATE_BLOCK_KINDS.map((kind) => (
+                <option value={kind} selected={kind === 'clause'}>{TEMPLATE_BLOCK_KIND_LABELS[kind]}</option>
+              ))}
+            </select>
+          </label>
+          <label class="flex flex-col gap-1 text-sm text-console-ink-soft">
+            ลำดับ (เว้นว่าง = ต่อท้าย)
+            <input name="new.position" inputmode="numeric" class={INPUT} />
+          </label>
+          <label class="flex flex-col gap-1 text-sm text-console-ink-soft sm:col-span-2">
+            หัวข้อ / รายการ
+            <input name="new.heading" class={INPUT} />
+          </label>
+          <label class="flex flex-col gap-1 text-sm text-console-ink-soft sm:col-span-2">
+            ข้อความ / ค่าปรับ / จำนวน
+            <textarea name="new.body" rows="3" class={`${INPUT} py-2`}></textarea>
+          </label>
+          <label class="flex flex-col gap-1 text-sm text-console-ink-soft sm:col-span-2">
+            ค่าซ่อมแซม (เฉพาะแถวตารางค่าปรับ)
+            <input name="new.extra" class={INPUT} />
+          </label>
+          <div><button type="submit" class={buttonClass('secondary', 'md', false)}>เพิ่ม</button></div>
+        </form>
+      </DetailSection>
+    )}
+
+    <p class="text-sm text-console-ink-soft">
+      ค่าตั้งต้นและข้อความเก็บในแท็บ <code>settings</code> และ <code>document_templates</code> ของ Google Sheets —
+      ดู <a class={LINK} href={consolePath('console/health')}>สถานะระบบ</a> ถ้าบันทึกไม่ได้
+    </p>
+  </DetailSheet>
+</ConsoleFrame>
+
+<script>
+  // Open the chosen lease's contract in a new tab. Without script the
+  // select still renders and the noscript line points to the room page.
+  const form = document.querySelector<HTMLFormElement>('[data-preview]');
+  form?.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const lease = (form.elements.namedItem('lease') as HTMLSelectElement | null)?.value;
+    if (!lease) return;
+    const href = form.action.replace('/__/', `/${encodeURIComponent(lease)}/`).split('?')[0];
+    window.open(href, '_blank', 'noopener');
+  });
+</script>

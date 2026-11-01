@@ -4,7 +4,8 @@ import ErrorSummary from './ErrorSummary.astro';
 import FormActions from './FormActions.astro';
 import FormField from './FormField.astro';
 import { INPUT } from '@/lib/console/ui';
-import { EMPTY_ADDRESS, type Tenant } from '@/lib/models/tenant';
+import { EMPTY_ADDRESS, EMPTY_CONTRACT_DETAILS, type Tenant } from '@/lib/models/tenant';
+import { dateToInput } from '@/lib/console/lease-form';
 import type { TenantDraft } from '@/lib/repositories/tenant-repository';
 
 interface Props {
@@ -30,7 +31,9 @@ const v: TenantDraft = {
   evaluationGrade: values?.evaluationGrade ?? null,
   note: values?.note ?? '',
   address: values?.address ?? EMPTY_ADDRESS,
+  contractDetails: values?.contractDetails ?? EMPTY_CONTRACT_DETAILS,
 };
+const c = v.contractDetails;
 
 const GRADES = [
   { value: '', label: 'ยังไม่ประเมิน' },
@@ -97,6 +100,25 @@ const CONTROL_CLASS = INPUT;
         inputmode="numeric"
         maxlength={5}
       />
+    </div>
+  </div>
+
+  <div class="sm:col-span-2">
+    <h3 class="mb-1 font-hand text-[17px] font-semibold text-console-ink">ข้อมูลสำหรับสัญญาเช่า</h3>
+    <p class="mb-2 text-sm text-console-ink-soft">
+      ไม่บังคับ — ช่องที่ว่างจะพิมพ์เป็นเส้นจุดในสัญญาให้เขียนมือ
+    </p>
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <FormField name="contract.birthDate" label="วันเกิด" type="date" value={dateToInput(c.birthDate)} span="half"
+        hint="ใช้คำนวณอายุ ณ วันทำสัญญา" />
+      <FormField name="contract.position" label="ตำแหน่ง" value={c.position} span="half" />
+      <FormField name="contract.workplace" label="สถานที่ทำงาน / สถานศึกษา" value={c.workplace} />
+      <FormField name="contract.vehicleType" label="ประเภทรถ" value={c.vehicleType} span="half"
+        hint="เช่น รถจักรยานยนต์ หรือ รถยนต์" />
+      <FormField name="contract.vehiclePlate" label="เลขทะเบียน" value={c.vehiclePlate} span="half" />
+      <FormField name="contract.vehicleBrand" label="ยี่ห้อ" value={c.vehicleBrand} span="half" />
+      <FormField name="contract.vehicleModel" label="รุ่น" value={c.vehicleModel} span="half" />
+      <FormField name="contract.vehicleColor" label="สี" value={c.vehicleColor} span="half" />
     </div>
   </div>
 

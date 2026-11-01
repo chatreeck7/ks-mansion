@@ -1,0 +1,85 @@
+import {
+  TEMPLATE_BLOCK_KINDS,
+  type TemplateBlock,
+  type TemplateBlockDraft,
+  type TemplateBlockKind,
+} from '@/lib/models/document-template';
+import { SETTING_DEFINITIONS, type SettingKey, type SettingValues } from '@/lib/models/settings';
+
+/**
+ * Form posts from แม่แบบเอกสาร to the writes they mean (KS-31).
+ *
+ * Only **what changed** comes back: the page posts every field at once, and
+ * writing all thirty-odd blocks on each save would spend the Sheets write
+ * quota restating text nobody touched — and, worse, overwrite a cell someone
+ * fixed in the sheet a minute ago with the stale copy the page was showing.
+ */
+
+const text = (form: FormData, field: string): string | null => {
+  const value = form.get(field);
+  return value === null ? null : String(value);
+};
+
+/** Normalises line endings so a browser's `\r\n` is not a "change". */
+const clean = (value: string): string => value.replace(/\r\n/g, '\n').trim();
+
+export function settingChangesFromForm(
+  form: FormData,
+  current: SettingValues,
+): Array<{ key: SettingKey; value: string }> {
+  const changes: Array<{ key: SettingKey; value: string }> = [];
+  for (const definition of SETTING_DEFINITIONS) {
+    const posted = text(form, `setting.${definition.key}`);
+    if (posted === null) continue;
+    const value = clean(posted);
+    if (value !== clean(current[definition.key])) changes.push({ key: definition.key, value });
+  }
+  return changes;
+}
+
+export interface BlockChange {
+  id: string;
+  changes: Partial<TemplateBlockDraft>;
+  archive: boolean;
+}
+
+export function blockChangesFromForm(form: FormData, blocks: readonly TemplateBlock[]): BlockChange[] {
+  const result: BlockChange[] = [];
+  for (const block of blocks) {
+    const prefix = `block.${block.id}.`;
+    const changes: Partial<TemplateBlockDraft> = {};
+    for (const field of ['heading', 'body', 'extra'] as const) {
+      const posted = text(form, prefix + field);
+      if (posted !== null && clean(posted) !== clean(block[field])) changes[field] = clean(posted);
+    }
+    const position = text(form, prefix + 'position');
+    if (position !== null && position.trim() !== '' && Number(position) !== block.position) {
+      changes.position = Number(position);
+    }
+    const archive = form.get(prefix + 'archive') === 'on';
+    if (archive || Object.keys(changes).length > 0) result.push({ id: block.id, changes, archive });
+  }
+  return result;
+}
+
+/** The "add a block" form, or null when nothing was typed into it. */
+export function newBlockFromForm(form: FormData, blocks: readonly TemplateBlock[]): TemplateBlockDraft | null {
+  const body = clean(text(form, 'new.body') ?? '');
+  const heading = clean(text(form, 'new.heading') ?? '');
+  if (body === '' && heading === '') return null;
+  const kindRaw = text(form, 'new.kind') ?? 'clause';
+  const kind: TemplateBlockKind = (TEMPLATE_BLOCK_KINDS as readonly string[]).includes(kindRaw)
+    ? (kindRaw as TemplateBlockKind)
+    : 'clause';
+  const positionRaw = (text(form, 'new.position') ?? '').trim();
+  const last = blocks.reduce((max, block) => Math.max(max, block.position), 0);
+  return {
+    docType: 'contract',
+    kind,
+    heading,
+    body,
+    extra: clean(text(form, 'new.extra') ?? ''),
+    // Blank means "at the end", the commonest case.
+    position: positionRaw === '' ? last + 10 : Number(positionRaw),
+  };
+}

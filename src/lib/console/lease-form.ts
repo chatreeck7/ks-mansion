@@ -88,5 +88,7 @@ export function leaseDraftFromForm(form: FormData): LeaseDraft {
     // to pair it with. A lease being created has not moved out.
     moveOutDue: null,
     moveOutPaid: null,
+    coTenantName: text('coTenantName') || null,
+    bookingFee: optionalNumberField(form, 'bookingFee'),
   };
 }

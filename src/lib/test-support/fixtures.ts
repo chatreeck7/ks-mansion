@@ -4,7 +4,7 @@ import type { MeterReading } from '@/lib/models/meter-reading';
 import type { Payment } from '@/lib/models/payment';
 import type { Room } from '@/lib/models/room';
 import type { Tenant } from '@/lib/models/tenant';
-import { EMPTY_ADDRESS } from '@/lib/models/tenant';
+import { EMPTY_ADDRESS, EMPTY_CONTRACT_DETAILS } from '@/lib/models/tenant';
 
 /**
  * Fixture builders for tests. Not imported by anything that ships.
@@ -46,6 +46,7 @@ export function makeTenant(overrides: Partial<Tenant> = {}): Tenant {
     occupation: 'พนักงานบริษัท',
     evaluationGrade: 'A',
     note: '',
+    contractDetails: { ...EMPTY_CONTRACT_DETAILS },
     archived: false,
     ...overrides,
   };
@@ -69,6 +70,8 @@ export function makeLease(overrides: Partial<Lease> = {}): Lease {
     moveInPaid: null,
     moveOutDue: null,
     moveOutPaid: null,
+    coTenantName: null,
+    bookingFee: null,
     archived: false,
     ...overrides,
   };

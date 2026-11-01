@@ -7,6 +7,7 @@ const HEADER = [
   'rent_rate', 'deposit', 'advance_rent', 'occupant_count',
   'end_reason', 'previous_lease_id', 'archived',
   'move_in_due', 'move_in_paid', 'move_out_due', 'move_out_paid',
+  'co_tenant_name', 'booking_fee',
 ];
 
 function client(rows: string[][]) {
@@ -54,7 +55,16 @@ describe('createSheetsLeaseRepository', () => {
       moveInPaid: null,
       moveOutDue: null,
       moveOutPaid: null,
+      coTenantName: null,
+      bookingFee: null,
     });
+  });
+
+  it('reads the contract-only fields: a second tenant and the booking deposit', async () => {
+    const [lease] = await createSheetsLeaseRepository(
+      client([row({ co_tenant_name: 'นางสาว ตัวอย่าง สอง', booking_fee: '1,000' })]),
+    ).listLeases();
+    expect(lease).toMatchObject({ coTenantName: 'นางสาว ตัวอย่าง สอง', bookingFee: 1000 });
   });
 
   it('accepts the numeric Thai date form too', async () => {

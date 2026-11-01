@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { EMPTY_CONTRACT_DETAILS } from '@/lib/models/tenant';
 import { createInMemorySheets, type InMemorySheets } from '../memory/in-memory-sheets';
 import { createSheetsCrud } from './sheets-crud';
 import { createSheetsLeaseRepository } from './sheets-lease-repository';
@@ -22,6 +23,7 @@ const TENANT_HEADER = [
   'occupation', 'evaluation_grade', 'note',
   'address_house_no', 'address_road', 'address_subdistrict',
   'address_district', 'address_province', 'address_postcode', 'archived',
+  'birth_date', 'position', 'workplace', 'vehicle_type', 'vehicle_brand', 'vehicle_model', 'vehicle_color', 'vehicle_plate',
 ];
 
 function tenantRow(id: string, name: string): string[] {
@@ -41,6 +43,7 @@ const DRAFT = {
   occupation: 'นักเรียน',
   evaluationGrade: 'B' as const,
   note: '',
+  contractDetails: { ...EMPTY_CONTRACT_DETAILS },
 };
 
 function tenantsWith(rows: string[][]): InMemorySheets {
@@ -299,6 +302,7 @@ describe('leases', () => {
     'rent_rate', 'deposit', 'advance_rent', 'occupant_count',
     'end_reason', 'previous_lease_id', 'archived',
     'move_in_due', 'move_in_paid', 'move_out_due', 'move_out_paid',
+    'co_tenant_name', 'booking_fee',
   ];
 
   const LEASE_DRAFT = {
@@ -317,6 +321,8 @@ describe('leases', () => {
     moveInPaid: null,
     moveOutDue: null,
     moveOutPaid: null,
+    coTenantName: null,
+    bookingFee: null,
   };
 
   function leaseSheet(): InMemorySheets {

@@ -7,6 +7,7 @@ const HEADER = [
   'occupation', 'evaluation_grade', 'note',
   'address_house_no', 'address_road', 'address_subdistrict',
   'address_district', 'address_province', 'address_postcode', 'archived',
+  'birth_date', 'position', 'workplace', 'vehicle_type', 'vehicle_brand', 'vehicle_model', 'vehicle_color', 'vehicle_plate',
 ];
 
 function client(rows: string[][]) {
@@ -56,7 +57,50 @@ describe('createSheetsTenantRepository', () => {
         province: 'ขอนแก่น',
         postcode: '40000',
       },
+      contractDetails: {
+        birthDate: null,
+        position: '',
+        workplace: '',
+        vehicleType: '',
+        vehicleBrand: '',
+        vehicleModel: '',
+        vehicleColor: '',
+        vehiclePlate: '',
+      },
     });
+  });
+
+  it('reads the contract details, birth date in พ.ศ.', async () => {
+    const [tenant] = await createSheetsTenantRepository(
+      client([
+        row({
+          birth_date: '5 ม.ค. 2540',
+          position: 'พนักงานขาย',
+          workplace: 'บิ๊กซี',
+          vehicle_type: 'รถจักรยานยนต์',
+          vehicle_brand: 'Honda',
+          vehicle_model: 'Wave',
+          vehicle_color: 'แดง',
+          vehicle_plate: '1กข 234 ลำปาง',
+        }),
+      ]),
+    ).listTenants();
+    expect(tenant?.contractDetails).toEqual({
+      birthDate: new Date(1997, 0, 5),
+      position: 'พนักงานขาย',
+      workplace: 'บิ๊กซี',
+      vehicleType: 'รถจักรยานยนต์',
+      vehicleBrand: 'Honda',
+      vehicleModel: 'Wave',
+      vehicleColor: 'แดง',
+      vehiclePlate: '1กข 234 ลำปาง',
+    });
+  });
+
+  it('refuses a birth date that is not a date, rather than reading it as blank', async () => {
+    await expect(
+      createSheetsTenantRepository(client([row({ birth_date: '1997-01-05' })])).listTenants(),
+    ).rejects.toThrow(/"birth_date" is not a Thai/);
   });
 
   it('allows a blank nickname — it is optional, unlike the name', async () => {

@@ -24,6 +24,8 @@ describe('CONSOLE_SECTIONS', () => {
       // The register.
       'rooms',
       'tenants',
+      // KS-31: contract wording and the facts every document prints.
+      'templates',
       'health',
     ]);
   });
@@ -41,6 +43,7 @@ describe('tabFor', () => {
     expect(tabFor('rooms')).toBe('building');
     expect(tabFor('tenants')).toBe('tenants');
     expect(tabFor('health')).toBe('more');
+    expect(tabFor('templates')).toBe('more');
   });
 
   it('has exactly four phone tabs', () => {
