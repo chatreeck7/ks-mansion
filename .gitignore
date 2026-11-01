@@ -12,3 +12,6 @@ dist/
 .astro/
 .claude/worktrees/
 .superpowers/
+
+# Seed datasets built from the monthly paperwork — they hold tenant phone numbers.
+seed-data/
