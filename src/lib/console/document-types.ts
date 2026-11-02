@@ -113,14 +113,12 @@ export function documentTypesFor(cycle: BillingCycle): DocumentType[] {
     {
       id: 'evaluations',
       label: 'ใบผลประเมินผู้เช่า',
-      description: 'ผลประเมิน A / B / C พร้อมหมายเหตุรายคน',
+      description: 'จำนวนผู้พัก อาชีพ ผลประเมิน A / B / C และเบอร์โทร รายห้อง พร้อมกราฟสรุป',
       perCycle: false,
+      // KS-15: the family's sheet plus charts, as of today.
       availability: {
-        ready: false,
-        // The grade field exists on the tenant already; the document that
-        // prints it does not.
-        reason: 'ช่องเกรดมีแล้วในโปรไฟล์ผู้เช่า แต่ยังไม่ได้ทำตัวเอกสาร',
-        blockedBy: 'KS-15',
+        ready: true,
+        href: consolePath('console/documents/evaluations'),
       },
     },
     {

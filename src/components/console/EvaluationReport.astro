@@ -1,0 +1,232 @@
+---
+// src/components/console/EvaluationReport.astro
+import { formatThaiDate } from '@/lib/format/thai';
+import { GRADE_LABELS, type EvaluationReport, type GradeKey } from '@/lib/console/evaluation-report';
+
+/**
+ * ผลประเมินผู้เช่า (KS-15): three small charts over the family's own table.
+ *
+ * Charts are plain inline SVG — horizontal bars, one hue — so they print on
+ * the same sheet as the table, in colour or in grey, with no chart library
+ * in the bundle. Every bar carries its number as a direct label (the figures
+ * are small counts, read exactly) and a native tooltip; the table under them
+ * is the full data view.
+ *
+ * "ว่าง" and "ยังไม่ประเมิน" are absences rather than categories, so they are
+ * drawn as hatched outlines instead of a second colour: the eye reads the
+ * solid bars as "what is there", and the distinction survives a grey printer.
+ */
+interface Props {
+  report: EvaluationReport;
+  /** As printed on the family's sheet: รายงานวันที่ 26/10/69. */
+  title?: string;
+}
+
+const { report, title = 'ผลประเมินผู้เช่าห้องพัก, อาชีพ' } = Astro.props;
+
+const BAR_H = 16;
+const ROW_H = 30;
+const LABEL_W = 92;
+const CHART_W = 300;
+const PLOT_W = CHART_W - LABEL_W - 40;
+
+interface Bar {
+  label: string;
+  value: number;
+  hatched?: boolean;
+  /** Second, hatched segment stacked after the solid one. */
+  rest?: number;
+  title: string;
+}
+
+function scale(bars: Bar[]): number {
+  const max = Math.max(1, ...bars.map((b) => b.value + (b.rest ?? 0)));
+  return PLOT_W / max;
+}
+
+const gradeOrder: GradeKey[] = ['A', 'B', 'C', 'none'];
+const gradeBars: Bar[] = gradeOrder.map((key) => ({
+  label: GRADE_LABELS[key],
+  value: report.grades[key],
+  hatched: key === 'none',
+  title: `${GRADE_LABELS[key]}: ${report.grades[key]} ห้อง`,
+}));
+
+const floorBars: Bar[] = report.floors.map((f) => ({
+  label: f.floor === 0 ? 'ส่วนกลาง' : `ชั้น ${f.floor}`,
+  value: f.occupied,
+  rest: f.vacant,
+  title: `ชั้น ${f.floor}: มีผู้เช่า ${f.occupied} ห้อง, ว่าง ${f.vacant} ห้อง, ผู้พัก ${f.occupants} คน`,
+}));
+
+const tenureBars: Bar[] = report.tenure.map((band) => ({
+  label: band.label,
+  value: band.count,
+  title: `${band.label}: ${band.count} ห้อง`,
+}));
+
+const charts = [
+  { heading: 'ผลประเมิน', unit: 'ห้อง', bars: gradeBars, legend: false },
+  { heading: 'ห้องมีผู้เช่า / ว่าง ต่อชั้น', unit: 'ห้อง', bars: floorBars, legend: true },
+  { heading: 'ระยะเวลาที่เช่าอยู่', unit: 'ห้อง', bars: tenureBars, legend: false },
+];
+
+const stars = (n: number | null) => (n === null ? '' : '*'.repeat(Math.max(0, n)));
+const asOf = report.asOf;
+const shortDate = `${asOf.getDate()}/${asOf.getMonth() + 1}/${String(asOf.getFullYear() + 543).slice(2)}`;
+---
+
+<article class="evaluation viz-root bg-white px-6 py-6 text-[14px] text-black print:px-0 print:py-0">
+  <header class="mb-4 flex flex-wrap items-baseline justify-between gap-2">
+    <h2 class="m-0 text-[18px] font-bold">{title}</h2>
+    <p class="m-0 text-[14px]">รายงานวันที่ {shortDate}</p>
+  </header>
+
+  <p class="m-0 mb-4 text-[14px] text-[var(--text-secondary)]">
+    มีผู้เช่า {report.occupiedRooms} จาก {report.totalRooms} ห้อง · ผู้พักรวม {report.totalOccupants} คน ·
+    ณ วันที่ {formatThaiDate(asOf)}
+  </p>
+
+  <svg width="0" height="0" class="absolute" aria-hidden="true">
+    <defs>
+      <pattern id="eval-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+        <line x1="0" y1="0" x2="0" y2="6" stroke="var(--series-1)" stroke-width="1.5" opacity="0.55" />
+      </pattern>
+    </defs>
+  </svg>
+
+  <div class="charts mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+    {charts.map((chart) => {
+      const k = scale(chart.bars);
+      const height = chart.bars.length * ROW_H + 4;
+      return (
+        <figure class="keep m-0 rounded-lg border border-[var(--rule)] p-3">
+          <figcaption class="mb-2 text-[14px] font-semibold">{chart.heading}</figcaption>
+          {chart.legend && (
+            <p class="m-0 mb-2 flex gap-4 text-[12px] text-[var(--text-secondary)]">
+              <span class="inline-flex items-center gap-1"><span class="swatch solid" />มีผู้เช่า</span>
+              <span class="inline-flex items-center gap-1"><span class="swatch hatched" />ว่าง</span>
+            </p>
+          )}
+          <svg viewBox={`0 0 ${CHART_W} ${height}`} width="100%" role="img" aria-label={chart.heading}>
+            {chart.bars.map((bar, i) => {
+              const y = i * ROW_H + (ROW_H - BAR_H) / 2;
+              const w = bar.value * k;
+              const restW = (bar.rest ?? 0) * k;
+              const gap = w > 0 && restW > 0 ? 2 : 0;
+              const total = bar.value + (bar.rest ?? 0);
+              const labelText = bar.rest !== undefined ? `${bar.value}/${total}` : String(bar.value);
+              return (
+                <g class="bar">
+                  <title>{bar.title}</title>
+                  {/* Hit target: the whole row, wider than the mark. */}
+                  <rect x="0" y={i * ROW_H} width={CHART_W} height={ROW_H} fill="transparent" />
+                  <text x={LABEL_W - 8} y={y + BAR_H - 3} text-anchor="end" class="axis">{bar.label}</text>
+                  {w > 0 && (
+                    bar.hatched ? (
+                      <rect x={LABEL_W} y={y} width={w} height={BAR_H} rx="4" fill="url(#eval-hatch)" stroke="var(--series-1)" stroke-width="1" />
+                    ) : (
+                      <rect x={LABEL_W} y={y} width={w} height={BAR_H} rx="4" fill="var(--series-1)" />
+                    )
+                  )}
+                  {restW > 0 && (
+                    <rect x={LABEL_W + w + gap} y={y + 0.5} width={Math.max(restW - gap, 1)} height={BAR_H - 1} rx="4"
+                      fill="url(#eval-hatch)" stroke="var(--series-1)" stroke-width="1" />
+                  )}
+                  <text x={LABEL_W + w + restW + 6} y={y + BAR_H - 3} class="value">{labelText}</text>
+                </g>
+              );
+            })}
+            <line x1={LABEL_W} x2={LABEL_W} y1="0" y2={height} stroke="var(--rule)" stroke-width="1" />
+          </svg>
+        </figure>
+      );
+    })}
+  </div>
+
+  <div class="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_auto]">
+    <table class="w-full border-collapse text-[14px]">
+      <thead>
+        <tr>
+          <th class="cell w-24 whitespace-nowrap text-center">จำนวนผู้พัก</th>
+          <th class="cell w-24 text-center">ห้องเลขที่</th>
+          <th class="cell text-left">อาชีพ</th>
+          <th class="cell w-24 text-center">ผลประเมิน</th>
+          <th class="cell w-32 text-left">เบอร์โทร</th>
+        </tr>
+      </thead>
+      <tbody>
+        {report.rows.map((row) => (
+          <tr class:list={[row.tenantId === null && 'vacant']}>
+            <td class="cell text-center tracking-widest">{stars(row.occupants)}</td>
+            <td class="cell text-center">{row.roomLabel}</td>
+            <td class="cell">{row.occupation}</td>
+            <td class="cell text-center">{row.grade ?? (row.tenantId ? '—' : '')}</td>
+            <td class="cell">{row.phone}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+    <aside class="keep self-start text-[14px]">
+      <p class="m-0 font-semibold">* หมายเหตุ</p>
+      <p class="m-0">A = ดีมาก</p>
+      <p class="m-0">B = ดี</p>
+      <p class="m-0">C = พอใช้ได้</p>
+      <p class="m-0 mt-2 text-[var(--text-secondary)]">* = ผู้พัก 1 คน</p>
+    </aside>
+  </div>
+</article>
+
+<style>
+  .viz-root {
+    --series-1: #2a78d6;
+    --text-primary: #1e2d4a;
+    --text-secondary: #4e5566;
+    --rule: #cfc6b3;
+    font-family: Sarabun, 'Noto Sans Thai', sans-serif;
+  }
+  .viz-root :global(.axis) {
+    font-size: 12px;
+    fill: var(--text-secondary);
+  }
+  .viz-root :global(.value) {
+    font-size: 12px;
+    font-weight: 600;
+    fill: var(--text-primary);
+  }
+  .viz-root :global(.bar:hover rect:not([fill='transparent'])) {
+    opacity: 0.8;
+  }
+  .cell {
+    border: 1px solid #8c8073;
+    padding: 2px 6px;
+  }
+  .vacant {
+    color: #6b6f78;
+  }
+  .swatch {
+    display: inline-block;
+    width: 12px;
+    height: 10px;
+    border-radius: 2px;
+    border: 1px solid var(--series-1);
+  }
+  .swatch.solid {
+    background: var(--series-1);
+  }
+  .swatch.hatched {
+    background: repeating-linear-gradient(45deg, transparent 0 3px, rgba(42, 120, 214, 0.55) 3px 4.5px);
+  }
+  .keep {
+    break-inside: avoid;
+  }
+  @media print {
+    @page {
+      size: A4;
+      margin: 12mm 14mm;
+    }
+    .charts {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+</style>

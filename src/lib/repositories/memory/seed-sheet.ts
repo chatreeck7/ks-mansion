@@ -1,3 +1,4 @@
+import { DEFAULT_CONTRACT_BLOCKS } from '@/lib/documents/default-contract';
 import { formatThaiDate } from '@/lib/format/thai';
 import { cycleFor, previousCycle } from '@/lib/models/billing-cycle';
 import { createInMemorySheets, type InMemorySheets } from './in-memory-sheets';
@@ -117,6 +118,8 @@ const TENANTS_HEADER = [
   'occupation', 'evaluation_grade', 'note',
   'address_house_no', 'address_road', 'address_subdistrict',
   'address_district', 'address_province', 'address_postcode', 'archived',
+  'birth_date', 'position', 'workplace',
+  'vehicle_type', 'vehicle_brand', 'vehicle_model', 'vehicle_color', 'vehicle_plate',
 ];
 
 /**
@@ -172,6 +175,7 @@ const LEASES_HEADER = [
   'rent_rate', 'deposit', 'advance_rent', 'occupant_count',
   'end_reason', 'previous_lease_id', 'archived',
   'move_in_due', 'move_in_paid', 'move_out_due', 'move_out_paid',
+  'co_tenant_name', 'booking_fee',
 ];
 
 /**
@@ -370,6 +374,40 @@ const PAYMENT_ROWS: (string | number)[][] = [
   ['p-004', 'b-003', thaiDate(2025, 4, 2), 2960, 'transfer', 'บันทึกผิดห้อง', 'TRUE'],
 ];
 
+// -------------------------------------------------- settings & templates
+
+const SETTINGS_HEADER = ['id', 'value', 'note', 'archived'];
+
+/**
+ * Fictional people again: the landlord and the account here are invented.
+ * Fees are the real ones from the November 2569 contract draft — they are the
+ * building's prices, not anyone's personal data.
+ */
+const SETTING_ROWS: string[][] = [
+  ['mansion_phone', '080-000-0000', 'เบอร์โทรหอพัก', ''],
+  ['landlord_name', 'นาย ตัวอย่าง ผู้ให้เช่า', 'ชื่อผู้ให้เช่า', ''],
+  ['landlord_address', '167 ถ.สุขสวัสดิ์ 1 ต.พระบาท อ.เมือง จ.ลำปาง', 'ที่อยู่ผู้ให้เช่า', ''],
+  ['payee_bank', 'ธ.ตัวอย่าง', 'ธนาคาร', ''],
+  ['payee_account_name', 'บัญชี ตัวอย่าง', 'ชื่อบัญชี', ''],
+  ['payee_account_number', '000-0-00000-0', 'เลขบัญชี', ''],
+];
+
+const DOCUMENT_TEMPLATES_HEADER = [
+  'id', 'doc_type', 'position', 'kind', 'heading', 'body', 'extra', 'archived',
+];
+
+/** The real contract wording — the same blocks the migration writes. */
+const DOCUMENT_TEMPLATE_ROWS: (string | number)[][] = DEFAULT_CONTRACT_BLOCKS.map((block, i) => [
+  `dt-${String(i + 1).padStart(3, '0')}`,
+  block.docType,
+  block.position,
+  block.kind,
+  block.heading,
+  block.body,
+  block.extra,
+  '',
+]);
+
 // ---------------------------------------------------------------- build
 
 /**
@@ -384,6 +422,8 @@ export function createSeedSheets(): InMemorySheets {
     meter_readings: [METER_READINGS_HEADER, ...METER_READING_ROWS],
     bills: [BILLS_HEADER, ...BILL_ROWS],
     payments: [PAYMENTS_HEADER, ...PAYMENT_ROWS],
+    settings: [SETTINGS_HEADER, ...SETTING_ROWS],
+    document_templates: [DOCUMENT_TEMPLATES_HEADER, ...DOCUMENT_TEMPLATE_ROWS],
   });
 }
 

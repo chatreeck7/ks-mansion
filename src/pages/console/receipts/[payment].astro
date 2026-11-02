@@ -5,7 +5,7 @@ import { consolePath } from '@/lib/console/paths';
 import { receiptFor, receiptPeriodLabel } from '@/lib/console/receipt';
 import { letterheadFrom } from '@/lib/console/letterhead';
 import { formatBaht } from '@/lib/format/thai';
-import { getBillRepository, getPaymentRepository, getRoomRepository } from '@/lib/repositories';
+import { getBillRepository, getPaymentRepository, getRoomRepository, getSettingsRepository } from '@/lib/repositories';
 
 /**
  * ใบเสร็จ for one payment (KS-23).
@@ -68,7 +68,7 @@ const known = billPayments.some((other) => other.id === payment.id);
 const receipt = receiptFor(payment, bill, room, known ? billPayments : [...billPayments, payment]);
 // Shared with ใบแจ้งค่าห้องพัก (KS-24) rather than transcribed twice: the
 // two documents are the same slip at two moments and must not drift.
-const letterhead = letterheadFrom(env);
+const letterhead = letterheadFrom(env, await getSettingsRepository(env).resolveSettings());
 ---
 
 <ConsoleLayout title={`ใบเสร็จ ${receipt.reference}`}>
@@ -187,7 +187,10 @@ const letterhead = letterheadFrom(env);
         {['ผู้รับเงิน', 'ผู้ชำระเงิน'].map((role) => (
           <div>
             <p class="mb-0 border-b border-console-print/40 pb-6"></p>
-            <p class="mb-0 pt-1 text-center text-console-ink-soft">({role})</p>
+            <p class="mb-0 pt-1 text-center text-console-ink-soft">
+              {role === 'ผู้รับเงิน' && letterhead.receiverName ? `(${letterhead.receiverName})` : ''}
+            </p>
+            <p class="mb-0 text-center text-console-ink-soft">({role})</p>
           </div>
         ))}
       </div>

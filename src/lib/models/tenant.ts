@@ -45,6 +45,47 @@ export interface Tenant extends Archivable {
   evaluationGrade: EvaluationGrade | null;
   /** Free text; the real sheet carries qualifiers like '(เลี้ยงแมว)'. */
   note: string;
+  /**
+   * What the lease contract asks for and nothing else does (KS-31): อายุ,
+   * ตำแหน่ง, สถานที่ทำงาน and the vehicle line. Every part may be blank — a
+   * contract prints a dotted line where a blank is, exactly like the paper.
+   */
+  contractDetails: TenantContractDetails;
+}
+
+export interface TenantContractDetails {
+  /** Age is derived from this on the contract date, so it never goes stale. */
+  birthDate: Date | null;
+  position: string;
+  workplace: string;
+  /** รถจักรยานยนต์ / รถยนต์ — free text, as the contract leaves it. */
+  vehicleType: string;
+  vehicleBrand: string;
+  vehicleModel: string;
+  vehicleColor: string;
+  vehiclePlate: string;
+}
+
+export const EMPTY_CONTRACT_DETAILS: TenantContractDetails = {
+  birthDate: null,
+  position: '',
+  workplace: '',
+  vehicleType: '',
+  vehicleBrand: '',
+  vehicleModel: '',
+  vehicleColor: '',
+  vehiclePlate: '',
+};
+
+/** Whole years between a birth date and a day, or null without a birth date. */
+export function ageOn(birthDate: Date | null, day: Date): number | null {
+  if (!birthDate) return null;
+  let age = day.getFullYear() - birthDate.getFullYear();
+  const beforeBirthday =
+    day.getMonth() < birthDate.getMonth() ||
+    (day.getMonth() === birthDate.getMonth() && day.getDate() < birthDate.getDate());
+  if (beforeBirthday) age -= 1;
+  return age;
 }
 
 export type EvaluationGrade = 'A' | 'B' | 'C';

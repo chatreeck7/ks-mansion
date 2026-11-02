@@ -47,6 +47,12 @@ export interface SheetsCrud<T extends EntityRecord, D> {
   /** Includes archived records, so an old link still resolves. */
   get(id: string): Promise<T | null>;
   create(draft: D): Promise<T>;
+  /**
+   * Creates a record under an id the caller chooses. For entities whose id
+   * is a fixed name rather than a sequence — a setting is stored under its
+   * key — and refuses an id already in use, exactly as `create` does.
+   */
+  createWithId(id: string, draft: D): Promise<T>;
   update(id: string, changes: Partial<D>): Promise<T>;
   archive(id: string): Promise<T>;
 }
@@ -92,6 +98,24 @@ export function createSheetsCrud<T extends EntityRecord, D>(
     const entity = validated(tab, next, found.rowNumber);
 
     await client.updateRow(tabName, found.rowNumber, next);
+    return entity;
+  }
+
+  async function appendAs(tab: Tab, id: string, draft: D): Promise<T> {
+    if (findRow(tab, 'id', id)) {
+      // `nextId` ignores ids that do not fit the pattern when numbering, so
+      // a hand-typed one can still be sitting on the number it picked.
+      throw new Error(`Cannot create ${label}: id "${id}" is already in use.`);
+    }
+
+    const row = buildRow(tab, null, {
+      ...spec.toRowValues(draft),
+      id,
+      [ARCHIVED_COLUMN]: false,
+    });
+    const entity = validated(tab, row, sheetRowNumber(tab.dataRows.length));
+
+    await client.appendRow(tabName, row);
     return entity;
   }
 
@@ -145,21 +169,12 @@ export function createSheetsCrud<T extends EntityRecord, D>(
 
       const tab = await readTab(client, tabName, contract);
       const id = nextId(tab, 'id', idPrefix);
-      if (findRow(tab, 'id', id)) {
-        // `nextId` ignores ids that do not fit the pattern when numbering, so
-        // a hand-typed one can still be sitting on the number it picked.
-        throw new Error(`Cannot create ${label}: id "${id}" is already in use.`);
-      }
+      return appendAs(tab, id, draft);
+    },
 
-      const row = buildRow(tab, null, {
-        ...spec.toRowValues(draft),
-        id,
-        [ARCHIVED_COLUMN]: false,
-      });
-      const entity = validated(tab, row, sheetRowNumber(tab.dataRows.length));
-
-      await client.appendRow(tabName, row);
-      return entity;
+    async createWithId(id: string, draft: D): Promise<T> {
+      const tab = await readTab(client, tabName, contract);
+      return appendAs(tab, id, draft);
     },
 
     async update(id: string, changes: Partial<D>): Promise<T> {

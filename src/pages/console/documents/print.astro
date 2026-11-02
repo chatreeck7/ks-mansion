@@ -2,6 +2,8 @@
 // src/pages/console/documents/print.astro
 import BillDocument from '@/components/console/BillDocument.astro';
 import CollectionSheet from '@/components/console/CollectionSheet.astro';
+import EvaluationReport from '@/components/console/EvaluationReport.astro';
+import { evaluationReportFor } from '@/lib/console/evaluation-report';
 import ConsoleLayout from '@/layouts/ConsoleLayout.astro';
 import { billBatchFor } from '@/lib/console/bill-batch';
 import { collectionSheetFor } from '@/lib/console/collection-sheet';
@@ -14,7 +16,14 @@ import { letterheadFrom, payeeFrom } from '@/lib/console/letterhead';
 import { consolePath } from '@/lib/console/paths';
 import { formatThaiDate } from '@/lib/format/thai';
 import { cycleFor, cycleFromId, cycleLabel } from '@/lib/models/billing-cycle';
-import { getBillRepository, getPaymentRepository, getRoomRepository } from '@/lib/repositories';
+import {
+  getBillRepository,
+  getLeaseRepository,
+  getPaymentRepository,
+  getRoomRepository,
+  getSettingsRepository,
+  getTenantRepository,
+} from '@/lib/repositories';
 
 /**
  * Every selected document, one file (KS-30, AC-4.5).
@@ -56,6 +65,7 @@ const sections = selectedDocuments(selectionFrom(raw, types), types);
 
 const wantsBills = sections.some((section) => section.id === 'bills');
 const wantsCollection = sections.some((section) => section.id === 'collection');
+const wantsEvaluations = sections.some((section) => section.id === 'evaluations');
 
 // One read each, shared by whichever sections need them, rather than a fetch
 // per section: both documents are built from the same three lists.
@@ -70,8 +80,18 @@ const [bills, rooms, payments] = await Promise.all([
 const batch = wantsBills ? billBatchFor(cycle, bills, rooms, payments) : null;
 const sheet = wantsCollection ? collectionSheetFor(cycle, bills, payments, rooms) : null;
 
-const letterhead = letterheadFrom(env);
-const payee = payeeFrom(env);
+// Not per cycle: the evaluation is the building as it stands today.
+const evaluation = wantsEvaluations
+  ? await Promise.all([
+      getRoomRepository(env).listRooms(),
+      getLeaseRepository(env).listLeases(),
+      getTenantRepository(env).listTenants(),
+    ]).then(([allRooms, leases, tenants]) => evaluationReportFor(allRooms, leases, tenants, now))
+  : null;
+
+const documentSettings = await getSettingsRepository(env).resolveSettings();
+const letterhead = letterheadFrom(env, documentSettings);
+const payee = payeeFrom(env, documentSettings);
 
 /** How many sheets each section will take, for the contents page. */
 function pagesIn(id: string): number {
@@ -161,6 +181,8 @@ const backToSelector = `${consolePath('console/documents')}?cycle=${cycle.id}` +
               ))}
 
             {section.id === 'collection' && <CollectionSheet sheet={sheet!} />}
+
+            {section.id === 'evaluations' && <EvaluationReport report={evaluation!} />}
           </section>
         ))}
       </Fragment>

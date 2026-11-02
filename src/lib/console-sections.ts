@@ -53,6 +53,10 @@ export const CONSOLE_SECTIONS: ConsoleSection[] = [
   { id: 'documents', label: 'เอกสาร', href: consolePath('console/documents'), group: 'month', step: 6 },
   { id: 'rooms', label: 'ตึกและห้อง', href: consolePath('console/rooms'), group: 'register', glyph: '⌂' },
   { id: 'tenants', label: 'ผู้เช่าและสัญญา', href: consolePath('console/tenants'), group: 'register', glyph: '☺' },
+  // The wording and the building's facts every document prints (KS-31).
+  // A register, not a step: it is set up once and touched when a fee or the
+  // bank account changes.
+  { id: 'templates', label: 'แม่แบบเอกสาร', href: consolePath('console/templates'), group: 'register', glyph: '✎' },
   // Not a daily section, but a diagnostic nobody can find is the same as one
   // that does not exist — which was the whole complaint KS-67 came from. It
   // lives under อื่นๆ on the phone and in the spine's footer on a desk.
@@ -89,6 +93,6 @@ export const CONSOLE_TABS: ConsoleTab[] = [
 export function tabFor(sectionId: string): TabId {
   if (sectionId === 'rooms') return 'building';
   if (sectionId === 'tenants') return 'tenants';
-  if (sectionId === 'health' || sectionId === 'more') return 'more';
+  if (sectionId === 'health' || sectionId === 'more' || sectionId === 'templates') return 'more';
   return 'book';
 }

@@ -43,6 +43,31 @@ describe('tenantDraftFromForm', () => {
         province: 'นครราชสีมา',
         postcode: '30000',
       },
+      contractDetails: {
+        birthDate: null,
+        position: '',
+        workplace: '',
+        vehicleType: '',
+        vehicleBrand: '',
+        vehicleModel: '',
+        vehicleColor: '',
+        vehiclePlate: '',
+      },
+    });
+  });
+
+  it('maps the contract details, the birth date from a date input', () => {
+    const draft = tenantDraftFromForm(
+      formOf({
+        'contract.birthDate': '1997-01-05',
+        'contract.workplace': ' บิ๊กซี ',
+        'contract.vehiclePlate': '1กข 234',
+      }),
+    );
+    expect(draft.contractDetails).toMatchObject({
+      birthDate: new Date(1997, 0, 5),
+      workplace: 'บิ๊กซี',
+      vehiclePlate: '1กข 234',
     });
   });
 

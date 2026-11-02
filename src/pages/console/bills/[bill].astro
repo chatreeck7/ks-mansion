@@ -5,7 +5,7 @@ import ConsoleLayout from '@/layouts/ConsoleLayout.astro';
 import { billDocumentFor } from '@/lib/console/bill-document';
 import { letterheadFrom, payeeFrom, PAYEE_KEYS } from '@/lib/console/letterhead';
 import { consolePath } from '@/lib/console/paths';
-import { getBillRepository, getPaymentRepository, getRoomRepository } from '@/lib/repositories';
+import { getBillRepository, getPaymentRepository, getRoomRepository, getSettingsRepository } from '@/lib/repositories';
 
 /**
  * One bill, on its own (KS-24). The whole cycle prints from `print.astro`;
@@ -44,8 +44,9 @@ const [room, payments] = await Promise.all([
 ]);
 
 const doc = billDocumentFor(bill, room, payments);
-const letterhead = letterheadFrom(env);
-const payee = payeeFrom(env);
+const documentSettings = await getSettingsRepository(env).resolveSettings();
+const letterhead = letterheadFrom(env, documentSettings);
+const payee = payeeFrom(env, documentSettings);
 ---
 
 <ConsoleLayout title={`ใบแจ้งค่าห้องพัก ${doc.reference}`}>
@@ -70,7 +71,7 @@ const payee = payeeFrom(env);
 
     {!payee.configured && (
       <p class="mt-4 text-sm text-console-ink-faint print:hidden">
-        ตัวแปรที่ยังไม่ได้ตั้ง: {PAYEE_KEYS.join(', ')} — ตั้งใน Cloudflare Pages
+        ยังไม่ได้ตั้งบัญชีรับโอน — ตั้งในหน้าแม่แบบเอกสาร (หรือ {PAYEE_KEYS.join(', ')} ใน Cloudflare Pages)
         แล้วบิลทุกใบจะแสดงช่องทางโอนทันที ไม่ต้องออกบิลใหม่
       </p>
     )}

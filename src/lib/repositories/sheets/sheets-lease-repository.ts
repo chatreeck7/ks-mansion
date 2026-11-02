@@ -47,6 +47,9 @@ const CONTRACT: TabContract = {
     'move_in_paid',
     'move_out_due',
     'move_out_paid',
+    // KS-31: the contract's second signature line and its booking deposit.
+    'co_tenant_name',
+    'booking_fee',
   ],
   identity: ['id', 'room_id', 'tenant_id', 'start_date'],
 };
@@ -163,6 +166,8 @@ function parseLease(tab: Tab, row: string[], rowNumber: number): Lease {
     moveInPaid: optionalNumberCell(tab, row, rowNumber, 'move_in_paid'),
     moveOutDue: optionalNumberCell(tab, row, rowNumber, 'move_out_due'),
     moveOutPaid: optionalNumberCell(tab, row, rowNumber, 'move_out_paid'),
+    coTenantName: cellValue(tab, row, 'co_tenant_name') || null,
+    bookingFee: optionalNumberCell(tab, row, rowNumber, 'booking_fee'),
     archived: nullableBooleanCell(tab, row, rowNumber, ARCHIVED_COLUMN) ?? false,
   };
 }
@@ -202,6 +207,8 @@ function toRowValues(fields: Partial<LeaseDraft>): RowValues {
   if (fields.moveInPaid !== undefined) values['move_in_paid'] = fields.moveInPaid ?? '';
   if (fields.moveOutDue !== undefined) values['move_out_due'] = fields.moveOutDue ?? '';
   if (fields.moveOutPaid !== undefined) values['move_out_paid'] = fields.moveOutPaid ?? '';
+  if (fields.coTenantName !== undefined) values['co_tenant_name'] = fields.coTenantName ?? '';
+  if (fields.bookingFee !== undefined) values['booking_fee'] = fields.bookingFee ?? '';
 
   return values;
 }

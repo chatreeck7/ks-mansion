@@ -1,5 +1,12 @@
 import { ARCHIVED_COLUMN } from '@/lib/models/archivable';
-import type { EvaluationGrade, Tenant, ThaiAddress } from '@/lib/models/tenant';
+import type {
+  EvaluationGrade,
+  Tenant,
+  TenantContractDetails,
+  ThaiAddress,
+} from '@/lib/models/tenant';
+import { formatThaiDate } from '@/lib/format/thai';
+import { parseThaiDate } from '@/lib/format/thai-parse';
 import type { TenantDraft, TenantRepository } from '../tenant-repository';
 import { createSheetsCrud, type EntitySpec } from './sheets-crud';
 import type { SheetsClient } from './sheets-client';
@@ -47,6 +54,15 @@ const CONTRACT: TabContract = {
     'address_province',
     'address_postcode',
     ARCHIVED_COLUMN,
+    // KS-31: what the lease contract asks for. All may be blank.
+    'birth_date',
+    'position',
+    'workplace',
+    'vehicle_type',
+    'vehicle_brand',
+    'vehicle_model',
+    'vehicle_color',
+    'vehicle_plate',
   ],
   identity: ['id', 'full_name'],
 };
@@ -59,6 +75,28 @@ function parseAddress(tab: Tab, row: string[]): ThaiAddress {
     district: cellValue(tab, row, 'address_district'),
     province: cellValue(tab, row, 'address_province'),
     postcode: cellValue(tab, row, 'address_postcode'),
+  };
+}
+
+function parseContractDetails(tab: Tab, row: string[], rowNumber: number): TenantContractDetails {
+  const birthRaw = cellValue(tab, row, 'birth_date');
+  const birthDate = birthRaw ? parseThaiDate(birthRaw) : null;
+  if (birthRaw && !birthDate) {
+    throw new SheetRowError(
+      TAB_NAME,
+      rowNumber,
+      `"birth_date" is not a Thai (พ.ศ.) date: "${birthRaw}" — expected e.g. "5 ม.ค. 2540"`,
+    );
+  }
+  return {
+    birthDate,
+    position: cellValue(tab, row, 'position'),
+    workplace: cellValue(tab, row, 'workplace'),
+    vehicleType: cellValue(tab, row, 'vehicle_type'),
+    vehicleBrand: cellValue(tab, row, 'vehicle_brand'),
+    vehicleModel: cellValue(tab, row, 'vehicle_model'),
+    vehicleColor: cellValue(tab, row, 'vehicle_color'),
+    vehiclePlate: cellValue(tab, row, 'vehicle_plate'),
   };
 }
 
@@ -88,6 +126,7 @@ function parseTenant(tab: Tab, row: string[], rowNumber: number): Tenant {
     occupation: cellValue(tab, row, 'occupation'),
     evaluationGrade: optionalEnumCell(tab, row, rowNumber, 'evaluation_grade', GRADES),
     note: cellValue(tab, row, 'note'),
+    contractDetails: parseContractDetails(tab, row, rowNumber),
     // Blank reads as "not archived" — the documented exception to
     // blank-is-not-false. An admin adding a row by hand leaves it empty, and
     // the harm is asymmetric: an archived tenant shown as active is a
@@ -119,6 +158,18 @@ function toRowValues(fields: Partial<TenantDraft>): RowValues {
     values['address_district'] = fields.address.district;
     values['address_province'] = fields.address.province;
     values['address_postcode'] = fields.address.postcode;
+  }
+
+  if (fields.contractDetails !== undefined) {
+    const c = fields.contractDetails;
+    values['birth_date'] = c.birthDate ? formatThaiDate(c.birthDate) : '';
+    values['position'] = c.position;
+    values['workplace'] = c.workplace;
+    values['vehicle_type'] = c.vehicleType;
+    values['vehicle_brand'] = c.vehicleBrand;
+    values['vehicle_model'] = c.vehicleModel;
+    values['vehicle_color'] = c.vehicleColor;
+    values['vehicle_plate'] = c.vehiclePlate;
   }
 
   return values;

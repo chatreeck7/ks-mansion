@@ -1,0 +1,166 @@
+---
+// src/components/console/ContractDocument.astro
+import type { Contract } from '@/lib/documents/contract';
+import type { Segment } from '@/lib/documents/template';
+
+/**
+ * A lease contract on A4 (KS-31). Drawn from `contractFor`, so everything
+ * here is layout: which block kind looks like what.
+ *
+ * Filled values are underlined like a pen-filled blank; values not on file
+ * print as a dotted writing line, so the paper can still be completed by
+ * hand. An unknown `{placeholder}` prints as typed and is flagged on screen
+ * (never on paper) by the page above this component.
+ */
+interface Props {
+  contract: Contract;
+}
+
+const { contract } = Astro.props;
+const fees = contract.blocks.filter((b) => b.kind === 'fee_row');
+const items = contract.blocks.filter((b) => b.kind === 'item_row');
+const firstFee = contract.blocks.findIndex((b) => b.kind === 'fee_row');
+const firstItem = contract.blocks.findIndex((b) => b.kind === 'item_row');
+const empty = (segments: Segment[]) => segments.every((s) => s.kind === 'text' && s.text.trim() === '');
+---
+
+{/* Rendered as an inline helper so every block kind shares one look for a filled or blank value. */}
+<article class="contract mx-auto bg-white px-10 py-10 text-[15px] leading-[1.75] text-black shadow-[0_8px_24px_rgba(30,45,74,0.12)] print:px-0 print:py-0 print:shadow-none">
+  {
+    contract.blocks.map((block, index) => {
+      const segs = (segments: Segment[]) =>
+        segments.map((s) =>
+          s.kind === 'value' ? (
+            <span class="filled">{s.text}</span>
+          ) : s.kind === 'blank' ? (
+            <span class="blank" aria-label={`เว้นว่าง: ${s.name}`} />
+          ) : s.kind === 'unknown' ? (
+            <span class="unknown">{s.text}</span>
+          ) : (
+            s.text
+          ),
+        );
+
+      if (block.kind === 'fee_row') {
+        if (index !== firstFee) return null;
+        return (
+          <table class="keep my-3 w-full border-collapse text-[14px]">
+            <thead>
+              <tr>
+                <th class="w-10 border border-black px-2 py-1 text-center font-semibold">ที่</th>
+                <th class="border border-black px-2 py-1 text-left font-semibold">รายการ</th>
+                <th class="w-36 border border-black px-2 py-1 text-center font-semibold">ค่าปรับ</th>
+                <th class="w-36 border border-black px-2 py-1 text-center font-semibold">ค่าซ่อมแซม</th>
+              </tr>
+            </thead>
+            <tbody>
+              {fees.map((fee, n) => (
+                <tr>
+                  <td class="border border-black px-2 py-1 text-center align-top">{n + 1}.</td>
+                  <td class="border border-black px-2 py-1 align-top">{segs(fee.heading)}</td>
+                  <td class="border border-black px-2 py-1 text-center align-top">{fee.lines.map((l) => segs(l))}</td>
+                  <td class="border border-black px-2 py-1 text-center align-top">{segs(fee.extra)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        );
+      }
+
+      if (block.kind === 'item_row') {
+        if (index !== firstItem) return null;
+        return (
+          <ol class="keep my-2 list-none pl-6">
+            {items.map((item, n) => (
+              <li class="flex gap-3">
+                <span class="w-6 shrink-0 text-right">{n + 1}.</span>
+                <span class="flex-1">{segs(item.heading)}</span>
+                <span class="w-28 shrink-0">จำนวน {item.lines.map((l) => segs(l))}</span>
+              </li>
+            ))}
+          </ol>
+        );
+      }
+
+      if (block.kind === 'title') {
+        return (
+          <h1 class="mb-1 mt-2 text-center text-[19px] font-bold leading-snug">
+            {block.lines.map((line) => <span class="block">{segs(line)}</span>)}
+          </h1>
+        );
+      }
+
+      if (block.kind === 'clause') {
+        return (
+          <section class="keep mt-3">
+            {!empty(block.heading) && <h2 class="m-0 text-[15px] font-bold">{segs(block.heading)}</h2>}
+            {block.lines.map((line) => (
+              <p class="m-0 pl-6 indent-0">{segs(line)}</p>
+            ))}
+          </section>
+        );
+      }
+
+      // paragraph and closing
+      return (
+        <div class:list={['keep', block.kind === 'closing' ? 'mt-4' : 'mt-2', index === 0 ? 'text-right text-[14px]' : '']}>
+          {block.lines.map((line) => (
+            <p class:list={['m-0', index > 0 && block.kind !== 'title' ? 'indent-10' : '']}>{segs(line)}</p>
+          ))}
+        </div>
+      );
+    })
+  }
+
+  <section class="keep mt-10 grid grid-cols-2 gap-x-10 gap-y-8 text-[14px]">
+    {[
+      { role: 'ผู้เช่าคนที่ 1', name: contract.tenantName },
+      { role: 'ผู้เช่าคนที่ 2', name: contract.coTenantName },
+      { role: 'ผู้ให้เช่า', name: contract.landlordName },
+      { role: 'พยาน', name: null },
+    ].map((sign) => (
+      <div class="text-center">
+        <p class="m-0">ลงชื่อ<span class="blank wide" />{sign.role}</p>
+        <p class="m-0">( {sign.name ? <span class="filled">{sign.name}</span> : <span class="blank wide" />} )</p>
+      </div>
+    ))}
+  </section>
+</article>
+
+<style>
+  .contract {
+    width: 100%;
+    max-width: 210mm;
+    font-family: Sarabun, 'Noto Sans Thai', sans-serif;
+  }
+  .contract :global(.filled) {
+    padding: 0 0.25em;
+    border-bottom: 1px dotted #000;
+  }
+  .contract :global(.blank) {
+    display: inline-block;
+    min-width: 6em;
+    border-bottom: 1px dotted #000;
+    vertical-align: baseline;
+    height: 1em;
+    margin: 0 0.2em;
+  }
+  .contract :global(.blank.wide) {
+    min-width: 12em;
+  }
+  .contract :global(.unknown) {
+    background: #fde68a;
+  }
+  .keep {
+    break-inside: avoid;
+  }
+  @media print {
+    @page {
+      size: A4;
+      margin: 15mm 18mm;
+    }
+    .contract :global(.unknown) {
+      background: none;
+    }
+  }
+</style>

@@ -1,0 +1,87 @@
+---
+// src/pages/console/leases/[lease]/contract.astro
+import ContractDocument from '@/components/console/ContractDocument.astro';
+import ConsoleLayout from '@/layouts/ConsoleLayout.astro';
+import { consolePath } from '@/lib/console/paths';
+import { contractFor } from '@/lib/documents/contract';
+import {
+  getDocumentTemplateRepository,
+  getLeaseRepository,
+  getMeterReadingRepository,
+  getRoomRepository,
+  getSettingsRepository,
+  getTenantRepository,
+} from '@/lib/repositories';
+
+/**
+ * One lease contract, filled from the records (KS-31).
+ *
+ * Printed from the browser, like every console document — Ctrl-P or the
+ * button gives an A4 PDF with real, selectable Thai text and no rendering
+ * engine in the Worker. See `bills/[bill].astro` for why that is the rule.
+ *
+ * The wording is the `document_templates` tab, edited from แม่แบบเอกสาร; the
+ * figures are the lease, the tenant and the settings. What is not on file
+ * prints as a dotted line and is listed above the page (never on it), so a
+ * contract can still go out today and be completed by pen.
+ */
+
+const env = Astro.locals.runtime?.env;
+const lease = await getLeaseRepository(env).getLease(Astro.params.lease!);
+if (!lease) {
+  return new Response(null, { status: 404, statusText: 'Not Found' });
+}
+
+const [tenant, room, settings, blocks, readings] = await Promise.all([
+  getTenantRepository(env).getTenant(lease.tenantId),
+  getRoomRepository(env).getRoom(lease.roomId),
+  getSettingsRepository(env).resolveSettings(),
+  getDocumentTemplateRepository(env).listBlocks('contract'),
+  getMeterReadingRepository(env).listReadingsForRoom(lease.roomId),
+]);
+if (!tenant || !room) {
+  return new Response(null, { status: 404, statusText: 'Not Found' });
+}
+
+const contract = contractFor({ lease, tenant, room, settings, blocks, readings });
+const LINK =
+  'inline-flex min-h-11 items-center text-base font-medium text-console-ink-soft no-underline hover:text-console-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-console-ink';
+---
+
+<ConsoleLayout title={`สัญญาเช่า ห้อง ${room.label}`}>
+  <main class="console-root mx-auto max-w-4xl px-4 py-6 print:max-w-none print:px-0 print:py-0">
+    <div class="mb-4 flex flex-wrap items-center justify-between gap-3 print:hidden">
+      <a href={consolePath(`console/rooms/${room.id}`)} class={LINK}>← กลับไปห้อง {room.label}</a>
+      <div class="flex flex-wrap items-center gap-3">
+        <a href={consolePath(`console/tenants/${tenant.id}/edit`)} class={LINK}>แก้ข้อมูลผู้เช่า</a>
+        <a href={consolePath(`console/leases/${lease.id}/details`)} class={LINK}>แก้ข้อมูลสัญญา</a>
+        <a href={`${consolePath('console/templates')}?preview=${lease.id}`} class={LINK}>แก้ข้อความสัญญา</a>
+        <button
+          type="button"
+          data-print
+          class="inline-flex min-h-11 items-center rounded-[10px] border-[1.5px] border-console-ink px-4 text-[15px] font-semibold text-console-ink hover:bg-console-ink/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-console-ink"
+        >
+          พิมพ์ / บันทึกเป็น PDF
+        </button>
+      </div>
+    </div>
+
+    {(contract.warnings.length > 0 || contract.usingDefaultWording) && (
+      <div class="mb-4 rounded-xl border border-console-warn/40 bg-console-warn-bg px-4 py-3 text-[15px] text-console-ink print:hidden" role="status">
+        <p class="m-0 font-semibold">ก่อนพิมพ์ ตรวจสอบ:</p>
+        <ul class="m-0 mt-1 list-disc pl-5">
+          {contract.usingDefaultWording && (
+            <li>ยังไม่มีแม่แบบสัญญาในชีต — ใช้ข้อความตั้งต้นของระบบ</li>
+          )}
+          {contract.warnings.map((warning) => <li>{warning}</li>)}
+        </ul>
+      </div>
+    )}
+
+    <ContractDocument {contract} />
+  </main>
+</ConsoleLayout>
+
+<script>
+  document.querySelector('[data-print]')?.addEventListener('click', () => window.print());
+</script>

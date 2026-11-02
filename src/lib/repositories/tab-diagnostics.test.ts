@@ -8,6 +8,7 @@ const HEADER = [
   'occupation', 'evaluation_grade', 'note',
   'address_house_no', 'address_road', 'address_subdistrict',
   'address_district', 'address_province', 'address_postcode', 'archived',
+  'birth_date', 'position', 'workplace', 'vehicle_type', 'vehicle_brand', 'vehicle_model', 'vehicle_color', 'vehicle_plate',
 ];
 
 /** A row keyed by column name, so a test states only what it is about. */
