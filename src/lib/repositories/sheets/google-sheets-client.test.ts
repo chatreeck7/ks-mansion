@@ -138,3 +138,38 @@ describe('createGoogleSheetsClient', () => {
     ).rejects.toThrow(/invalid_grant/);
   });
 });
+
+describe('rate limiting (429)', () => {
+  it('waits and retries a refused request, then succeeds', async () => {
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(tokenResponse())
+      .mockResolvedValueOnce(new Response('quota', { status: 429 }))
+      .mockResolvedValueOnce(valuesResponse([['id'], ['101']]));
+    const sleep = vi.fn(async (_ms: number) => {});
+    const client = createGoogleSheetsClient({
+      credentialsJson: await generateCredentials(),
+      spreadsheetId: 'sheet-1',
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      now: () => 1_000_000,
+      sleep,
+    });
+    expect(await client.getTabValues('rooms')).toEqual([['id'], ['101']]);
+    expect(sleep).toHaveBeenCalledWith(1000);
+  });
+
+  it('gives up after two retries with a message an admin can act on', async () => {
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(tokenResponse())
+      .mockResolvedValue(new Response('quota', { status: 429 }));
+    const sleep = vi.fn(async (_ms: number) => {});
+    const client = createGoogleSheetsClient({
+      credentialsJson: await generateCredentials(),
+      spreadsheetId: 'sheet-1',
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      now: () => 1_000_000,
+      sleep,
+    });
+    await expect(client.getTabValues('rooms')).rejects.toThrow(/rate-limiting.*Wait a minute/);
+    expect(sleep.mock.calls.map((c) => c[0])).toEqual([1000, 2000]);
+  });
+});

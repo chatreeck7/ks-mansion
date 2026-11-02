@@ -103,10 +103,19 @@ export function isCollecting(cycle: BillingCycle, date: Date): boolean {
   return day >= startOfDay(cycle.issueDate) && day <= startOfDay(cycle.dueDate);
 }
 
-/** Whether a reading taken on this day belongs to this cycle's round. */
+/**
+ * Whether a reading taken on this day belongs to this cycle's round.
+ *
+ * From this cycle's 25th up to the day before the next cycle's 25th. It used
+ * to be the 25th–26th only, and the real ต.ค. 2569 round — walked on the
+ * 27th — counted as "จดแล้ว 0 จาก 27". The bill run had already dropped its
+ * date window for the same reason (see `electricityReading` in bill-run.ts):
+ * a round is walked when somebody has the time, and a late one is still this
+ * month's round. Every reading now belongs to exactly one cycle.
+ */
 export function isReadingDay(cycle: BillingCycle, date: Date): boolean {
   const day = startOfDay(date);
-  return day >= startOfDay(cycle.readFrom) && day <= startOfDay(cycle.issueDate);
+  return day >= startOfDay(cycle.readFrom) && day < startOfDay(nextCycle(cycle).readFrom);
 }
 
 /**
@@ -212,4 +221,56 @@ export function cycleOptions(
 
   // Ids are `YYYY-MM`, so lexical order is date order — newest first.
   return [...recent, chosen].sort((a, b) => b.id.localeCompare(a.id));
+}
+
+/**
+ * Whether a tenancy began during this cycle — after the previous bill went
+ * out and on or before this one is issued.
+ *
+ * Such a tenant moved in mid-period: the meter figures read this round
+ * mostly predate them, and the paper the building issues bills them nothing
+ * this cycle (room 206, in 24 ต.ค. 2569, billed 0 on the ต.ค. form). The
+ * bill run waives their utilities by default and lets an admin opt in.
+ */
+export function movedInDuring(startDate: Date, cycle: BillingCycle): boolean {
+  const start = startOfDay(startDate);
+  return start > startOfDay(previousCycle(cycle).issueDate) && start <= startOfDay(cycle.issueDate);
+}
+
+/**
+ * How close to the meter round a move-in must be for its utilities to be
+ * waived by default. Room 206 moved in one day before the 25th and the
+ * building billed it nothing; a tenant in on the 1st has lived there most of
+ * the period and the round's units are theirs. Ten days splits the two. The
+ * bill run always lets an admin override either way.
+ */
+export const LATE_MOVE_IN_DAYS = 10;
+
+/** Whether a move-in during this cycle came so late that its utilities are waived by default. */
+export function lateMoveIn(startDate: Date, cycle: BillingCycle): boolean {
+  if (!movedInDuring(startDate, cycle)) return false;
+  const cutoff = new Date(cycle.readFrom.getFullYear(), cycle.readFrom.getMonth(), cycle.readFrom.getDate() - LATE_MOVE_IN_DAYS);
+  return startOfDay(startDate) >= startOfDay(cutoff);
+}
+
+/**
+ * The rent month a move-in's advance rent (ค่าเช่าล่วงหน้า 1 เดือน) pays for:
+ * the first calendar month that starts on or after the move-in day. In on
+ * the 1st, that month; any later day, the month after — the days in between
+ * are not charged, which is how the building's own forms treat them.
+ */
+export function advanceCoveredMonth(startDate: Date): Date {
+  return startDate.getDate() === 1
+    ? new Date(startDate.getFullYear(), startDate.getMonth(), 1)
+    : new Date(startDate.getFullYear(), startDate.getMonth() + 1, 1);
+}
+
+/** Whether the advance paid at move-in already covers this cycle's rent. */
+export function rentPaidInAdvance(startDate: Date, advanceRent: number, cycle: BillingCycle): boolean {
+  if (advanceRent <= 0) return false;
+  const covered = advanceCoveredMonth(startDate);
+  return (
+    covered.getFullYear() === cycle.rentMonth.getFullYear() &&
+    covered.getMonth() === cycle.rentMonth.getMonth()
+  );
 }

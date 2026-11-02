@@ -7,6 +7,7 @@ import Notice from '@/components/console/Notice.astro';
 import PageHeader from '@/components/console/PageHeader.astro';
 import Stepper from '@/components/console/Stepper.astro';
 import { formatBaht } from '@/lib/format/thai';
+import { cycleFor } from '@/lib/models/billing-cycle';
 import { formatFigure } from '@/lib/format/thai';
 import {
   occupantUpdatesFromForm,
@@ -41,7 +42,10 @@ let saved = 0;
 let submitted: FormData | undefined;
 
 /** The day the charges are worked out for; decides which lease is in force. */
-const cycleDate = new Date();
+// The cycle's issue date, not today: a tenancy that starts after the bill
+// goes out (ห้องจอง) is next cycle's, and the bill run counts heads on this
+// same day — the two screens must agree on who is in the building.
+const cycleDate = cycleFor(new Date()).issueDate;
 
 if (Astro.request.method === 'POST') {
   submitted = await Astro.request.formData();

@@ -128,9 +128,14 @@ describe('isReadingDay', () => {
     expect(isReadingDay(july, new Date(2025, 6, 26))).toBe(true);
   });
 
-  it('rejects a day outside the round', () => {
+  it('counts a round walked late — the real ต.ค. 2569 round was read on the 27th', () => {
+    expect(isReadingDay(july, new Date(2025, 6, 27))).toBe(true);
+    expect(isReadingDay(july, new Date(2025, 7, 24))).toBe(true);
+  });
+
+  it('rejects a day before the round, and the next round from its 25th', () => {
     expect(isReadingDay(july, new Date(2025, 6, 24))).toBe(false);
-    expect(isReadingDay(july, new Date(2025, 6, 27))).toBe(false);
+    expect(isReadingDay(july, new Date(2025, 7, 25))).toBe(false);
   });
 });
 

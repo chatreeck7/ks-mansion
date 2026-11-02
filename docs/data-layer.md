@@ -180,6 +180,27 @@ compute; 10ms is unlikely to be the binding constraint. This wasn't load-
 tested, just confirmed against Cloudflare's own docs — worth a real check once
 KS-57 lands and there's an actual SSR page to profile.
 
+## Update 2026-11-02: tab contents are now cached for 15 seconds
+
+The decision below held while a page view cost one read. It no longer does:
+หน้าสมุด, the bill run and the documents read four to six tabs each, and on
+2 Nov 2026 an admin clicking through the live console hit the 60
+reads/minute/user quota within about a minute — every page then answered 500
+until the window rolled over. That is revisit condition 3 below.
+
+So the TTL wrapper this section said to add now exists, exactly where it said
+to put it: `src/lib/repositories/sheets/caching-sheets-client.ts`, wrapped
+around the client in `client-cache.ts`. Nothing above `SheetsClient` changed.
+
+- **Staleness window: 15 seconds**, and only for edits made directly in the
+  spreadsheet. Anything saved through the console invalidates that tab at
+  once, so the console's own writes still show on the next page.
+- Overlapping reads of one tab share a request; failed reads are not cached.
+- The client also retries a 429 twice (after 1 s and 2 s) before failing, with
+  a message that says to wait a minute rather than a bare status code.
+
+Migrations and correction scripts build their own client and are not cached.
+
 ## Caching and the staleness window (KS-55, decided 2026-08-25)
 
 **Decision: cache the client, not the data. Sheet edits appear immediately.**
