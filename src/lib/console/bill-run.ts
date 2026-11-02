@@ -2,9 +2,13 @@ import { formatBaht, formatReading, formatThaiDate, formatUnits } from '@/lib/fo
 import type { Bill, BillDraft } from '@/lib/models/bill';
 import {
   chargeFor,
+  lateMoveIn,
+  movedInDuring,
+  rentPaidInAdvance,
   type BillingCycle,
   type CycleCharge,
 } from '@/lib/models/billing-cycle';
+import { formatThaiMonth } from '@/lib/format/thai';
 import { activeLeaseFor, type Lease } from '@/lib/models/lease';
 import { type MeterReading } from '@/lib/models/meter-reading';
 import { chargesRent, inWalkingOrder, type Room } from '@/lib/models/room';
@@ -74,6 +78,20 @@ export interface BillLine {
   problems: string[];
   /** A bill already issued for this room and cycle, if there is one. */
   alreadyIssued: Bill | null;
+  /** Why the rent is what it is, when that is not simply the lease's rate. */
+  rentBasis: string | null;
+  /**
+   * The tenancy began during this cycle. Utilities are waived unless the
+   * admin asks for them — see `movedInDuring`.
+   */
+  newMoveIn: boolean;
+  /** True when this line's utilities were waived (new move-in, or lease not started). */
+  utilitiesWaived: boolean;
+  /**
+   * Nothing to collect this cycle and nothing wrong: shown, never issued.
+   * A 0-baht slip handed to a tenant reads as a mistake.
+   */
+  nothingDue: boolean;
 }
 
 export interface BillRun {
@@ -93,6 +111,12 @@ export interface BillRunInput {
   readings: MeterReading[];
   /** Bills already on the sheet — any cycle; this filters to the one it needs. */
   existing: Bill[];
+  /**
+   * An admin's choice, per room, for a tenancy that began this cycle: `true`
+   * charges its utilities, `false` waives them. Rooms not listed take the
+   * default — waived for a late move-in (`lateMoveIn`), charged otherwise.
+   */
+  utilityChoices?: ReadonlyMap<string, boolean>;
 }
 
 /**
@@ -179,6 +203,7 @@ export function planBillRun({
   leases,
   readings,
   existing,
+  utilityChoices = new Map<string, boolean>(),
 }: BillRunInput): BillRun {
   const water = new Map(
     waterRows(rooms, leases, readings, cycle.issueDate).map((row) => [row.roomId, row]),
@@ -211,32 +236,54 @@ export function planBillRun({
     // re-derived: a room under notice pays for the power it used this month
     // and no rent for a month it will not be here for.
     let rentAmount = 0;
+    let rentBasis: string | null = null;
     if (chargesRent(room)) {
-      if (lease) {
+      if (lease && rentPaidInAdvance(lease.startDate, lease.advanceRent, cycle)) {
+        // ค่าเช่าล่วงหน้า paid at move-in already covers this cycle's rent
+        // month. Charging it again is the double-billing room 206 showed.
+        rentBasis = `ค่าเช่า ${formatThaiMonth(cycle.rentMonth)} จ่ายล่วงหน้าแล้วตอนเข้า`;
+      } else if (lease) {
         // The lease's rate, not the room's. The room's is what it is advertised
         // at now; the lease's is what this tenant agreed to.
         rentAmount = lease.rentRate;
+      } else if (leases.some((l) => l.roomId === room.id && !l.archived && l.startDate > cycle.issueDate)) {
+        // A signed tenancy that starts after this bill goes out (ห้องจอง):
+        // nothing is owed this cycle, and the room is not missing a lease.
+        rentBasis = 'สัญญาเริ่มรอบหน้า';
       } else {
         problems.push('ห้องมีผู้เช่าแต่ไม่มีสัญญาเช่า');
       }
     }
 
+    const newMoveIn = lease !== null && movedInDuring(lease.startDate, cycle);
+    const chargeNewTenant = utilityChoices.get(room.id) ?? !(lease && lateMoveIn(lease.startDate, cycle));
+    const utilitiesWaived = (newMoveIn && !chargeNewTenant) || rentBasis === 'สัญญาเริ่มรอบหน้า';
+
     const reading = electricityReading(readings, room.id);
     const stale =
       reading !== null && alreadyBilled(reading, billsFor.get(room.id) ?? [], cycle.id);
     const units = reading ? reading.currentReading - reading.previousReading : 0;
-    const electricityAmount = reading && !stale ? units * reading.ratePerUnit : 0;
-    if (!reading) problems.push('ยังไม่ได้จดมิเตอร์ไฟ');
+    const electricityAmount = reading && !stale && !utilitiesWaived ? units * reading.ratePerUnit : 0;
+    if (utilitiesWaived) {
+      // Nothing to check: no utility is being charged.
+    } else if (!reading) problems.push('ยังไม่ได้จดมิเตอร์ไฟ');
     else if (stale) {
       problems.push(
         `เลขมิเตอร์ล่าสุด (${formatThaiDate(reading.readDate)}) ออกบิลไปแล้ว — ยังไม่ได้จดรอบใหม่`,
       );
     }
 
-    const waterLine = waterLineFor(water.get(room.id));
-    if (!waterLine) problems.push('คิดค่าน้ำไม่ได้ — ไม่มีสัญญาเช่าหรือยังไม่ได้จดมิเตอร์น้ำ');
+    const waterLine = utilitiesWaived ? null : waterLineFor(water.get(room.id));
+    if (!waterLine && !utilitiesWaived) {
+      problems.push('คิดค่าน้ำไม่ได้ — ไม่มีสัญญาเช่าหรือยังไม่ได้จดมิเตอร์น้ำ');
+    }
 
     const waterAmount = waterLine?.amount ?? 0;
+    const total = rentAmount + electricityAmount + waterAmount;
+    const alreadyIssued = issuedThisCycle.get(room.id) ?? null;
+    const waivedBasis = newMoveIn
+      ? `เข้าใหม่ ${formatThaiDate(lease!.startDate)} — ไม่คิดน้ำไฟรอบนี้`
+      : 'ยังไม่เริ่มสัญญา';
 
     lines.push({
       roomId: room.id,
@@ -246,27 +293,35 @@ export function planBillRun({
       rentAmount,
       electricityAmount,
       waterAmount,
-      total: rentAmount + electricityAmount + waterAmount,
+      total,
       // The date is part of the basis now that no window constrains which
       // reading is used: it is the only thing on the row that says whether
       // this figure is from the round just walked or from one before it.
-      electricityBasis: reading
+      electricityBasis: utilitiesWaived
+        ? waivedBasis
+        : reading
         ? `${formatThaiDate(reading.readDate)} · ` +
           `${formatReading(reading.previousReading)} → ${formatReading(reading.currentReading)} = ` +
           `${formatUnits(units)} × ${formatReading(reading.ratePerUnit)} บาท`
         : '—',
-      waterBasis: waterLine?.basis ?? '—',
+      waterBasis: utilitiesWaived ? waivedBasis : waterLine?.basis ?? '—',
       // A stale reading charges nothing, so it records nothing: printing a
       // derivation beside a zero would say the meter was read for this bill.
-      electricityPrevious: reading && !stale ? reading.previousReading : null,
-      electricityCurrent: reading && !stale ? reading.currentReading : null,
+      electricityPrevious: reading && !stale && !utilitiesWaived ? reading.previousReading : null,
+      electricityCurrent: reading && !stale && !utilitiesWaived ? reading.currentReading : null,
       waterQuantity: waterLine?.quantity ?? null,
       problems,
-      alreadyIssued: issuedThisCycle.get(room.id) ?? null,
+      alreadyIssued,
+      rentBasis,
+      newMoveIn,
+      utilitiesWaived,
+      nothingDue: problems.length === 0 && total === 0 && !alreadyIssued,
     });
   }
 
-  const issuable = lines.filter((line) => line.problems.length === 0 && !line.alreadyIssued);
+  const issuable = lines.filter(
+    (line) => line.problems.length === 0 && !line.alreadyIssued && !line.nothingDue,
+  );
 
   return {
     cycle,

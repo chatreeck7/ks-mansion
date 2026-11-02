@@ -98,7 +98,9 @@ export function monthProgress({ cycle, today, rooms, leases, readings, bills, pa
   const ready = run.issuable.length;
 
   // ── 2 · water ──────────────────────────────────────────────────────────
-  const water = waterTotal(waterRows(rooms, leases, live, today));
+  // The cycle's issue date, as the bill run uses: water belongs to the cycle,
+  // not to whatever day the page is opened.
+  const water = waterTotal(waterRows(rooms, leases, live, cycle.issueDate));
 
   // ── 4 · money ──────────────────────────────────────────────────────────
   const cycleBills = bills.filter((b) => b.cycle === cycle.id && !b.archived);

@@ -41,7 +41,19 @@ export interface GoogleSheetsClientOptions {
   /** Injectable for tests; defaults to global fetch. */
   fetchImpl?: typeof fetch;
   now?: () => number;
+  /** Injectable for tests; the pause between attempts after a 429. */
+  sleep?: (ms: number) => Promise<void>;
 }
+
+/**
+ * Waits before each retry of a request the API refused with 429 (quota).
+ *
+ * A 429 is a refusal, not a partial success — the request did nothing — so
+ * repeating it is safe for writes as well as reads. Two retries, a second
+ * then two, cover the per-minute window's usual tail without holding a page
+ * for long; beyond that the error is real and is shown as one.
+ */
+export const RATE_LIMIT_BACKOFF_MS = [1000, 2000] as const;
 
 /**
  * A service-account access token for the Sheets API.
@@ -158,6 +170,7 @@ const HEADER_ROW = 1;
 export function createGoogleSheetsClient(options: GoogleSheetsClientOptions): SheetsClient {
   const fetchImpl = options.fetchImpl ?? fetch;
   const now = options.now ?? Date.now;
+  const sleep = options.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
   let cached: { token: string; expiresAt: number } | null = null;
 
   async function accessToken(): Promise<string> {
@@ -176,17 +189,29 @@ export function createGoogleSheetsClient(options: GoogleSheetsClientOptions): Sh
     context: string,
     init: RequestInit = {},
   ): Promise<Record<string, unknown>> {
-    const token = await accessToken();
     const url = `${SHEETS_API}/${encodeURIComponent(options.spreadsheetId)}${path}`;
 
-    const response = await fetchImpl(url, {
-      ...init,
-      headers: {
-        ...init.headers,
-        authorization: `Bearer ${token}`,
-        ...(init.body ? { 'content-type': 'application/json' } : {}),
-      },
-    });
+    let response: Response;
+    for (let attempt = 0; ; attempt += 1) {
+      const token = await accessToken();
+      response = await fetchImpl(url, {
+        ...init,
+        headers: {
+          ...init.headers,
+          authorization: `Bearer ${token}`,
+          ...(init.body ? { 'content-type': 'application/json' } : {}),
+        },
+      });
+      if (response.status !== 429 || attempt >= RATE_LIMIT_BACKOFF_MS.length) break;
+      await sleep(RATE_LIMIT_BACKOFF_MS[attempt]!);
+    }
+
+    if (response.status === 429) {
+      throw new Error(
+        `Google Sheets is rate-limiting this console (429) for ${context} — too many reads in ` +
+          `the last minute. Wait a minute and reload.`,
+      );
+    }
 
     if (response.status === 403 || response.status === 404) {
       throw new Error(

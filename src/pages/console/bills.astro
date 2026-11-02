@@ -94,20 +94,45 @@ function toGroups(lines: BillLine[], label: string): LedgerGroup[] {
   return [
     {
       label,
-      rows: lines.map((line) => ({
+      rows: lines.map((line) => {
+        // An issued line shows the bill as it went out, not today's re-plan:
+        // the slip in the tenant's hand is the figure that matters, and a
+        // reading added or corrected since must not restate it on screen.
+        const bill = line.alreadyIssued;
+        const shown = bill
+          ? {
+              rent: bill.rentAmount,
+              electricity: bill.electricityAmount,
+              water: bill.waterAmount,
+              total: billTotal(bill),
+              working:
+                bill.electricityPrevious !== null && bill.electricityCurrent !== null
+                  ? `${bill.electricityPrevious.toLocaleString('en-US')} → ${bill.electricityCurrent.toLocaleString('en-US')}`
+                  : line.electricityBasis,
+            }
+          : {
+              rent: line.rentAmount,
+              electricity: line.electricityAmount,
+              water: line.waterAmount,
+              total: line.total,
+              working: [line.rentBasis, line.electricityBasis].filter(Boolean).join(' · '),
+            };
+        return {
         id: line.roomId,
         cells: {
           room: { kind: 'text', value: line.roomLabel },
-          rent: { kind: 'figure', value: line.rentAmount },
-          electricity: { kind: 'figure', value: line.electricityAmount },
-          working: { kind: 'text', value: line.electricityBasis, muted: true },
-          water: { kind: 'figure', value: line.waterAmount },
-          total: { kind: 'figure', value: line.total },
+          rent: { kind: 'figure', value: shown.rent },
+          electricity: { kind: 'figure', value: shown.electricity },
+          working: { kind: 'text', value: shown.working, muted: true },
+          water: { kind: 'figure', value: shown.water },
+          total: { kind: 'figure', value: shown.total },
           state: line.alreadyIssued
             ? { kind: 'pill', tone: 'mute', label: 'ออกแล้ว' }
             : line.problems.length > 0
               ? { kind: 'pill', tone: 'crit', label: line.problems[0]! }
-              : { kind: 'pill', tone: 'ok', label: 'พร้อมออก' },
+              : line.nothingDue
+                ? { kind: 'pill', tone: 'info', label: 'ไม่มียอดรอบนี้' }
+                : { kind: 'pill', tone: 'ok', label: 'พร้อมออก' },
           // Its own column, and a real link. Only an issued bill has a
           // document: a planned line is a preview of one that does not exist
           // yet, and a link to it would 404.
@@ -119,7 +144,8 @@ function toGroups(lines: BillLine[], label: string): LedgerGroup[] {
               }
             : { kind: 'text', value: '—', muted: true },
         },
-      })),
+      } satisfies LedgerGroup['rows'][number];
+      }),
     },
   ];
 }
@@ -137,6 +163,16 @@ const viewed = viewedCycle(Astro.url.searchParams.get('cycle'), now);
 const { cycle, past } = viewed;
 const options = cycleOptions(now, cycle);
 
+// Rooms whose new tenant the admin chose to charge utilities this cycle —
+// by default a tenancy that began this cycle is not (see `movedInDuring`).
+// Carried in the query on preview and in the form on issue, so what is
+// issued is exactly what was previewed.
+function choicesFrom(source: { getAll(name: string): unknown[] }): Map<string, boolean> {
+  const charged = new Set(source.getAll('charge').map(String));
+  return new Map(source.getAll('newmovein').map(String).map((roomId) => [roomId, charged.has(roomId)]));
+}
+let utilityChoices = choicesFrom(Astro.url.searchParams);
+
 async function load() {
   const [rooms, leases, readings, existing] = await Promise.all([
     getRoomRepository(env).listRooms(),
@@ -144,12 +180,13 @@ async function load() {
     getMeterReadingRepository(env).listReadings(),
     getBillRepository(env).listBills(),
   ]);
-  return planBillRun({ cycle, rooms, leases, readings, existing });
+  return planBillRun({ cycle, rooms, leases, readings, existing, utilityChoices });
 }
 
 if (Astro.request.method === 'POST') {
   const form = await Astro.request.formData();
   const bills = getBillRepository(env);
+  utilityChoices = choicesFrom(form);
 
   // Two actions on one page, told apart by a hidden field rather than by
   // which fields happen to be present — issuing a cycle and annotating one
@@ -254,6 +291,26 @@ const arrearsGroups = toArrearsGroups(
       cannot take, and the reader is left wondering what it would have done.
       With nothing to issue there is no action, so there is no button —
       a sentence says why, and points at what is usually the reason. */}
+  {run && run.lines.some((line) => line.newMoveIn && !line.alreadyIssued) && (
+    <form method="GET" class="mt-4 rounded-xl border border-console-info/30 bg-console-info-bg px-4 py-3 text-[15px] text-console-ink">
+      <p class="m-0 font-semibold">ห้องที่เข้าใหม่ระหว่างรอบ</p>
+      <p class="m-0 mb-2 text-sm text-console-ink-soft">
+        ถ้าเข้าก่อนวันจดมิเตอร์ไม่เกิน 10 วัน ระบบจะไม่คิดค่าน้ำค่าไฟรอบแรก (เหมือนแบบฟอร์มกระดาษ) — ติ๊ก/เอาติ๊กออกแล้วกดคำนวณใหม่
+      </p>
+      <input type="hidden" name="cycle" value={cycle.id} />
+      <div class="flex flex-wrap items-center gap-4">
+        {run.lines.filter((line) => line.newMoveIn && !line.alreadyIssued).map((line) => (
+          <label class="inline-flex min-h-11 items-center gap-2">
+            <input type="hidden" name="newmovein" value={line.roomId} />
+            <input type="checkbox" name="charge" value={line.roomId} checked={!line.utilitiesWaived} class="h-5 w-5" />
+            คิดค่าน้ำค่าไฟห้อง {line.roomLabel}
+          </label>
+        ))}
+        <Button type="submit" variant="secondary" size="md">คำนวณใหม่</Button>
+      </div>
+    </form>
+  )}
+
   <div class="mt-4 flex flex-col gap-3 desk:flex-row desk:flex-wrap desk:items-center">
     {!run ? (
       <Notice tone="mute" flush class="desk:flex-1">
@@ -265,13 +322,19 @@ const arrearsGroups = toArrearsGroups(
       <Notice tone="mute" flush class="desk:flex-1">
         {run.lines.length === 0
           ? 'ยังไม่มีห้องที่ต้องออกบิลรอบนี้'
-          : run.lines.every((line) => line.alreadyIssued)
+          : run.lines.every((line) => line.alreadyIssued || line.nothingDue)
             ? 'ออกบิลครบทุกห้องแล้วสำหรับรอบนี้ — เปิดใบแจ้งได้จากคอลัมน์ขวาสุด'
             : 'ยังออกบิลไม่ได้ — แก้ตามการ์ดสีแดงด้านบนก่อน'}
       </Notice>
     ) : (
       <form method="POST" class="flex flex-col gap-2 desk:flex-row desk:items-center desk:gap-4">
         <input type="hidden" name="action" value="issue" />
+        {run.lines.filter((line) => line.newMoveIn && !line.alreadyIssued).map((line) => (
+          <Fragment>
+            <input type="hidden" name="newmovein" value={line.roomId} />
+            {!line.utilitiesWaived && <input type="hidden" name="charge" value={line.roomId} />}
+          </Fragment>
+        ))}
         <Button type="submit" size="lg">ออกบิล {run.issuable.length} ใบ</Button>
         <p class="font-figure text-[15px] tabular-nums text-console-ink-soft">
           ยอดที่จะออกรอบนี้ <span class="font-semibold text-console-ink">{formatBaht(run.total)}</span> บาท

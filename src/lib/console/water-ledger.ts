@@ -1,5 +1,5 @@
 import { formatBaht, formatReading } from '@/lib/format/thai';
-import { cycleFor, cycleLabel } from '@/lib/models/billing-cycle';
+import { cycleFor, cycleLabel, lateMoveIn } from '@/lib/models/billing-cycle';
 import type { LedgerColumn, LedgerGroup, LedgerRow } from '@/lib/models/ledger';
 import {
   activeLeaseFor,
@@ -47,6 +47,12 @@ export interface WaterRow {
   charge: number | null;
   /** Units consumed, metered rooms only. */
   units: number | null;
+  /**
+   * The tenant moved in just before the meter round, so by default this
+   * cycle's water is not charged (`lateMoveIn`; the bill run can override).
+   * Shown, but left out of the total — the total is what the bills collect.
+   */
+  newMoveIn: boolean;
 }
 
 /** The field carries the lease, because the count belongs to the tenancy. */
@@ -90,6 +96,7 @@ export function waterRows(
       on,
     );
     if (!lease) continue;
+    const newMoveIn = lateMoveIn(lease.startDate, cycleFor(on));
 
     if (hasWaterMeter(room.id, readings)) {
       const latest = latestWaterReading(room.id, readings);
@@ -101,6 +108,7 @@ export function waterRows(
         occupantCount: null,
         charge: latest ? readingCharge(latest) : null,
         units: latest ? latest.currentReading - latest.previousReading : null,
+        newMoveIn,
       });
       continue;
     }
@@ -113,6 +121,7 @@ export function waterRows(
       occupantCount: lease.occupantCount,
       charge: waterChargeFor(lease),
       units: null,
+      newMoveIn,
     });
   }
 
@@ -120,7 +129,7 @@ export function waterRows(
 }
 
 export function waterTotal(rows: WaterRow[]): number {
-  return rows.reduce((total, row) => total + (row.charge ?? 0), 0);
+  return rows.reduce((total, row) => total + (row.newMoveIn ? 0 : row.charge ?? 0), 0);
 }
 
 /** Just enough of `FormData` to read the grid back without a DOM. */
@@ -144,8 +153,9 @@ export function toWaterGroups(
         basis: {
           kind: 'text',
           // Says *why* the number is what it is, which a bare amount cannot.
-          value:
-            row.basis === 'metered'
+          value: row.newMoveIn
+            ? 'เข้าใหม่ช่วงจดมิเตอร์ — ไม่คิดรอบนี้'
+            : row.basis === 'metered'
               ? `มิเตอร์น้ำ${row.units === null ? '' : ` ${formatReading(row.units)} หน่วย`}`
               : `เหมา ${formatBaht(WATER_RATE_PER_OCCUPANT)}/คน`,
           muted: true,
@@ -162,7 +172,7 @@ export function toWaterGroups(
                 value,
                 label: `จำนวนผู้พัก ${row.roomLabel}`,
               },
-        charge: { kind: 'figure', value: row.charge },
+        charge: { kind: 'figure', value: row.newMoveIn ? null : row.charge },
       },
     };
   });
