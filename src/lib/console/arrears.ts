@@ -35,20 +35,27 @@ export function toArrearsGroups(
   bills: Bill[],
   label: string,
   submitted?: SubmittedNotes,
+  /**
+   * Room id → the name people use (`laundry` → ร้านซักผ้า). The id is a
+   * slug for the common spaces, and a slug in a list of rooms reads as a
+   * bug; it is only the fallback when a room cannot be found.
+   */
+  roomLabels: ReadonlyMap<string, string> = new Map(),
 ): LedgerGroup[] {
   const rows: LedgerRow[] = bills.map((bill): LedgerRow => {
     const typed = submitted?.get(arrearsFieldName(bill));
+    const room = roomLabels.get(bill.roomId) ?? bill.roomId;
 
     return {
       id: bill.id,
       cells: {
-        room: { kind: 'text', value: bill.roomId },
+        room: { kind: 'text', value: room },
         total: { kind: 'figure', value: billTotal(bill) },
         note: {
           kind: 'input',
           name: arrearsFieldName(bill),
           value: typeof typed === 'string' ? typed : (bill.arrearsNote ?? ''),
-          label: `หมายเหตุ ห้อง ${bill.roomId}`,
+          label: `หมายเหตุ ห้อง ${room}`,
           // The two shapes the real sheet actually holds, offered as a hint
           // rather than as options — the admin writes the sentence.
           placeholder: 'เช่น ยอดค้าง 1,169 หรือ ค้างประกัน 1,000',

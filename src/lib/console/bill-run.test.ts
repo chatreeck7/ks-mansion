@@ -382,3 +382,21 @@ describe('tenancies that begin around the bill (KS-21 follow-up, 2 พ.ย. 2569
     expect(waived).toMatchObject({ utilitiesWaived: true, total: 2500 });
   });
 });
+
+describe('billRunSections', () => {
+  it('puts what needs the admin first, then nothing-due rooms, then issued bills', async () => {
+    const { billRunSections } = await import('./bill-run');
+    const issued = { id: 'b-1' } as Bill;
+    const line = (roomId: string, extra: object) =>
+      ({ roomId, alreadyIssued: null, nothingDue: false, problems: [], ...extra }) as never;
+    const sections = billRunSections([
+      line('101', { alreadyIssued: issued }),
+      line('102', { problems: ['ยังไม่ได้จดมิเตอร์ไฟ'] }),
+      line('103', { nothingDue: true }),
+      line('104', {}),
+    ]);
+    expect(sections.todo.map((l: { roomId: string }) => l.roomId)).toEqual(['102', '104']);
+    expect(sections.nothingDue.map((l: { roomId: string }) => l.roomId)).toEqual(['103']);
+    expect(sections.issued.map((l: { roomId: string }) => l.roomId)).toEqual(['101']);
+  });
+});
