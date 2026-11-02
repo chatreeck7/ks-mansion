@@ -350,3 +350,27 @@ export function draftsFrom(run: BillRun): BillDraft[] {
     arrearsNote: null,
   }));
 }
+
+export interface BillRunSections {
+  /** Something to do: a problem to fix, or a bill ready to issue. */
+  todo: BillLine[];
+  /** Nothing owed this cycle (a new move-in, a lease that starts next cycle). */
+  nothingDue: BillLine[];
+  issued: BillLine[];
+}
+
+/**
+ * The run split the way an admin works through it: what still needs them
+ * first, then the rooms with nothing to collect, then the bills already out.
+ * In walking order within each — the order of `run.lines` is kept.
+ *
+ * Found on the live console: with 22 of 24 rooms issued, the two rooms that
+ * still mattered sat in the middle of a 24-row table.
+ */
+export function billRunSections(lines: readonly BillLine[]): BillRunSections {
+  return {
+    todo: lines.filter((line) => !line.alreadyIssued && !line.nothingDue),
+    nothingDue: lines.filter((line) => !line.alreadyIssued && line.nothingDue),
+    issued: lines.filter((line) => line.alreadyIssued !== null),
+  };
+}

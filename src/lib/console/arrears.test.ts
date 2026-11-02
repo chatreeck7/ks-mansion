@@ -134,3 +134,19 @@ describe('arrearsUpdatesFromForm', () => {
     expect(arrearsFieldName(BILLS[1]!)).toBe('arrears:b-002');
   });
 });
+
+describe('toArrearsGroups room names', () => {
+  it("shows a common space by its name, not its id, and falls back to the id", () => {
+    const rows = toArrearsGroups(
+      [makeBill({ id: 'b-1', roomId: 'laundry' }), makeBill({ id: 'b-2', roomId: '999' })],
+      'รอบ',
+      undefined,
+      new Map([['laundry', 'ร้านซักผ้า']]),
+    )[0]!.rows;
+    expect(rows.map((r) => r.cells.room)).toEqual([
+      { kind: 'text', value: 'ร้านซักผ้า' },
+      { kind: 'text', value: '999' },
+    ]);
+    expect(rows[0]!.cells.note).toMatchObject({ label: 'หมายเหตุ ห้อง ร้านซักผ้า' });
+  });
+});

@@ -16,7 +16,7 @@ import {
   arrearsUpdatesFromForm,
   toArrearsGroups,
 } from '@/lib/console/arrears';
-import { draftsFrom, planBillRun, type BillLine } from '@/lib/console/bill-run';
+import { billRunSections, draftsFrom, planBillRun, type BillLine } from '@/lib/console/bill-run';
 import { issuedLines, viewedCycle, type IssuedLine } from '@/lib/console/history';
 import { consolePath } from '@/lib/console/paths';
 import { formatBaht } from '@/lib/format/thai';
@@ -229,9 +229,20 @@ if (Astro.request.method === 'POST') {
 const issuedBills = await getBillRepository(env).listBillsForCycle(cycle.id);
 // A past cycle is never planned — see the note at the top.
 const run = past ? null : await load();
-const groups = run
-  ? toGroups(run.lines, cycleLabel(cycle))
-  : toIssuedGroups(issuedLines(issuedBills, await getRoomRepository(env).listRooms()), cycleLabel(cycle));
+const allRooms = await getRoomRepository(env).listRooms();
+// What still needs the admin comes first; issued bills fold away while
+// there is anything left to do (found on the live console: two rooms that
+// mattered were buried in a 24-row table of finished ones).
+const sections = run ? billRunSections(run.lines) : null;
+const openGroups = sections
+  ? [
+      ...(sections.todo.length > 0 ? toGroups(sections.todo, 'ต้องทำ') : []),
+      ...(sections.nothingDue.length > 0 ? toGroups(sections.nothingDue, 'ไม่มียอดรอบนี้') : []),
+    ]
+  : [];
+const issuedSectionGroups = sections && sections.issued.length > 0 ? toGroups(sections.issued, cycleLabel(cycle)) : [];
+const pastGroups = run ? [] : toIssuedGroups(issuedLines(issuedBills, allRooms), cycleLabel(cycle));
+const workLeft = sections ? sections.todo.length > 0 : false;
 const blocked = run ? run.lines.filter((l) => l.problems.length > 0 && !l.alreadyIssued).length : 0;
 const problems = run ? problemGroups(run.lines) : [];
 const issuedCount = run ? run.lines.filter((l) => l.alreadyIssued).length : issuedBills.length;
@@ -242,6 +253,7 @@ const arrearsGroups = toArrearsGroups(
   issuedBills,
   `บิลที่ออกแล้ว ${cycleLabel(cycle)}`,
   errors.length > 0 ? submittedNotes : undefined,
+  new Map(allRooms.map((room) => [room.id, room.label])),
 );
 ---
 
@@ -285,7 +297,22 @@ const arrearsGroups = toArrearsGroups(
     </div>
   )}
 
-  <LedgerTable columns={COLUMNS} groups={groups} />
+  {run ? (
+    <Fragment>
+      {openGroups.length > 0 && <LedgerTable columns={COLUMNS} groups={openGroups} />}
+      {issuedSectionGroups.length > 0 && (
+        <details class="mt-4" open={!workLeft}>
+          <summary class="flex min-h-11 cursor-pointer items-center gap-2 text-[15px] font-semibold text-console-ink">
+            ออกแล้ว {sections!.issued.length} ใบ · รวม {formatBaht(issuedTotal)} บาท
+            {workLeft && <span class="text-sm font-normal text-console-ink-soft">(กดเพื่อดู)</span>}
+          </summary>
+          <LedgerTable columns={COLUMNS} groups={issuedSectionGroups} />
+        </details>
+      )}
+    </Fragment>
+  ) : (
+    <LedgerTable columns={COLUMNS} groups={pastGroups} />
+  )}
 
   {/* A disabled button whose label states a fact reads like an action you
       cannot take, and the reader is left wondering what it would have done.
