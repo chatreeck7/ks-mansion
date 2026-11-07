@@ -90,5 +90,66 @@ export function leaseDraftFromForm(form: FormData): LeaseDraft {
     moveOutPaid: null,
     coTenantName: text('coTenantName') || null,
     bookingFee: optionalNumberField(form, 'bookingFee'),
+    ...moveInTermsFromForm(form),
+  };
+}
+
+/**
+ * The move-in terms from the "เงื่อนไขช่วงเข้าอยู่" box (7 พ.ย. 2569). Shared by
+ * the new-lease form and the contract-details form.
+ *
+ * `billingStart` is one of `move-in` (rent from the day they move in),
+ * `next-month` (from the 1st after it) or `custom` (the date typed into
+ * `billingStartDate`). `prorate` is `none` or `daily` with `proratePerDay`.
+ * Stored as plain fields: a blank billing start means "the move-in day", so
+ * nothing changes for a lease written before these terms existed.
+ */
+export function moveInTermsFromForm(
+  form: FormData,
+): Pick<LeaseDraft, 'billingStartDate' | 'proratePerDay' | 'startMeter'> {
+  const text = (field: string): string => String(form.get(field) ?? '').trim();
+  const start = dateFromInput(text('startDate'));
+  const mode = text('billingStart');
+  let billingStartDate: Date | null = null;
+  if (mode === 'next-month' && start) {
+    billingStartDate = start.getDate() === 1 ? null : new Date(start.getFullYear(), start.getMonth() + 1, 1);
+  } else if (mode === 'custom') {
+    billingStartDate = dateFromInput(text('billingStartDate'));
+  }
+  const daily = text('prorate') === 'daily' ? optionalNumberField(form, 'proratePerDay') : null;
+  return {
+    billingStartDate,
+    proratePerDay: daily && daily > 0 ? daily : null,
+    startMeter: optionalNumberField(form, 'startMeter'),
+  };
+}
+
+/** The move-in box's fields from a lease (or draft), for re-rendering the form. */
+export function moveInFormValues(
+  lease: Pick<LeaseDraft, 'startDate' | 'billingStartDate' | 'proratePerDay' | 'startMeter'> | null,
+  defaultDailyRate: string,
+): {
+  billingStart: 'move-in' | 'next-month' | 'custom';
+  billingStartDate: string;
+  prorate: 'none' | 'daily';
+  proratePerDay: string;
+  startMeter: string;
+} {
+  const start = lease?.startDate ?? null;
+  const billing = lease?.billingStartDate ?? null;
+  const nextFirst =
+    start && !Number.isNaN(start.getTime()) ? new Date(start.getFullYear(), start.getMonth() + 1, 1) : null;
+  const billingStart: 'move-in' | 'next-month' | 'custom' =
+    billing === null
+      ? 'move-in'
+      : nextFirst && billing.getTime() === nextFirst.getTime()
+        ? 'next-month'
+        : 'custom';
+  return {
+    billingStart,
+    billingStartDate: dateToInput(billing),
+    prorate: lease?.proratePerDay ? 'daily' : 'none',
+    proratePerDay: lease?.proratePerDay ? String(lease.proratePerDay) : defaultDailyRate,
+    startMeter: lease?.startMeter === null || lease?.startMeter === undefined ? '' : String(lease.startMeter),
   };
 }

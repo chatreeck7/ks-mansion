@@ -11,6 +11,9 @@ import type { MarkKind } from './marks';
 import { metersFrom } from './meter-round';
 import { problemGroups, type ProblemGroup } from './problems';
 import { waterRows, waterTotal } from './water-ledger';
+import { collectingCycle } from './history';
+import { notebookShortName } from './logbook';
+import { consolePath } from './paths';
 
 /**
  * Where the month stands, step by step — the หน้าสมุด page and the spine's
@@ -61,6 +64,8 @@ export interface MonthProgress {
   next: MonthStep | null;
   run: BillRun;
   problems: ProblemGroup[];
+  /** The cycle whose bills are being cleared — last month's until this month issues. */
+  collecting: BillingCycle;
   money: {
     billCount: number;
     paidCount: number;
@@ -91,6 +96,8 @@ export function monthProgress({ cycle, today, rooms, leases, readings, bills, pa
   );
   const neededUnread = meters.filter((m) => !idle.has(m.roomId) && !isRead(m)).length;
 
+  const beforeRound = today.getTime() < cycle.readFrom.getTime();
+
   // ── 3 · bills (before water: water's state follows from it) ───────────
   const run = planBillRun({ cycle, rooms, leases, readings: live, existing: bills });
   const issued = run.lines.filter((l) => l.alreadyIssued).length;
@@ -103,7 +110,11 @@ export function monthProgress({ cycle, today, rooms, leases, readings, bills, pa
   const water = waterTotal(waterRows(rooms, leases, live, cycle.issueDate));
 
   // ── 4 · money ──────────────────────────────────────────────────────────
-  const cycleBills = bills.filter((b) => b.cycle === cycle.id && !b.archived);
+  // The bills being cleared, which early in the month are last month's: the
+  // notebook is November from the 1st, but October's bills are due the 10th.
+  const collecting = collectingCycle(bills, today);
+  const collectingEarlier = collecting.id !== cycle.id;
+  const cycleBills = bills.filter((b) => b.cycle === collecting.id && !b.archived);
   const settlements = cycleBills.map((b) => settle(b, payments));
   const paidCount = settlements.filter((s) => s.state === 'paid' || s.state === 'overpaid').length;
   const billed = settlements.reduce((sum, s) => sum + s.due, 0);
@@ -134,7 +145,9 @@ export function monthProgress({ cycle, today, rooms, leases, readings, bills, pa
     {
       ...base('meter-round'),
       sub:
-        readThisCycle >= meters.length
+        beforeRound && readThisCycle === 0
+          ? `จดรอบนี้วันที่ ${cycle.readFrom.getDate()} · ${meters.length} จุด`
+          : readThisCycle >= meters.length
           ? `ครบ ${meters.length} จุด`
           : meterMark === 'done'
             ? `จดแล้ว ${readThisCycle} จาก ${meters.length} จุด · ที่เหลือเป็นห้องว่าง/ปรับปรุง`
@@ -173,11 +186,14 @@ export function monthProgress({ cycle, today, rooms, leases, readings, bills, pa
     },
     {
       ...base('payments'),
-      label: 'บันทึกเงินเข้า',
+      ...(collectingEarlier
+        ? { href: `${consolePath('console/payments')}?cycle=${collecting.id}` }
+        : {}),
+      label: collectingEarlier ? `บันทึกเงินเข้า · บิลรอบ ${notebookShortName(collecting)}` : 'บันทึกเงินเข้า',
       sub:
         cycleBills.length === 0
           ? 'รอออกบิลก่อน'
-          : `รับแล้ว ${paidCount} จาก ${cycleBills.length}`,
+          : `${collectingEarlier ? `เคลียร์บิลรอบ ${notebookShortName(collecting)} · ` : ''}รับแล้ว ${paidCount} จาก ${cycleBills.length}`,
       subShort: cycleBills.length === 0 ? 'รอออกบิล' : `รับแล้ว ${paidCount} จาก ${cycleBills.length}`,
       mark: payMark,
       action: payMark === 'done' ? 'ดู' : 'ทำต่อ',
@@ -207,7 +223,13 @@ export function monthProgress({ cycle, today, rooms, leases, readings, bills, pa
 
   // The first of the four working steps that is not done. Steps 5 and 6 are
   // never "current" — they can be done any time and are never the blocker.
-  const next = steps.slice(0, 4).find((s) => s.mark !== 'done' && s.mark !== 'none') ?? null;
+  // Before this month's round, the open work is clearing last month's bills,
+  // so that leads — not a meter round that cannot start until the 25th.
+  const paymentsStep = steps.find((s) => s.id === 'payments')!;
+  const next =
+    (beforeRound && collectingEarlier && paymentsStep.mark !== 'done' ? paymentsStep : null) ??
+    steps.slice(0, 4).find((s) => s.mark !== 'done' && s.mark !== 'none') ??
+    null;
   if (next) next.current = true;
 
   const nav: NavProgress = {};
@@ -225,6 +247,7 @@ export function monthProgress({ cycle, today, rooms, leases, readings, bills, pa
     run,
     problems: problemGroups(run.lines),
     money: { billCount: cycleBills.length, paidCount, unpaidCount, billed, collected, outstanding },
+    collecting,
     meters: { read: readThisCycle, total: meters.length },
     waterTotal: water,
     nav,

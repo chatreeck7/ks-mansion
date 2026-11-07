@@ -196,6 +196,9 @@ export function planSeed(dataset: SeedDataset, knownRoomIds: readonly string[]):
         moveOutPaid: null,
         coTenantName: null,
         bookingFee: null,
+        billingStartDate: null,
+        proratePerDay: null,
+        startMeter: null,
       },
     };
   });

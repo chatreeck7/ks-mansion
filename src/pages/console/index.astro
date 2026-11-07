@@ -8,7 +8,7 @@ import ProblemCard from '@/components/console/ProblemCard.astro';
 import RoomTile from '@/components/console/RoomTile.astro';
 import StepList from '@/components/console/StepList.astro';
 import { buildingTiles, floorsOf, tileCounts } from '@/lib/console/building';
-import { dueLabel, notebookTitle, shortCycleLabel, todayLabel } from '@/lib/console/logbook';
+import { dueLabel, notebookScheduleLabel, notebookShortName, notebookTitle, todayLabel } from '@/lib/console/logbook';
 import { monthProgress } from '@/lib/console/month-progress';
 import { consolePath } from '@/lib/console/paths';
 import { FOCUS } from '@/lib/console/ui';
@@ -55,7 +55,9 @@ const tiles = buildingTiles({
   rooms,
   leases,
   tenants,
-  bills: bills.filter((b) => b.cycle === cycle.id),
+  // The building map shows who has paid, so it follows the bills being
+  // cleared — last month's until this month's are issued.
+  bills: bills.filter((b) => b.cycle === month.collecting.id),
   payments,
   today,
 });
@@ -77,7 +79,7 @@ const nextShort =
       {notebookTitle(cycle)}
     </h1>
     <p class="text-base text-console-ink-soft">
-      <span class="desk:hidden">{shortCycleLabel(cycle)} · </span>{todayLabel(today)} · {dueLabel(cycle, today)}
+      <span class="desk:hidden">{notebookScheduleLabel(cycle)} · </span>{todayLabel(today)} · {month.collecting.id === cycle.id ? dueLabel(cycle, today) : `เคลียร์บิลรอบ ${notebookShortName(month.collecting)} · ${dueLabel(month.collecting, today)}`}
     </p>
     {/* The way back to earlier months. This page is only ever this month —
         its marks are about what is left to do — so history is a page of

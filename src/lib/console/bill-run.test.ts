@@ -324,48 +324,43 @@ describe('draftsFrom', () => {
  * 3,000 advance + 2,000 deposit and was billed 0; 202 signed to start 1 พ.ย.
  * and was not on the form at all.
  */
-describe('tenancies that begin around the bill (KS-21 follow-up, 2 พ.ย. 2569)', () => {
+describe('tenancies that begin around the bill (move-in terms on the lease, 7 พ.ย. 2569)', () => {
   const OCT = cycleIssuedIn(2026, 9); // issued 26 ต.ค. 2569, rent for พ.ย.
   const NOV = cycleIssuedIn(2026, 10); // issued 26 พ.ย. 2569, rent for ธ.ค.
   const rooms = [
     makeRoom({ id: '206', label: '206', floor: 2, rentRate: 3000 }),
     makeRoom({ id: '202', label: '202', floor: 2, rentRate: 2500 }),
   ];
-  const leases = [
-    makeLease({ id: 'l-206', roomId: '206', startDate: new Date(2026, 9, 24), rentRate: 3000, advanceRent: 3000, occupantCount: 1 }),
-    makeLease({ id: 'l-202', roomId: '202', startDate: new Date(2026, 10, 1), rentRate: 2500, advanceRent: 2500, occupantCount: 1 }),
-  ];
+  const lease206 = (extra = {}) =>
+    makeLease({ id: 'l-206', roomId: '206', startDate: new Date(2026, 9, 24), rentRate: 3000, advanceRent: 3000, occupantCount: 1, ...extra });
+  const lease202 = makeLease({ id: 'l-202', roomId: '202', startDate: new Date(2026, 10, 1), rentRate: 2500, advanceRent: 2500, occupantCount: 1 });
   const readings = [
     makeMeterReading({ id: 'm-206', roomId: '206', previousReading: 9457, currentReading: 9468, ratePerUnit: 7, readDate: new Date(2026, 9, 27) }),
     makeMeterReading({ id: 'm-202', roomId: '202', previousReading: 13357, currentReading: 13357, ratePerUnit: 7, readDate: new Date(2026, 9, 27) }),
   ];
-  const plan = (cycle = OCT, utilityChoices?: Map<string, boolean>) =>
-    planBillRun({ cycle, rooms, leases, readings, existing: [], utilityChoices });
+  const plan = (cycle: typeof OCT, leases: Parameters<typeof planBillRun>[0]['leases'], extraReadings = readings) =>
+    planBillRun({ cycle, rooms, leases, readings: extraReadings, existing: [] });
 
-  it('charges 206 nothing in its first cycle: rent paid in advance, utilities waived', () => {
-    const line = plan().lines.find((l) => l.roomId === '206')!;
-    expect(line).toMatchObject({
-      rentAmount: 0,
-      electricityAmount: 0,
-      waterAmount: 0,
-      total: 0,
-      newMoveIn: true,
-      nothingDue: true,
-      problems: [],
-    });
-    expect(line.rentBasis).toBe('ค่าเช่า พ.ย. 2569 จ่ายล่วงหน้าแล้วตอนเข้า');
-    expect(plan().issuable.map((l) => l.roomId)).not.toContain('206');
+  it('bills nothing before the agreed billing start, and says when it starts', () => {
+    const line = plan(OCT, [lease206({ billingStartDate: new Date(2026, 10, 1) }), lease202]).lines.find((l) => l.roomId === '206')!;
+    expect(line).toMatchObject({ total: 0, nothingDue: true, problems: [], rentBasis: 'เริ่มคิดเงิน 1 พ.ย. 2569' });
   });
 
-  it('charges 206 utilities when the admin ticks it, still no rent', () => {
-    const line = plan(OCT, new Map([['206', true]])).lines.find((l) => l.roomId === '206')!;
-    expect(line).toMatchObject({ rentAmount: 0, electricityAmount: 77, waterAmount: 100, total: 177, nothingDue: false });
+  it('on the first bill, does not charge the month paid in advance — utilities still from the meter', () => {
+    const line = plan(OCT, [lease206(), lease202]).lines.find((l) => l.roomId === '206')!;
+    expect(line).toMatchObject({ rentAmount: 0, electricityAmount: 77, waterAmount: 100, total: 177, newMoveIn: true });
+    expect(line.rentBasis).toBe('ค่าเช่า พ.ย. 2569 จ่ายล่วงหน้าแล้ว · เศษเดือน 8 วัน ไม่คิด');
   });
 
-  it('does not call 202 a room without a lease when its lease simply starts next cycle', () => {
-    const line = plan().lines.find((l) => l.roomId === '202')!;
+  it('adds the part month at the agreed daily rate', () => {
+    const line = plan(OCT, [lease206({ proratePerDay: 100 }), lease202]).lines.find((l) => l.roomId === '206')!;
+    expect(line).toMatchObject({ rentAmount: 800 });
+  });
+
+  it('does not call 202 a room without a lease when its lease starts next cycle', () => {
+    const line = plan(OCT, [lease206(), lease202]).lines.find((l) => l.roomId === '202')!;
     expect(line.problems).toEqual([]);
-    expect(line).toMatchObject({ total: 0, nothingDue: true, rentBasis: 'สัญญาเริ่มรอบหน้า' });
+    expect(line).toMatchObject({ total: 0, nothingDue: true, rentBasis: 'เริ่มคิดเงิน 1 พ.ย. 2569' });
   });
 
   it("bills 202's December rent in the November cycle: the advance covered November", () => {
@@ -373,13 +368,8 @@ describe('tenancies that begin around the bill (KS-21 follow-up, 2 พ.ย. 2569
       ...readings,
       makeMeterReading({ id: 'm-202b', roomId: '202', previousReading: 13357, currentReading: 13450, ratePerUnit: 7, readDate: new Date(2026, 10, 25) }),
     ];
-    const line = planBillRun({ cycle: NOV, rooms, leases, readings: novReadings, existing: [] }).lines.find((l) => l.roomId === '202')!;
-    // In on 1 พ.ย., most of the period was theirs: a new move-in, but not a
-    // late one, so its utilities are charged unless an admin waives them.
-    expect(line).toMatchObject({ rentAmount: 2500, newMoveIn: true, utilitiesWaived: false, electricityAmount: 651, waterAmount: 100 });
-    const waived = planBillRun({ cycle: NOV, rooms, leases, readings: novReadings, existing: [], utilityChoices: new Map([['202', false]]) })
-      .lines.find((l) => l.roomId === '202')!;
-    expect(waived).toMatchObject({ utilitiesWaived: true, total: 2500 });
+    const line = plan(NOV, [lease206(), lease202], novReadings).lines.find((l) => l.roomId === '202')!;
+    expect(line).toMatchObject({ rentAmount: 2500, newMoveIn: true, electricityAmount: 651, waterAmount: 100 });
   });
 });
 

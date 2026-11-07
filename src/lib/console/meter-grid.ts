@@ -31,9 +31,10 @@ export const METER_GRID_COLUMNS: LedgerColumn[] = [
   { key: 'room', header: 'ห้อง' },
   { key: 'meter', header: 'มิเตอร์' },
   { key: 'previous', header: 'ครั้งก่อน', align: 'right' },
-  { key: 'current', header: 'เลขล่าสุด', align: 'right' },
+  { key: 'current', header: 'ครั้งหลัง', align: 'right' },
+  { key: 'units', header: 'หน่วย', align: 'right' },
   { key: 'rate', header: 'บาท/หน่วย', align: 'right' },
-  { key: 'status', header: 'จดล่าสุด', align: 'left' },
+  { key: 'status', header: 'จดรอบนี้', align: 'left' },
 ];
 
 /**
@@ -98,13 +99,17 @@ export function submittedRow(form: SubmittedForm, stop: RoundStop): SubmittedRow
  * status pill.
  */
 function statusCell(stop: RoundStop, history: MeterReading[]): LedgerCell {
+  if (stop.state !== 'entered') {
+    return stop.previousReading === null
+      ? { kind: 'pill', tone: 'mute', label: 'ยังไม่เคยจด' }
+      : { kind: 'pill', tone: 'warn', label: 'ยังไม่จดรอบนี้' };
+  }
   let latest: MeterReading | null = null;
   for (const reading of history) {
-    if (!isSameMeter(reading, stop)) continue;
+    if (!isSameMeter(reading, stop) || reading.archived) continue;
     if (!latest || reading.readDate.getTime() >= latest.readDate.getTime()) latest = reading;
   }
-
-  if (!latest) return { kind: 'pill', tone: 'mute', label: 'ยังไม่เคยจด' };
+  if (!latest) return { kind: 'pill', tone: 'ok', label: 'จดแล้ว' };
 
   // The whole derivation, not a tick: the figure is the thing being checked,
   // and the date is what tells you whether it is this round's or last one's.
@@ -138,10 +143,16 @@ export function toMeterGridGroups(
 ): LedgerGroup[] {
   const cycle = cycleFor(cycleDate);
   const rows: LedgerRow[] = round.stops.map((stop): LedgerRow => {
+    // This round's saved figure fills the ครั้งหลัง cell: correcting it is
+    // typing over it, and saving replaces it (see saveRoundReading).
     const typed =
       submitted && !saved.has(stop.key)
         ? submittedRow(submitted, stop)
-        : { current: '', previous: '', rate: '' };
+        : { current: stop.currentReading === null ? '' : formatReading(stop.currentReading), previous: '', rate: '' };
+    const units =
+      stop.currentReading !== null && stop.previousReading !== null
+        ? stop.currentReading - stop.previousReading
+        : null;
     const where = `${stop.roomLabel} ${meterTypeLabel(stop.meterType)}`;
 
     return {
@@ -164,8 +175,12 @@ export function toMeterGridGroups(
           kind: 'input',
           name: fieldName(stop, 'current'),
           value: typed.current,
-          label: `เลขล่าสุด ${where}`,
+          label: `เลขครั้งหลัง ${where}`,
         },
+        units:
+          units === null
+            ? { kind: 'text', value: '—', muted: true }
+            : { kind: 'figure', value: units, measured: true },
         rate:
           stop.ratePerUnit === null
             ? {
@@ -223,6 +238,15 @@ export function draftsFromForm(
   for (const stop of round.stops) {
     const typed = submittedRow(form, stop);
     if (typed.current === '') continue;
+    // Unchanged from what this round already holds: nothing to save, and
+    // saving it again would only churn an archived copy.
+    if (
+      stop.currentReading !== null &&
+      Number(typed.current.replace(/,/g, '')) === stop.currentReading &&
+      typed.rate === ''
+    ) {
+      continue;
+    }
 
     const preview = previewEntry(stop, {
       currentReading: typed.current,

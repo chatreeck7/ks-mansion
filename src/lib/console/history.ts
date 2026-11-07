@@ -165,3 +165,23 @@ export function issuedLines(bills: Bill[], rooms: Room[]): IssuedLine[] {
       };
     });
 }
+
+/**
+ * The cycle whose bills are being cleared now: the newest cycle, up to this
+ * month's, that has bills issued.
+ *
+ * The notebook follows the calendar month (`cycleFor`), but money does not:
+ * from the 1st to the 25th of November the bills being paid are October's,
+ * due on 10 พ.ย. — November's do not exist until the 26th. So รับเงิน and
+ * ใบเก็บเงิน open on this cycle, and say which one it is, rather than on an
+ * empty November.
+ */
+export function collectingCycle(bills: readonly Bill[], now: Date): BillingCycle {
+  const current = cycleFor(now);
+  let newest: string | null = null;
+  for (const bill of bills) {
+    if (bill.archived || bill.cycle > current.id) continue;
+    if (newest === null || bill.cycle > newest) newest = bill.cycle;
+  }
+  return (newest && cycleFromId(newest)) || current;
+}

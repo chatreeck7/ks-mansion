@@ -1,5 +1,6 @@
 import { formatThaiDate, formatThaiMonth } from '@/lib/format/thai';
 import type { Room } from './room';
+import type { Lease } from './lease';
 
 /**
  * The collection cycle (KS-20): meters read on the 25th–26th, bill issued on
@@ -65,16 +66,18 @@ export function cycleIssuedIn(year: number, monthIndex: number): BillingCycle {
 }
 
 /**
- * The cycle a given day belongs to.
+ * The cycle — the notebook page — for a given day: the one issued this
+ * calendar month.
  *
- * The boundary is the 26th, not the 1st: on the 26th the meters are read and
- * a new bill goes out, so the 25th is the tail of the previous cycle and the
- * 26th is the head of the next. Anchoring on the calendar month instead would
- * put the five days before month end in the wrong cycle every time.
+ * It used to turn over on the 26th, so on 7 พ.ย. the console still showed
+ * "สมุดเดือน ต.ค.". The people who use it think in calendar months: in
+ * November they are on November's page, walking November's meters on the
+ * 25th and issuing on the 26th. Collecting October's bills in early November
+ * is a separate question, answered by `collectingCycle` in history.ts, not by
+ * keeping the whole notebook a month behind.
  */
 export function cycleFor(date: Date): BillingCycle {
-  const monthIndex = date.getDate() >= ISSUE_DAY ? date.getMonth() : date.getMonth() - 1;
-  return cycleIssuedIn(date.getFullYear(), monthIndex);
+  return cycleIssuedIn(date.getFullYear(), date.getMonth());
 }
 
 export function nextCycle(cycle: BillingCycle): BillingCycle {
@@ -114,8 +117,18 @@ export function isCollecting(cycle: BillingCycle, date: Date): boolean {
  * month's round. Every reading now belongs to exactly one cycle.
  */
 export function isReadingDay(cycle: BillingCycle, date: Date): boolean {
-  const day = startOfDay(date);
-  return day >= startOfDay(cycle.readFrom) && day < startOfDay(nextCycle(cycle).readFrom);
+  // The calendar month the cycle is issued in — the notebook page the round
+  // is walked on. A round walked on the 27th still counts (the real ต.ค. 2569
+  // round was), and a figure entered on the 7th of next month belongs to the
+  // next page, where it is that month's round.
+  return (
+    date.getFullYear() === cycle.issueDate.getFullYear() && date.getMonth() === cycle.issueDate.getMonth()
+  );
+}
+
+/** First day of the cycle's month: readings before it are earlier rounds. */
+export function cycleMonthStart(cycle: BillingCycle): Date {
+  return new Date(cycle.issueDate.getFullYear(), cycle.issueDate.getMonth(), 1);
 }
 
 /**
@@ -147,9 +160,9 @@ export function chargeLabel(charge: CycleCharge): string {
   return CHARGE_LABELS[charge];
 }
 
-/** 'รอบ 26 ก.ค. 2568 – 10 ส.ค. 2568' — the collection window, as it is walked. */
+/** 'รอบเคลียร์บิล 26 ก.ค. 2568 – 10 ส.ค. 2568' — issue to due, the days the bills are being cleared. */
 export function cycleLabel(cycle: BillingCycle): string {
-  return `รอบ ${formatThaiDate(cycle.issueDate)} – ${formatThaiDate(cycle.dueDate)}`;
+  return `รอบเคลียร์บิล ${formatThaiDate(cycle.issueDate)} – ${formatThaiDate(cycle.dueDate)}`;
 }
 
 /** What each line of the bill is actually for, spelled out. */
@@ -238,22 +251,6 @@ export function movedInDuring(startDate: Date, cycle: BillingCycle): boolean {
 }
 
 /**
- * How close to the meter round a move-in must be for its utilities to be
- * waived by default. Room 206 moved in one day before the 25th and the
- * building billed it nothing; a tenant in on the 1st has lived there most of
- * the period and the round's units are theirs. Ten days splits the two. The
- * bill run always lets an admin override either way.
- */
-export const LATE_MOVE_IN_DAYS = 10;
-
-/** Whether a move-in during this cycle came so late that its utilities are waived by default. */
-export function lateMoveIn(startDate: Date, cycle: BillingCycle): boolean {
-  if (!movedInDuring(startDate, cycle)) return false;
-  const cutoff = new Date(cycle.readFrom.getFullYear(), cycle.readFrom.getMonth(), cycle.readFrom.getDate() - LATE_MOVE_IN_DAYS);
-  return startOfDay(startDate) >= startOfDay(cutoff);
-}
-
-/**
  * The rent month a move-in's advance rent (ค่าเช่าล่วงหน้า 1 เดือน) pays for:
  * the first calendar month that starts on or after the move-in day. In on
  * the 1st, that month; any later day, the month after — the days in between
@@ -273,4 +270,17 @@ export function rentPaidInAdvance(startDate: Date, advanceRent: number, cycle: B
     covered.getFullYear() === cycle.rentMonth.getFullYear() &&
     covered.getMonth() === cycle.rentMonth.getMonth()
   );
+}
+
+/** The day a tenancy starts being billed: the agreed billing start, else the move-in day. */
+export function billingStart(lease: Pick<Lease, 'startDate' | 'billingStartDate'>): Date {
+  return lease.billingStartDate ?? lease.startDate;
+}
+
+/**
+ * Whether this cycle carries the tenancy's first bill: billing starts after
+ * the previous bill went out, and by this one's issue day.
+ */
+export function billingStartsIn(lease: Pick<Lease, 'startDate' | 'billingStartDate'>, cycle: BillingCycle): boolean {
+  return movedInDuring(billingStart(lease), cycle);
 }

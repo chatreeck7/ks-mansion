@@ -302,7 +302,7 @@ describe('leases', () => {
     'rent_rate', 'deposit', 'advance_rent', 'occupant_count',
     'end_reason', 'previous_lease_id', 'archived',
     'move_in_due', 'move_in_paid', 'move_out_due', 'move_out_paid',
-    'co_tenant_name', 'booking_fee',
+    'co_tenant_name', 'booking_fee', 'billing_start_date', 'prorate_per_day', 'start_meter',
   ];
 
   const LEASE_DRAFT = {
@@ -323,6 +323,9 @@ describe('leases', () => {
     moveOutPaid: null,
     coTenantName: null,
     bookingFee: null,
+    billingStartDate: null,
+    proratePerDay: null,
+    startMeter: null,
   };
 
   function leaseSheet(): InMemorySheets {

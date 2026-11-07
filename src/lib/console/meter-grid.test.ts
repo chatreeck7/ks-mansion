@@ -1,3 +1,4 @@
+import { cycleIssuedIn } from '@/lib/models/billing-cycle';
 import { describe, expect, it } from 'vitest';
 import { makeMeterReading, makeRoom } from '@/lib/test-support/fixtures';
 import type { LedgerInputCell } from '@/lib/models/ledger';
@@ -49,12 +50,12 @@ describe('toMeterGridGroups', () => {
   });
 
   it('labels the group with the collection cycle, not the day it was opened', () => {
-    expect(toMeterGridGroups(round, MAR)[0]!.label).toBe('รอบ 26 มี.ค. 2568 – 10 เม.ย. 2568');
+    expect(toMeterGridGroups(round, MAR)[0]!.label).toBe('รอบเคลียร์บิล 26 มี.ค. 2568 – 10 เม.ย. 2568');
   });
 
-  it('gives the 25th and the 26th the same label, because it is one round', () => {
+  it('gives every day of the month the same label, because it is one page of the notebook', () => {
     const eve = toMeterGridGroups(round, new Date(2025, 2, 25))[0]!.label;
-    expect(eve).toBe(toMeterGridGroups(round, new Date(2025, 1, 26))[0]!.label);
+    expect(eve).toBe(toMeterGridGroups(round, new Date(2025, 2, 27))[0]!.label);
   });
 
   it('supplies a cell for every declared column, as LedgerTable requires', () => {
@@ -120,24 +121,23 @@ describe('toMeterGridGroups', () => {
       expect(row.cells.status).toEqual({ kind: 'pill', tone: 'mute', label: 'ยังไม่เคยจด' });
     });
 
-    it('shows the date and the derivation of the last reading', () => {
-      const row = toMeterGridGroups(round, MAR, undefined, new Set(), HISTORY)[0]!.rows.find(
-        (r) => r.id === '101:electricity',
-      )!;
-
-      expect(row.cells.status).toEqual({
-        kind: 'text',
-        value: '26 ก.พ. 2568 · 1,200 → 1,256 = 56 หน่วย',
-      });
+    it('says a meter with history is still waiting for this round', () => {
+      const row = toMeterGridGroups(
+        startRound(ROOMS, HISTORY, cycleIssuedIn(2025, 2)),
+        MAR,
+        undefined,
+        new Set(),
+        HISTORY,
+      )[0]!.rows.find((r) => r.id === '101:electricity')!;
+      expect(row.cells.status).toEqual({ kind: 'pill', tone: 'warn', label: 'ยังไม่จดรอบนี้' });
     });
 
     /**
-     * Exactly the post-save render, and the whole point of the column: the
-     * round is rebuilt from the sheet, so the stop is `unread` again and the
-     * figure just recorded has become its ครั้งก่อน. The row must still say
-     * it was read, from the sheet rather than from the round.
+     * The post-save render. ครั้งก่อน stays at last round's close (owner,
+     * 7 พ.ย. 2569) — the figure just saved is this round's ครั้งหลัง, shown
+     * in its cell and in the status with its working.
      */
-    it('still reports the reading once its figure has moved into ครั้งก่อน', () => {
+    it("keeps ครั้งก่อน at last round's close after a save, and shows the saved figure", () => {
       const recorded = [
         ...HISTORY,
         makeMeterReading({
@@ -149,14 +149,16 @@ describe('toMeterGridGroups', () => {
           readDate: MAR,
         }),
       ];
-      const rebuilt = startRound(ROOMS, recorded);
+      const rebuilt = startRound(ROOMS, recorded, cycleIssuedIn(2025, 2));
       const stop = rebuilt.stops.find((candidate) => candidate.key === '101:electricity')!;
-      expect(stop.state).toBe('unread');
-      expect(stop.previousReading).toBe(1312);
+      expect(stop).toMatchObject({ state: 'entered', previousReading: 1256, currentReading: 1312 });
 
       const row = toMeterGridGroups(rebuilt, MAR, undefined, new Set(), recorded)[0]!.rows.find(
         (r) => r.id === '101:electricity',
       )!;
+      expect(row.cells.previous).toMatchObject({ kind: 'figure', value: 1256 });
+      expect(row.cells.current).toMatchObject({ kind: 'input', value: '1,312' });
+      expect(row.cells.units).toMatchObject({ kind: 'figure', value: 56 });
       expect(row.cells.status).toEqual({
         kind: 'text',
         value: '26 มี.ค. 2568 · 1,256 → 1,312 = 56 หน่วย',
@@ -175,7 +177,7 @@ describe('toMeterGridGroups', () => {
         }),
       ];
       const row = toMeterGridGroups(
-        startRound(ROOMS, recorded),
+        startRound(ROOMS, recorded, cycleIssuedIn(2025, 2)),
         MAR,
         undefined,
         new Set(),

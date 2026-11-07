@@ -50,6 +50,10 @@ const CONTRACT: TabContract = {
     // KS-31: the contract's second signature line and its booking deposit.
     'co_tenant_name',
     'booking_fee',
+    // Move-in terms agreed at signing (7 พ.ย. 2569). All may be blank.
+    'billing_start_date',
+    'prorate_per_day',
+    'start_meter',
   ],
   identity: ['id', 'room_id', 'tenant_id', 'start_date'],
 };
@@ -168,6 +172,11 @@ function parseLease(tab: Tab, row: string[], rowNumber: number): Lease {
     moveOutPaid: optionalNumberCell(tab, row, rowNumber, 'move_out_paid'),
     coTenantName: cellValue(tab, row, 'co_tenant_name') || null,
     bookingFee: optionalNumberCell(tab, row, rowNumber, 'booking_fee'),
+    billingStartDate: cellValue(tab, row, 'billing_start_date')
+      ? parseDate(cellValue(tab, row, 'billing_start_date'), rowNumber, 'billing_start_date')
+      : null,
+    proratePerDay: optionalNumberCell(tab, row, rowNumber, 'prorate_per_day'),
+    startMeter: optionalNumberCell(tab, row, rowNumber, 'start_meter'),
     archived: nullableBooleanCell(tab, row, rowNumber, ARCHIVED_COLUMN) ?? false,
   };
 }
@@ -209,6 +218,11 @@ function toRowValues(fields: Partial<LeaseDraft>): RowValues {
   if (fields.moveOutPaid !== undefined) values['move_out_paid'] = fields.moveOutPaid ?? '';
   if (fields.coTenantName !== undefined) values['co_tenant_name'] = fields.coTenantName ?? '';
   if (fields.bookingFee !== undefined) values['booking_fee'] = fields.bookingFee ?? '';
+  if (fields.billingStartDate !== undefined) {
+    values['billing_start_date'] = fields.billingStartDate ? formatThaiDate(fields.billingStartDate) : '';
+  }
+  if (fields.proratePerDay !== undefined) values['prorate_per_day'] = fields.proratePerDay ?? '';
+  if (fields.startMeter !== undefined) values['start_meter'] = fields.startMeter ?? '';
 
   return values;
 }

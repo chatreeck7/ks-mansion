@@ -227,11 +227,15 @@ export function paymentsFromForm(
     }
 
     const note = form.get(noteFieldName(bill));
+    // Each row says how its money came in (7 พ.ย. 2569): one room hands over
+    // cash while the next transfers, and one save records both. `method` is
+    // only the fallback for a form that does not send a per-row choice.
+    const rowMethod = form.get(methodFieldName(bill));
     drafts.push({
       billId: bill.id,
       paidOn,
       amount,
-      method,
+      method: rowMethod === 'cash' || rowMethod === 'transfer' ? rowMethod : method,
       note: typeof note === 'string' ? note.trim() || null : null,
     });
   }
@@ -266,4 +270,9 @@ export function parsePaidOn(raw: unknown, today: Date): { date: Date | null; err
   }
 
   return { date, error: null };
+}
+
+/** The per-row โอน / เงินสด choice. */
+export function methodFieldName(bill: Pick<Bill, 'id'>): string {
+  return `method:${bill.id}`;
 }

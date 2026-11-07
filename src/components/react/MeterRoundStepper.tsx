@@ -3,6 +3,7 @@ import {
   canClose,
   currentStop,
   enterReading,
+  goToStop,
   progress,
   skipStop,
   type Round,
@@ -59,6 +60,10 @@ export default function MeterRoundStepper({
    * and rate, and each of those is chosen by tapping its line.
    */
   const [target, setTarget] = useState<keyof EntryFields>('currentReading');
+  /** The last save, so a wrong figure can be reopened with one tap. */
+  const [lastSaved, setLastSaved] = useState<{ index: number; label: string; figure: number } | null>(null);
+  /** Whether the list of every room is open, for jumping anywhere. */
+  const [showAll, setShowAll] = useState(false);
 
   const stop = currentStop(round);
   const view = stop ? describeStop(stop) : null;
@@ -70,10 +75,24 @@ export default function MeterRoundStepper({
 
   function advance(next: Round) {
     setRound(next);
-    setFields(EMPTY_FIELDS);
+    // A stop already read this round opens with its figure, ready to be
+    // corrected: saving again replaces it (7 พ.ย. 2569).
+    const opened = currentStop(next);
+    setFields(
+      opened && opened.state === 'entered' && opened.currentReading !== null
+        ? { ...EMPTY_FIELDS, currentReading: String(opened.currentReading) }
+        : EMPTY_FIELDS,
+    );
     setError(null);
     setSkipping(false);
+    setShowAll(false);
     setTarget('currentReading');
+  }
+
+  /** Back, forward or anywhere: the round is walked in whatever order the building allows. */
+  function open(index: number) {
+    if (busy) return;
+    advance(goToStop(round, index));
   }
 
   function press(key: PadKey) {
@@ -146,6 +165,22 @@ export default function MeterRoundStepper({
         }),
       });
 
+      if (response.ok) {
+        // The server recomputes ครั้งก่อน from the sheet; show what it stored.
+        const saved = (await response.json().catch(() => null)) as
+          | { previousReading?: number; currentReading?: number }
+          | null;
+        const at = next.stops.findIndex((candidate) => candidate.key === stop.key);
+        if (saved && typeof saved.previousReading === 'number') {
+          next = {
+            ...next,
+            stops: next.stops.map((s, i) =>
+              i === at ? { ...s, previousReading: saved.previousReading!, currentReading: saved.currentReading ?? s.currentReading } : s,
+            ),
+          };
+        }
+        setLastSaved({ index: at, label: stop.roomLabel, figure: recorded.currentReading! });
+      }
       if (!response.ok) {
         const body = (await response.json().catch(() => null)) as { message?: string } | null;
         // The repository's own message names the field and the reason;
@@ -180,7 +215,7 @@ export default function MeterRoundStepper({
   }
 
   if (!stop || !view) {
-    return <RoundComplete round={round} exitHref={exitHref} closed={canClose(round)} />;
+    return <RoundComplete round={round} exitHref={exitHref} closed={canClose(round)} onOpen={open} />;
   }
 
   const ready = preview.status === 'ok';
@@ -225,18 +260,74 @@ export default function MeterRoundStepper({
         <h1 className="mt-2 font-hand text-[21px] font-semibold leading-[1.4]">
           ขั้น 1 · จดมิเตอร์{view.meterLabel}
         </h1>
+        {/* Walk in any order: back to fix a figure, ahead past a locked door. */}
+        <nav aria-label="เลือกห้อง" className="mt-1 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => open(index - 1)}
+            disabled={busy || index === 0}
+            className={`${buttonClass('secondary', 'sm')} disabled:opacity-40`}
+          >
+            ← ก่อนหน้า
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowAll((v) => !v)}
+            aria-expanded={showAll}
+            className={`flex-1 ${buttonClass('quiet', 'sm')} font-medium`}
+          >
+            {showAll ? 'ปิดรายการห้อง' : 'ทุกห้อง ▾'}
+          </button>
+          <button
+            type="button"
+            onClick={() => open(index + 1)}
+            disabled={busy || index >= round.stops.length - 1}
+            className={`${buttonClass('secondary', 'sm')} disabled:opacity-40`}
+          >
+            ถัดไป →
+          </button>
+        </nav>
+        {showAll && (
+          <ul className="m-0 mt-2 grid list-none grid-cols-4 gap-1.5 p-0">
+            {round.stops.map((s, i) => (
+              <li key={s.key}>
+                <button
+                  type="button"
+                  onClick={() => open(i)}
+                  aria-current={i === index ? 'step' : undefined}
+                  className={`flex min-h-11 w-full flex-col items-center justify-center rounded-md border-[1.5px] text-sm ${
+                    i === index ? 'border-console-ink bg-console-highlight' : 'border-console-line bg-console-card'
+                  } ${FOCUS}`}
+                >
+                  <span className="font-hand font-semibold">{s.roomLabel}{s.meterType === 'water' ? ' น้ำ' : ''}</span>
+                  <span className={s.state === 'entered' ? 'text-console-ok' : s.state === 'skipped' ? 'text-console-warn' : 'text-console-ink-faint'}>
+                    {s.state === 'entered' ? '✓ จดแล้ว' : s.state === 'skipped' ? '○ ข้าม' : '· ยังไม่จด'}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </header>
 
       <form onSubmit={submit} className="flex flex-1 flex-col">
         {/* The page of the logbook: the line before, this line, the next. */}
         <div className="mt-1 border-t border-console-rule bg-[linear-gradient(90deg,transparent_58px,#E7B9B2_58px_59.5px,transparent_59.5px)]">
           {before && (
-            <div className="flex h-11 items-center border-b border-console-rule text-base text-console-ink-soft">
+            <button
+              type="button"
+              onClick={() => open(index - 1)}
+              className={`flex h-11 w-full items-center border-b border-console-rule text-left text-base text-console-ink-soft ${FOCUS}`}
+            >
               <span className="w-[58px] text-center font-hand font-semibold">{before.roomLabel}</span>
               <span className="pl-3">
-                {before.state === 'entered' ? '✓ จดแล้ว' : before.state === 'skipped' ? '○ ข้ามไว้' : ''}
+                {before.state === 'entered'
+                  ? `✓ ${before.currentReading?.toLocaleString('en-US') ?? 'จดแล้ว'} · แตะเพื่อแก้`
+                  : before.state === 'skipped'
+                    ? '○ ข้ามไว้ · แตะเพื่อกลับไปจด'
+                    : 'แตะเพื่อกลับไป'}
               </span>
-            </div>
+            </button>
           )}
           <div className="flex min-h-28 items-center border-b border-console-rule bg-console-highlight/50">
             <div className="w-[58px] flex-none text-center font-hand text-[22px] font-semibold">{view.roomLabel}</div>
@@ -271,10 +362,14 @@ export default function MeterRoundStepper({
             />
           )}
           {after && (
-            <div className="flex h-11 items-center border-b border-console-rule text-base text-console-ink-soft">
+            <button
+              type="button"
+              onClick={() => open(index + 1)}
+              className={`flex h-11 w-full items-center border-b border-console-rule text-left text-base text-console-ink-soft ${FOCUS}`}
+            >
               <span className="w-[58px] text-center font-hand font-semibold">{after.roomLabel}</span>
-              <span className="pl-3">ถัดไป</span>
-            </div>
+              <span className="pl-3">{after.state === 'entered' ? '✓ จดแล้ว' : 'ถัดไป'}</span>
+            </button>
           )}
         </div>
 
@@ -287,6 +382,21 @@ export default function MeterRoundStepper({
         <p aria-live="polite" className={`min-h-[54px] px-4 py-2 text-center text-base font-semibold leading-snug ${note.tone}`}>
           {note.text}
         </p>
+
+        {lastSaved && lastSaved.index !== index && (
+          <p className="mx-4 mb-2 flex items-center justify-between gap-2 rounded-lg bg-console-ok-bg px-3 py-1.5 text-[15px] text-console-ok">
+            <span>บันทึกห้อง {lastSaved.label}: {lastSaved.figure.toLocaleString('en-US')}</span>
+            <button type="button" onClick={() => open(lastSaved.index)} className={`font-semibold underline ${FOCUS}`}>
+              แก้
+            </button>
+          </p>
+        )}
+
+        {stop.state === 'entered' && (
+          <p className="mx-4 mb-2 rounded-lg bg-console-spine px-3 py-1.5 text-[15px] text-console-ink-soft">
+            ห้องนี้จดรอบนี้แล้ว — แก้ตัวเลขแล้วกดบันทึก ค่าใหม่จะแทนค่าเดิม
+          </p>
+        )}
 
         {error && (
           <p role="alert" className="mx-4 mb-2 rounded-lg border-l-4 border-console-crit bg-console-crit-bg px-3 py-2 text-[15px] font-medium text-console-crit">
@@ -311,7 +421,7 @@ export default function MeterRoundStepper({
             disabled={!ready || busy}
             className={`mt-2 ${buttonClass('primary', 'lg', true)} min-h-[54px] text-[17px]`}
           >
-            {busy ? 'กำลังบันทึก…' : 'จดลงสมุด →'}
+            {busy ? 'กำลังบันทึก…' : stop.state === 'entered' ? 'บันทึกค่าใหม่ →' : 'จดลงสมุด →'}
           </button>
           {skipping ? (
             <div className="mt-2 flex gap-2">
@@ -448,10 +558,12 @@ function RoundComplete({
   round,
   exitHref,
   closed,
+  onOpen,
 }: {
   round: Round;
   exitHref: string;
   closed: boolean;
+  onOpen: (index: number) => void;
 }) {
   const counts = progress(round);
   const unread = round.stops.filter((stop) => stop.state !== 'entered');
@@ -485,18 +597,28 @@ function RoundComplete({
           <h2 className="mb-2 font-hand text-[17px] font-semibold text-console-crit">ยังไม่ได้จด</h2>
           <ul className="m-0 flex list-none flex-col border-t-2 border-console-ink p-0">
             {unread.map((stop) => (
-              <li key={stop.key} className="flex min-h-11 items-center gap-3 border-b border-console-rule text-base">
-                <span className="w-12 font-hand font-semibold">{stop.roomLabel}</span>
-                <span className="text-console-ink-soft">
-                  {stop.meterType === 'water' ? 'น้ำ' : 'ไฟฟ้า'}
-                  {stop.note && ` — ${stop.note}`}
-                </span>
+              <li key={stop.key} className="border-b border-console-rule">
+                <button
+                  type="button"
+                  onClick={() => onOpen(round.stops.indexOf(stop))}
+                  className={`flex min-h-11 w-full items-center gap-3 text-left text-base ${FOCUS}`}
+                >
+                  <span className="w-12 font-hand font-semibold">{stop.roomLabel}</span>
+                  <span className="flex-1 text-console-ink-soft">
+                    {stop.meterType === 'water' ? 'น้ำ' : 'ไฟฟ้า'}
+                    {stop.note && ` — ${stop.note}`}
+                  </span>
+                  <span className="text-console-ink">จด →</span>
+                </button>
               </li>
             ))}
           </ul>
         </div>
       )}
 
+      <button type="button" onClick={() => onOpen(0)} className={`mb-2 ${buttonClass('secondary', 'lg', true)}`}>
+        ย้อนดู/แก้ตัวเลขที่จดแล้ว
+      </button>
       <a
         href={exitHref}
         className={`mt-auto ${buttonClass('primary', 'lg', true)} min-h-[54px]`}

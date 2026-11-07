@@ -30,9 +30,20 @@ function dayMonth(date: Date): string {
   return `${date.getDate()} ${THAI_MONTHS_SHORT[date.getMonth()]}`;
 }
 
-/** 'รอบ 26 ก.ย. – 10 ต.ค. 2569' — the year once, at the end. */
+/**
+ * 'รอบเคลียร์บิล 26 ก.ย. – 10 ต.ค. 2569' — the year once, at the end.
+ *
+ * Named for what the window is (owner's wording, 7 พ.ย. 2569): the days the
+ * cycle's bills are out and being cleared, from issue to due date. A bare
+ * "รอบ 26 ก.ย. – 10 ต.ค." read like the notebook's own dates.
+ */
 export function shortCycleLabel(cycle: BillingCycle): string {
-  return `รอบ ${dayMonth(cycle.issueDate)} – ${dayMonth(cycle.dueDate)} ${toBuddhistYear(cycle.dueDate.getFullYear())}`;
+  return `รอบเคลียร์บิล ${dayMonth(cycle.issueDate)} – ${dayMonth(cycle.dueDate)} ${toBuddhistYear(cycle.dueDate.getFullYear())}`;
+}
+
+/** 'จดมิเตอร์ 25 พ.ย. · ออกบิล 26 พ.ย.' — what this page of the notebook asks for. */
+export function notebookScheduleLabel(cycle: BillingCycle): string {
+  return `จดมิเตอร์ ${dayMonth(cycle.readFrom)} · ออกบิล ${dayMonth(cycle.issueDate)}`;
 }
 
 /** Whole days from `today` to the due date; negative once it has passed. */

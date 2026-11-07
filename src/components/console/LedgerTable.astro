@@ -18,14 +18,21 @@ import StatusPill from './StatusPill.astro';
 interface Props {
   columns: LedgerColumn[];
   groups: LedgerGroup[];
+  /**
+   * Spreadsheet look, for data entry (จดมิเตอร์, 7 พ.ย. 2569): ruled cells
+   * that touch, inputs that fill their cell edge to edge with no rounding,
+   * and every figure — typed or shown — right-aligned on the same padding so
+   * the numbers in a row line up like Excel. Off everywhere else.
+   */
+  sheet?: boolean;
 }
 
-const { columns, groups } = Astro.props;
+const { columns, groups, sheet = false } = Astro.props;
 const showGroupHeadings = groups.length > 1 || groups.some((g) => g.label);
 ---
 
 <div class="overflow-x-auto">
-  <table class="w-full border-collapse border-t-2 border-console-ink text-[15px]">
+  <table class:list={['w-full border-collapse border-t-2 border-console-ink text-[15px]', sheet && 'sheet-table bg-console-card']}>
     <thead>
       <tr>
         {columns.map((column) => (
@@ -34,6 +41,7 @@ const showGroupHeadings = groups.length > 1 || groups.some((g) => g.label);
             class:list={[
               'whitespace-nowrap border-b border-console-rule px-3 py-2 text-sm font-semibold text-console-ink-soft',
               column.align === 'right' ? 'text-right' : 'text-left',
+              sheet && 'border border-console-line-strong bg-console-spine',
             ]}
           >
             {column.header}
@@ -76,7 +84,9 @@ const showGroupHeadings = groups.length > 1 || groups.some((g) => g.label);
                 return (
                   <td
                     class:list={[
-                      'h-[46px] px-3 py-1.5 align-middle',
+                      sheet
+                        ? ['h-10 border border-console-line-strong align-middle', cell.kind === 'input' ? 'p-0' : 'px-3 py-0']
+                        : 'h-[46px] px-3 py-1.5 align-middle',
                       column.align === 'right' && 'text-right',
                       (cell.kind === 'figure' || cell.kind === 'input') &&
                         'font-figure tabular-nums',
@@ -93,9 +103,11 @@ const showGroupHeadings = groups.length > 1 || groups.some((g) => g.label);
                         value={cell.value}
                         aria-label={cell.label}
                         placeholder={cell.placeholder}
+                        data-sheet-input={sheet ? column.key : undefined}
                         class:list={[
-                          INPUT,
-                          'min-h-9 min-w-24 py-1',
+                          sheet
+                            ? 'block h-10 w-full min-w-28 rounded-none border-0 bg-transparent px-3 text-[15px] text-console-ink outline-none focus:bg-console-highlight/25 focus:shadow-[inset_0_0_0_2px_#1E2D4A]'
+                            : [INPUT, 'min-h-9 min-w-24 py-1'],
                           cell.mode === 'text' ? 'font-console' : 'font-figure tabular-nums',
                           column.align === 'right' && 'text-right',
                         ]}

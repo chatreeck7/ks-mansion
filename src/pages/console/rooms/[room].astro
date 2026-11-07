@@ -7,7 +7,7 @@ import FactList, { type Fact } from '@/components/console/FactList.astro';
 import LeaseSection from '@/components/console/LeaseSection.astro';
 import Mark from '@/components/console/Mark.astro';
 import PageHeader from '@/components/console/PageHeader.astro';
-import { shortCycleLabel } from '@/lib/console/logbook';
+import { notebookScheduleLabel } from '@/lib/console/logbook';
 import type { MarkKind } from '@/lib/console/marks';
 import { consolePath } from '@/lib/console/paths';
 import { formatBaht, formatReading, formatThaiDate, formatThaiMonth } from '@/lib/format/thai';
@@ -189,7 +189,7 @@ const payable = thisSettlement && thisSettlement.outstanding > 0;
   <div class="flex flex-col gap-4">
     <Card>
       <h2 class="mb-1 font-hand text-[17px] font-semibold">
-        เดือนนี้ <span class="hidden desk:inline">({shortCycleLabel(cycle)})</span>
+        เดือนนี้ <span class="hidden desk:inline">({notebookScheduleLabel(cycle)})</span>
       </h2>
       <ul class="m-0 grid list-none p-0 desk:grid-cols-4">
         {
