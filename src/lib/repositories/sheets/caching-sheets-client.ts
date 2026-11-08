@@ -69,6 +69,14 @@ export function createCachingSheetsClient(
         cache.delete(key(tabName));
       }
     },
+    async appendRows(tabName: string, rows: CellValue[][]): Promise<void> {
+      cache.delete(key(tabName));
+      try {
+        await inner.appendRows(tabName, rows);
+      } finally {
+        cache.delete(key(tabName));
+      }
+    },
     async updateRow(tabName: string, rowNumber: number, values: CellValue[]): Promise<void> {
       cache.delete(key(tabName));
       try {

@@ -112,3 +112,35 @@ export function moveChanges(
     { id: other.id, position: self.position },
   ];
 }
+
+const sameBlock = (a: Pick<TemplateBlockDraft, 'kind' | 'heading' | 'body'>, b: Pick<TemplateBlockDraft, 'kind' | 'heading' | 'body'>) =>
+  a.kind === b.kind && clean(a.heading) === clean(b.heading) && clean(a.body) === clean(b.body);
+
+/**
+ * The built-in blocks a document is still missing, when what is in the
+ * sheet is only part of the built-in wording — a copy that stopped half
+ * way. Empty once anyone has written a block of their own, so a document
+ * someone has edited is never "topped up" behind their back.
+ *
+ * A missing block keeps its built-in position when that number is free,
+ * so the copy lands in the order it was meant to.
+ */
+export function missingDefaultBlocks(
+  blocks: readonly TemplateBlock[],
+  defaults: readonly TemplateBlockDraft[],
+): TemplateBlockDraft[] {
+  const live = blocks.filter((block) => !block.archived);
+  if (!live.every((block) => defaults.some((d) => sameBlock(block, d)))) return [];
+  const taken = new Set(live.map((block) => block.position));
+  let last = Math.max(0, ...live.map((block) => block.position), ...defaults.map((d) => d.position));
+  return defaults
+    .filter((d) => !live.some((block) => sameBlock(block, d)))
+    .map((d) => {
+      if (!taken.has(d.position)) {
+        taken.add(d.position);
+        return d;
+      }
+      last += 10;
+      return { ...d, position: last };
+    });
+}

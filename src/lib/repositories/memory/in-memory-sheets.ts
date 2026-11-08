@@ -55,6 +55,11 @@ export function createInMemorySheets(tabs: Record<string, unknown[][]>): InMemor
       tab(tabName).push(values.map(asCell));
     },
 
+    async appendRows(tabName, rows: CellValue[][]) {
+      writes += 1;
+      for (const values of rows) tab(tabName).push(values.map(asCell));
+    },
+
     async updateRow(tabName, rowNumber, values: CellValue[]) {
       // Refuses more than the real API does, on purpose.
       //

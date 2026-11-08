@@ -14,6 +14,8 @@ export interface DocumentTemplateRepository {
   /** Live blocks of one document, in print order. */
   listBlocks(docType: TemplateDocType): Promise<TemplateBlock[]>;
   addBlock(draft: TemplateBlockDraft): Promise<TemplateBlock>;
+  /** Several blocks in one write — what seeding a document needs. */
+  addBlocks(drafts: readonly TemplateBlockDraft[]): Promise<TemplateBlock[]>;
   updateBlock(id: string, changes: Partial<TemplateBlockDraft>): Promise<TemplateBlock>;
   /** Soft delete (rule 7): the row stays, the block stops printing. */
   archiveBlock(id: string): Promise<TemplateBlock>;

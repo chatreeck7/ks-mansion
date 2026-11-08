@@ -6,7 +6,13 @@ import DetailSheet from '@/components/console/DetailSheet.astro';
 import ErrorSummary from '@/components/console/ErrorSummary.astro';
 import Notice from '@/components/console/Notice.astro';
 import { consolePath } from '@/lib/console/paths';
-import { blockChangesFromForm, moveChanges, newBlockFromForm, settingChangesFromForm } from '@/lib/console/template-form';
+import {
+  blockChangesFromForm,
+  missingDefaultBlocks,
+  moveChanges,
+  newBlockFromForm,
+  settingChangesFromForm,
+} from '@/lib/console/template-form';
 import { buttonClass, INPUT, LINK } from '@/lib/console/ui';
 import { contractPlaceholders } from '@/lib/documents/contract';
 import { DEFAULT_MONTHLY_REPORT_BLOCKS } from '@/lib/documents/default-monthly-report';
@@ -42,6 +48,7 @@ import {
  */
 
 const env = Astro.locals.runtime?.env;
+const defaultsFor = (doc: TemplateDocType) => (doc === 'monthly_report' ? DEFAULT_MONTHLY_REPORT_BLOCKS : DEFAULT_CONTRACT_BLOCKS);
 const TABS = ['contract', 'monthly_report', 'settings'] as const;
 type Tab = (typeof TABS)[number];
 const requestedTab = Astro.url.searchParams.get('doc');
@@ -94,10 +101,12 @@ if (Astro.request.method === 'POST') {
         errors.push('ยังไม่ได้พิมพ์ข้อความที่จะเพิ่ม');
       }
     } else if (action === 'seed') {
-      if ((await templatesRepo.listBlocks(docType)).length === 0) {
-        const defaults = docType === 'monthly_report' ? DEFAULT_MONTHLY_REPORT_BLOCKS : DEFAULT_CONTRACT_BLOCKS;
-        for (const block of defaults) await templatesRepo.addBlock(block);
-        notice = 'คัดลอกข้อความตั้งต้นลงชีตแล้ว — แก้ได้ทีละส่วนด้านล่าง';
+      // One write for the lot: writing block by block re-read the tab each
+      // time and was cut off on Cloudflare after two of nineteen.
+      const missing = missingDefaultBlocks(await templatesRepo.listBlocks(docType), defaultsFor(docType));
+      if (missing.length > 0) {
+        await templatesRepo.addBlocks(missing);
+        notice = `คัดลอกข้อความตั้งต้น ${missing.length} ส่วนลงชีตแล้ว — แก้ได้ทีละส่วนด้านล่าง`;
       }
     }
   } catch (cause) {
@@ -133,6 +142,7 @@ const previewSrc =
       ? `${consolePath(`console/leases/${previewId}/contract`)}?embed=1`
       : null;
 const docLabel = TEMPLATE_DOC_TYPE_LABELS[docType];
+const missing = blocks.length > 0 ? missingDefaultBlocks(blocks, defaultsFor(docType)) : [];
 ---
 
 <ConsoleFrame title="แม่แบบเอกสาร" activeSection="templates">
@@ -199,6 +209,14 @@ const docLabel = TEMPLATE_DOC_TYPE_LABELS[docType];
             </form>
           </section>
         ) : (
+          <Fragment>
+          {missing.length > 0 && (
+            <form method="POST" class="mb-3 flex flex-wrap items-center gap-3 rounded-xl border border-console-warn/40 bg-console-warn-bg px-4 py-3">
+              <input type="hidden" name="action" value="seed" />
+              <p class="m-0 flex-1 text-[15px] text-console-ink">ข้อความตั้งต้นยังคัดลอกไม่ครบ — ขาดอีก {missing.length} ส่วน</p>
+              <button type="submit" class={buttonClass('primary', 'md', false)}>เติมอีก {missing.length} ส่วน</button>
+            </form>
+          )}
           <form method="POST" class="flex flex-col gap-3" data-template-form>
             <input type="hidden" name="action" value="blocks" />
 
@@ -284,6 +302,7 @@ const docLabel = TEMPLATE_DOC_TYPE_LABELS[docType];
               );
             })}
           </form>
+          </Fragment>
         )}
 
         {blocks.length > 0 && (

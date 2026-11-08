@@ -9,6 +9,7 @@ function fakeInner(): SheetsClient & { reads: ReturnType<typeof vi.fn> } {
     reads,
     getTabValues: reads,
     appendRow: vi.fn(async () => {}),
+    appendRows: vi.fn(async () => {}),
     updateRow: vi.fn(async () => {}),
   };
 }

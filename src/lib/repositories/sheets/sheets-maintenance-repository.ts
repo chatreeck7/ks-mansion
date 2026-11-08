@@ -136,6 +136,7 @@ export function createSheetsMaintenanceRepository(client: SheetsClient): Mainten
     archiveEquipment: equipment.archive,
     listRecords: logs.list,
     addRecord: logs.create,
+    addRecords: logs.createMany,
     archiveRecord: logs.archive,
   };
 }
