@@ -1,0 +1,127 @@
+---
+// src/components/console/MoveInTermsFields.astro
+import FormField from './FormField.astro';
+import { INPUT } from '@/lib/console/ui';
+
+/**
+ * "เงื่อนไขช่วงเข้าอยู่" — the move-in terms agreed at signing (7 พ.ย. 2569).
+ *
+ * Every move-in is negotiated: in on the 30th and billed from the 1st, a
+ * part month charged by the day or not at all. So the console asks once,
+ * here, in the owner's own terms, and then simply follows it. The preview
+ * under the box is the same calculation the bill run uses (`rentForCycle`),
+ * so what is promised here is what the first bill charges.
+ *
+ * Used by the new-lease form and the contract-details form.
+ */
+interface Props {
+  billingStart: 'move-in' | 'next-month' | 'custom';
+  billingStartDate: string;
+  prorate: 'none' | 'daily';
+  proratePerDay: string | number;
+  startMeter: string | number;
+  /** Room id → latest electricity figure, to prefill the start meter. */
+  latestMeters?: Record<string, number>;
+  preview?: string | null;
+  /** Whether to show the "preview first bill" button (needs its own submit intent). */
+  canPreview?: boolean;
+}
+
+const {
+  billingStart,
+  billingStartDate,
+  prorate,
+  proratePerDay,
+  startMeter,
+  latestMeters = {},
+  preview = null,
+  canPreview = true,
+} = Astro.props;
+const RADIO = 'h-5 w-5 accent-[#1E2D4A]';
+---
+
+<fieldset class="m-0 rounded-xl border border-console-line bg-console-spine/40 p-4 sm:col-span-2" data-move-in data-latest-meters={JSON.stringify(latestMeters)}>
+  <legend class="px-1 font-hand text-[17px] font-semibold text-console-ink">เงื่อนไขช่วงเข้าอยู่</legend>
+  <p class="mb-3 mt-0 text-sm text-console-ink-soft">ตกลงกับผู้เช่าไว้อย่างไร ใส่ตรงนี้ครั้งเดียว ระบบคิดบิลตามนี้ให้เอง</p>
+
+  <div class="flex flex-col gap-4">
+    <div role="radiogroup" aria-labelledby="billing-start-label" class="flex flex-col gap-1.5">
+      <span id="billing-start-label" class="text-[15px] font-medium text-console-ink-soft">1. เริ่มคิดค่าเช่าตั้งแต่</span>
+      <label class="inline-flex min-h-11 items-center gap-2">
+        <input type="radio" name="billingStart" value="move-in" checked={billingStart === 'move-in'} class={RADIO} />
+        วันเข้าอยู่ (วันเริ่มเช่า)
+      </label>
+      <label class="inline-flex min-h-11 items-center gap-2">
+        <input type="radio" name="billingStart" value="next-month" checked={billingStart === 'next-month'} class={RADIO} />
+        วันที่ 1 ของเดือนถัดไป
+      </label>
+      <label class="inline-flex min-h-11 flex-wrap items-center gap-2">
+        <input type="radio" name="billingStart" value="custom" checked={billingStart === 'custom'} class={RADIO} />
+        กำหนดวันเอง
+        <input type="date" name="billingStartDate" value={billingStartDate} aria-label="วันเริ่มคิดค่าเช่า" class:list={[INPUT, 'w-auto']} />
+      </label>
+    </div>
+
+    <div role="radiogroup" aria-labelledby="prorate-label" class="flex flex-col gap-1.5">
+      <span id="prorate-label" class="text-[15px] font-medium text-console-ink-soft">2. ช่วงก่อนเริ่มเดือนเต็ม (เศษเดือน)</span>
+      <label class="inline-flex min-h-11 items-center gap-2">
+        <input type="radio" name="prorate" value="none" checked={prorate === 'none'} class={RADIO} />
+        ไม่คิด
+      </label>
+      <label class="inline-flex min-h-11 flex-wrap items-center gap-2">
+        <input type="radio" name="prorate" value="daily" checked={prorate === 'daily'} class={RADIO} />
+        คิดรายวัน
+        <input type="number" name="proratePerDay" value={proratePerDay} min="0" inputmode="numeric" aria-label="บาทต่อวัน" class:list={[INPUT, 'w-28 text-right font-figure']} />
+        บาท/วัน
+      </label>
+    </div>
+
+    <FormField
+      name="startMeter"
+      label="3. มิเตอร์ไฟเริ่มต้น"
+      type="number"
+      value={startMeter}
+      span="half"
+      min={0}
+      inputmode="numeric"
+      hint="เติมให้จากเลขมิเตอร์ล่าสุดของห้อง แก้ได้ · ค่าไฟบิลแรกคิดจากเลขนี้"
+    />
+  </div>
+
+  {preview && (
+    <p class="mb-0 mt-3 rounded-lg border border-console-ink/20 bg-console-card px-3 py-2 text-[15px] text-console-ink" role="status">
+      <strong>ตัวอย่างบิลแรก:</strong> {preview}
+    </p>
+  )}
+  {canPreview && (
+    <button
+      type="submit"
+      name="intent"
+      value="preview"
+      formnovalidate
+      class="mt-3 inline-flex min-h-11 items-center rounded-[10px] border-[1.5px] border-console-ink px-4 text-[15px] font-semibold text-console-ink hover:bg-console-ink/5"
+    >
+      ดูตัวอย่างบิลแรก
+    </button>
+  )}
+</fieldset>
+
+<script>
+  // Prefill the start meter from the chosen room's latest figure, unless
+  // someone has already typed one.
+  for (const box of document.querySelectorAll<HTMLElement>('[data-move-in]')) {
+    const meters = JSON.parse(box.dataset.latestMeters ?? '{}') as Record<string, number>;
+    const meter = box.querySelector<HTMLInputElement>('input[name="startMeter"]');
+    const room = box.closest('form')?.querySelector<HTMLSelectElement>('select[name="roomId"]');
+    if (!meter || !room) continue;
+    let touched = meter.value !== '';
+    meter.addEventListener('input', () => (touched = meter.value !== ''));
+    const fill = () => {
+      if (touched) return;
+      const latest = meters[room.value];
+      meter.value = latest === undefined ? '' : String(latest);
+    };
+    room.addEventListener('change', fill);
+    fill();
+  }
+</script>

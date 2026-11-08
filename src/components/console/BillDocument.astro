@@ -23,9 +23,14 @@ interface Props {
   doc: BillDocument;
   letterhead: Letterhead;
   payee: PayeeConfig;
+  /**
+   * Half an A4 sheet (7 พ.ย. 2569: the paper slips were always two to a page).
+   * Same lines, tighter spacing; used by the cycle's print run.
+   */
+  compact?: boolean;
 }
 
-const { doc, letterhead, payee } = Astro.props;
+const { doc, letterhead, payee, compact = false } = Astro.props;
 ---
 
 {doc.bill.archived && (
@@ -37,7 +42,10 @@ const { doc, letterhead, payee } = Astro.props;
 <!-- On screen the bill sits on a card, inside the console. On paper it *is*
      the page, so the card loses its border, its padding and its tint. -->
 <article
-  class="border border-console-print/30 bg-console-card p-6 print:border-0 print:bg-transparent print:p-0"
+  class:list={[
+    'border border-console-print/30 bg-console-card p-6 print:border-0 print:bg-transparent print:p-0',
+    compact && 'bill-compact',
+  ]}
 >
   <header class="mb-5 flex flex-wrap justify-between gap-4 border-b border-console-print/25 pb-4">
     <div>
@@ -147,7 +155,7 @@ const { doc, letterhead, payee } = Astro.props;
 
   {/* Kept because it is what makes the signed slip the building's receipt
       — the finding KS-23 was built on. */}
-  <div class="grid grid-cols-2 gap-8 pt-6 text-sm">
+  <div class="bill-signatures grid grid-cols-2 gap-8 pt-6 text-sm">
     {['ผู้รับเงิน', 'ผู้ชำระเงิน'].map((role) => (
       <div>
         <p class="mb-1 text-console-ink-soft">{role}</p>
@@ -178,3 +186,36 @@ const { doc, letterhead, payee } = Astro.props;
     )}
   </p>
 </article>
+
+<style>
+  /* Two slips to an A4 sheet: every line kept, the air between them taken out. */
+  .bill-compact {
+    font-size: 13px;
+  }
+  .bill-compact :global(header) {
+    margin-bottom: 0.5rem;
+    padding-bottom: 0.4rem;
+  }
+  .bill-compact :global(td),
+  .bill-compact :global(th) {
+    padding-top: 0.15rem;
+    padding-bottom: 0.15rem;
+  }
+  .bill-compact :global(p) {
+    margin-bottom: 0.35rem;
+  }
+  .bill-compact :global(table) {
+    margin-bottom: 0.4rem;
+  }
+  .bill-compact :global(.bill-signatures) {
+    padding-top: 0.4rem;
+    gap: 1.5rem;
+  }
+  .bill-compact :global(.bill-signatures p.pb-6) {
+    padding-bottom: 0.9rem;
+  }
+  .bill-compact :global(p.mt-6) {
+    margin-top: 0.5rem;
+    padding-top: 0.4rem;
+  }
+</style>

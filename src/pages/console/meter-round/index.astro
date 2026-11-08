@@ -4,7 +4,8 @@ import ConsoleLayout from '@/layouts/ConsoleLayout.astro';
 import MeterRoundStepper from '@/components/react/MeterRoundStepper';
 import { startRound } from '@/lib/console/meter-round';
 import { consolePath } from '@/lib/console/paths';
-import { getMeterReadingRepository, getRoomRepository } from '@/lib/repositories';
+import { cycleFor } from '@/lib/models/billing-cycle';
+import { getLeaseRepository, getMeterReadingRepository, getRoomRepository } from '@/lib/repositories';
 
 /**
  * The meter round (KS-72).
@@ -29,12 +30,15 @@ const env = Astro.locals.runtime?.env;
 
 // One fetch each, not one per stop. `startRound` needs the whole history to
 // work out which meters exist and what each one continues from.
-const [rooms, history] = await Promise.all([
+const [rooms, history, leases] = await Promise.all([
   getRoomRepository(env).listRooms(),
   getMeterReadingRepository(env).listReadings(),
+  getLeaseRepository(env).listLeases(),
 ]);
 
-const round = startRound(rooms, history);
+// This notebook page's round: ครั้งก่อน is last round's close and stays put;
+// figures already saved this round open as entered and can be corrected.
+const round = startRound(rooms, history, cycleFor(new Date()), leases);
 
 /**
  * The date every reading in this round is filed under, fixed now rather than

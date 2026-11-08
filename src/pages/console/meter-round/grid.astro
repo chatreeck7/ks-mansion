@@ -7,9 +7,17 @@ import Notice from '@/components/console/Notice.astro';
 import PageHeader from '@/components/console/PageHeader.astro';
 import LedgerTable from '@/components/console/LedgerTable.astro';
 import { draftsFromForm, METER_GRID_COLUMNS, toMeterGridGroups } from '@/lib/console/meter-grid';
-import { startRound } from '@/lib/console/meter-round';
+import { saveRoundReading } from '@/lib/console/meter-reading-save';
+import { startMetersFor, startRound } from '@/lib/console/meter-round';
 import { consolePath } from '@/lib/console/paths';
-import { getMeterReadingRepository, getRoomRepository } from '@/lib/repositories';
+import { cycleFor } from '@/lib/models/billing-cycle';
+import { notebookShortName } from '@/lib/console/logbook';
+import {
+  getBillRepository,
+  getLeaseRepository,
+  getMeterReadingRepository,
+  getRoomRepository,
+} from '@/lib/repositories';
 
 /**
  * The desk-side meter grid (KS-60).
@@ -46,17 +54,21 @@ if (Astro.request.method === 'POST') {
 
 // Read after the form, so a save is followed by a fresh view of what the
 // sheet now holds rather than by what it held when the page was opened.
-const [rooms, history] = await Promise.all([
+const cycle = cycleFor(readDate);
+const [rooms, history, leases] = await Promise.all([
   getRoomRepository(env).listRooms(),
   getMeterReadingRepository(env).listReadings(),
+  getLeaseRepository(env).listLeases(),
 ]);
-let round = startRound(rooms, history);
+// This notebook page's round: ครั้งก่อน is last round's close and does not
+// move when a figure is saved; a saved figure shows in ครั้งหลัง.
+let round = startRound(rooms, history, cycle, leases);
+const startMeters = startMetersFor(leases, cycle);
 /**
  * What the sheet holds *now*, which after a save is not `history` any more.
  *
- * The รอบนี้ column is read off this rather than off the round: a saved
- * reading turns into the row's ครั้งก่อน and clears the input, so without it
- * a recorded stop is indistinguishable from an untouched one.
+ * The จดรอบนี้ column is read off this: it shows the saved figure's date
+ * and working.
  */
 let known = history;
 
@@ -65,9 +77,15 @@ if (submitted) {
   errors = [...submission.errors];
 
   const readings = getMeterReadingRepository(env);
+  const bills = getBillRepository(env);
+  const labels = new Map(rooms.map((room) => [room.id, room.label]));
   for (const { stopKey, draft } of submission.entries) {
     try {
-      await readings.recordReading(draft);
+      // Replaces a figure already saved this round rather than stacking on it.
+      await saveRoundReading({ readings, bills }, draft, cycle, {
+        roomLabel: labels.get(draft.roomId),
+        startMeter: startMeters.get(draft.roomId) ?? null,
+      });
       savedKeys.add(stopKey);
     } catch (cause) {
       // Reported per row rather than aborting the rest. Readings are
@@ -84,7 +102,7 @@ if (submitted) {
     // the one the next reading continues from — and so the รอบนี้ column is
     // answered by what was actually written, not by what was submitted.
     known = await readings.listReadings();
-    round = startRound(rooms, known);
+    round = startRound(rooms, known, cycle, leases);
   }
 }
 
@@ -104,8 +122,8 @@ const groups = toMeterGridGroups(
 <ConsoleFrame title="จดมิเตอร์" activeSection="meter-round">
   <PageHeader
     eyebrow="ขั้น 1 จาก 6"
-    title="จดมิเตอร์ไฟ"
-    subtitle="จดวันที่ 25–26 · กรอกเฉพาะแถวที่ต้องการ แถวที่เว้นว่างไว้ยังไม่ถูกนับ"
+    title={`จดมิเตอร์ไฟ · สมุดเดือน ${notebookShortName(cycle)}`}
+    subtitle={`จดวันที่ ${cycle.readFrom.getDate()} · ครั้งก่อน = เลขปิดรอบที่แล้ว ไม่เปลี่ยนทั้งรอบ · กรอกเฉพาะช่องครั้งหลัง`}
   >
     <a
       slot="actions"
@@ -128,13 +146,34 @@ const groups = toMeterGridGroups(
   <ErrorSummary message={errors.length > 0 ? errors.join('\n') : null} />
 
   <form method="POST">
-    <LedgerTable columns={METER_GRID_COLUMNS} groups={groups} />
+    <LedgerTable columns={METER_GRID_COLUMNS} groups={groups} sheet />
 
     <div class="mt-4 flex flex-col gap-3 desk:flex-row desk:items-center desk:justify-between">
       <p class="text-[15px] text-console-ink-soft">
-        การแก้ไขบันทึกเป็นรายการใหม่ ไม่ทับของเดิม · เลขที่บันทึกแล้วจะย้ายไปอยู่ช่อง ครั้งก่อน
+        กรอกผิด พิมพ์ทับในช่องครั้งหลังแล้วกดบันทึกได้เลย ค่าใหม่แทนค่าเดิม (ค่าเดิมเก็บเข้าคลัง) · ห้องที่ออกบิลรอบนี้แล้วแก้ไม่ได้
       </p>
       <Button type="submit" size="lg">บันทึกเลขมิเตอร์</Button>
     </div>
   </form>
 </ConsoleFrame>
+
+<script>
+  // Spreadsheet keys: Enter or ↓ moves down the column, ↑ moves up — the
+  // round is typed top to bottom, one dial after another, like the paper
+  // sheet. Enter never submits from a cell; the button does that.
+  document.addEventListener('keydown', (event) => {
+    const input = event.target as HTMLInputElement | null;
+    const column = input?.dataset?.sheetInput;
+    if (!input || !column) return;
+    const down = event.key === 'Enter' || event.key === 'ArrowDown';
+    const up = event.key === 'ArrowUp';
+    if (!down && !up) return;
+    event.preventDefault();
+    const cells = [...document.querySelectorAll<HTMLInputElement>(`[data-sheet-input="${column}"]`)];
+    const next = cells[cells.indexOf(input) + (down ? 1 : -1)];
+    if (next) {
+      next.focus();
+      next.select();
+    }
+  });
+</script>

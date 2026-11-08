@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { cycleFor } from '@/lib/models/billing-cycle';
+import { cycleIssuedIn } from '@/lib/models/billing-cycle';
 import { daysUntilDue, dueLabel, notebookTitle, shortCycleLabel, todayLabel } from './logbook';
 
 const today = new Date(2026, 9, 3); // Sat 3 Oct 2026
-const cycle = cycleFor(today); // issued 26 Sep 2026
+const cycle = cycleIssuedIn(2026, 8); // issued 26 Sep 2026, still being cleared on 3 Oct
 
 describe('logbook words', () => {
   it('names the notebook after the month whose utilities are billed', () => {
@@ -11,7 +11,7 @@ describe('logbook words', () => {
   });
 
   it('prints the collection window with the year once', () => {
-    expect(shortCycleLabel(cycle)).toBe('รอบ 26 ก.ย. – 10 ต.ค. 2569');
+    expect(shortCycleLabel(cycle)).toBe('รอบเคลียร์บิล 26 ก.ย. – 10 ต.ค. 2569');
   });
 
   it('counts days to the due date', () => {

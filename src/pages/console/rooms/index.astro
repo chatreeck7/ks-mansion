@@ -16,7 +16,7 @@ import {
   tileCounts,
   type TileFilter,
 } from '@/lib/console/building';
-import { shortCycleLabel } from '@/lib/console/logbook';
+import { notebookScheduleLabel } from '@/lib/console/logbook';
 import type { MarkKind } from '@/lib/console/marks';
 import { consolePath } from '@/lib/console/paths';
 import { ROOM_COLUMNS, toRoomGroups } from '@/lib/console/room-ledger';
@@ -103,7 +103,7 @@ function quickMarks(tileId: string): { label: string; mark: MarkKind }[] {
     <div class="min-w-0 flex-1">
       <PageHeader
         title="ตึกและห้อง"
-        subtitle={`${counts.all} ห้อง · ${residentialFloors} ชั้น · ${shortCycleLabel(cycle)}`}
+        subtitle={`${counts.all} ห้อง · ${residentialFloors} ชั้น · ${notebookScheduleLabel(cycle)}`}
       >
         <div slot="actions" class="flex flex-wrap gap-2">
           <Button href={listView ? '?' : '?view=list'} variant="secondary" size="sm">

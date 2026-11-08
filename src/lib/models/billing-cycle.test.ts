@@ -59,29 +59,22 @@ describe('cycleIssuedIn', () => {
 
 describe('cycleFor', () => {
   /**
-   * The boundary is the 26th, not the 1st. Anchoring on the calendar month
-   * would put the last five days of every month in the wrong cycle.
+   * The notebook follows the calendar month (changed 7 พ.ย. 2569 at the
+   * owner's request): in November you are on November's page.
    */
-  it('puts the 26th at the head of a new cycle', () => {
+  it('is the cycle issued in the same calendar month', () => {
+    expect(cycleFor(new Date(2026, 10, 7)).id).toBe('2026-11');
+    expect(cycleFor(new Date(2026, 10, 1)).id).toBe('2026-11');
+    expect(cycleFor(new Date(2026, 10, 30)).id).toBe('2026-11');
+  });
+
+  it('turns over on the 1st, not the 26th', () => {
     expect(cycleFor(new Date(2025, 6, 26)).id).toBe('2025-07');
+    expect(cycleFor(new Date(2025, 7, 1)).id).toBe('2025-08');
   });
 
-  it('puts the 25th at the tail of the previous one', () => {
-    expect(cycleFor(new Date(2025, 6, 25)).id).toBe('2025-06');
-  });
-
-  it('keeps the first days of a month in the cycle that is still collecting', () => {
-    // 3 August is inside the window opened on 26 July.
-    expect(cycleFor(new Date(2025, 7, 3)).id).toBe('2025-07');
-  });
-
-  it('handles January, where the previous cycle is last year', () => {
-    expect(cycleFor(new Date(2026, 0, 5)).id).toBe('2025-12');
-  });
-
-  it('reads February the same way, short month or not', () => {
-    expect(cycleFor(new Date(2025, 1, 26)).id).toBe('2025-02');
-    expect(cycleFor(new Date(2025, 1, 25)).id).toBe('2025-01');
+  it('handles January', () => {
+    expect(cycleFor(new Date(2026, 0, 5)).id).toBe('2026-01');
   });
 });
 
@@ -123,19 +116,15 @@ describe('isCollecting', () => {
 });
 
 describe('isReadingDay', () => {
-  it('covers the 25th and the 26th, so a round can span two evenings', () => {
+  it('counts any day of the cycle\'s calendar month, a late round included', () => {
     expect(isReadingDay(july, new Date(2025, 6, 25))).toBe(true);
-    expect(isReadingDay(july, new Date(2025, 6, 26))).toBe(true);
-  });
-
-  it('counts a round walked late — the real ต.ค. 2569 round was read on the 27th', () => {
     expect(isReadingDay(july, new Date(2025, 6, 27))).toBe(true);
-    expect(isReadingDay(july, new Date(2025, 7, 24))).toBe(true);
+    expect(isReadingDay(july, new Date(2025, 6, 1))).toBe(true);
   });
 
-  it('rejects a day before the round, and the next round from its 25th', () => {
-    expect(isReadingDay(july, new Date(2025, 6, 24))).toBe(false);
-    expect(isReadingDay(july, new Date(2025, 7, 25))).toBe(false);
+  it('leaves other months to their own page', () => {
+    expect(isReadingDay(july, new Date(2025, 5, 30))).toBe(false);
+    expect(isReadingDay(july, new Date(2025, 7, 1))).toBe(false);
   });
 });
 
@@ -168,7 +157,7 @@ describe('chargeFor', () => {
 
 describe('labels', () => {
   it('names the collection window as it is walked', () => {
-    expect(cycleLabel(july)).toBe('รอบ 26 ก.ค. 2568 – 10 ส.ค. 2568');
+    expect(cycleLabel(july)).toBe('รอบเคลียร์บิล 26 ก.ค. 2568 – 10 ส.ค. 2568');
   });
 
   /** Each line says which month it is for, because they are not the same. */
@@ -179,14 +168,9 @@ describe('labels', () => {
 });
 
 describe('choosing a month', () => {
-  it('offers the cycle being collected now, newest first', () => {
-    // The 3rd: the round still being chased is last month's.
+  it("offers this month's page first, newest first", () => {
     const early = recentCycles(new Date(2025, 3, 3), 3);
-    expect(early.map((c) => c.id)).toEqual(['2025-03', '2025-02', '2025-01']);
-  });
-
-  it('rolls to this month once the 26th has come round', () => {
-    expect(recentCycles(new Date(2025, 3, 26), 2).map((c) => c.id)).toEqual(['2025-04', '2025-03']);
+    expect(early.map((c) => c.id)).toEqual(['2025-04', '2025-03', '2025-02']);
   });
 
   it('crosses a year boundary going back', () => {
@@ -211,7 +195,7 @@ describe('choosing a month', () => {
 });
 
 describe('cycleOptions', () => {
-  const now = new Date(2025, 3, 3);
+  const now = new Date(2025, 2, 27); // a day in the 2025-03 notebook
 
   it('is just the recent window when it already holds the chosen cycle', () => {
     expect(cycleOptions(now, cycleIssuedIn(2025, 1), 3).map((c) => c.id)).toEqual([

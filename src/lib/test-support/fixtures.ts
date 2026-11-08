@@ -72,6 +72,9 @@ export function makeLease(overrides: Partial<Lease> = {}): Lease {
     moveOutPaid: null,
     coTenantName: null,
     bookingFee: null,
+    billingStartDate: null,
+    proratePerDay: null,
+    startMeter: null,
     archived: false,
     ...overrides,
   };

@@ -90,6 +90,18 @@ export interface Lease extends Archivable {
   coTenantName: string | null;
   /** ค่ามัดจำ/จองห้อง, deducted on the contract's หักแล้ว คงจ่าย line. */
   bookingFee: number | null;
+  /**
+   * The move-in terms agreed at signing (owner, 7 พ.ย. 2569: every move-in is
+   * negotiated, so the console follows what was agreed rather than a rule).
+   *
+   * `billingStartDate` — the day rent starts being charged; blank means the
+   * move-in day. `proratePerDay` — baht a day for the part month before it;
+   * blank or 0 means not charged. `startMeter` — the electricity dial when the
+   * tenancy began; the first bill's units count from it.
+   */
+  billingStartDate: Date | null;
+  proratePerDay: number | null;
+  startMeter: number | null;
 }
 
 export type LeaseEndReason = 'normal' | 'absconded';

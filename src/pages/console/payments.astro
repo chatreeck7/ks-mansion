@@ -8,8 +8,8 @@ import ErrorSummary from '@/components/console/ErrorSummary.astro';
 import Notice from '@/components/console/Notice.astro';
 import PageHeader from '@/components/console/PageHeader.astro';
 import StatusPill from '@/components/console/StatusPill.astro';
-import { viewedCycle } from '@/lib/console/history';
-import { daysUntilDue } from '@/lib/console/logbook';
+import { collectingCycle, viewedCycle } from '@/lib/console/history';
+import { daysUntilDue, notebookShortName } from '@/lib/console/logbook';
 import { FOCUS, INPUT, SECTION_TITLE } from '@/lib/console/ui';
 import { consolePath } from '@/lib/console/paths';
 import {
@@ -17,6 +17,7 @@ import {
   paymentRows,
   paymentsFromForm,
   toPaymentGroups,
+  methodFieldName,
 } from '@/lib/console/payment-ledger';
 import { formatBaht, formatThaiDate } from '@/lib/format/thai';
 import { cycleLabel, cycleOptions } from '@/lib/models/billing-cycle';
@@ -49,13 +50,24 @@ const env = Astro.locals.runtime?.env;
 
 /** The day the screen is being used; also the default day money arrived. */
 const today = new Date();
-const viewed = viewedCycle(Astro.url.searchParams.get('cycle'), today);
-const { cycle, past } = viewed;
+// No `?cycle=`: open on the bills being cleared, which early in the month are
+// last month's (see `collectingCycle`) — an empty November page is not where
+// October's money is recorded.
+const requestedCycle =
+  Astro.url.searchParams.get('cycle') ??
+  collectingCycle(await getBillRepository(env).listBills(), today).id;
+const viewed = viewedCycle(requestedCycle, today);
+const { cycle } = viewed;
+const collectingNow = Astro.url.searchParams.get('cycle') === null;
+// Clearing last month's bills is the normal work of early month, not a
+// look back at history.
+const past = viewed.past && !collectingNow;
 const options = cycleOptions(today, cycle);
 
 let errors: string[] = [];
 let recorded = 0;
 let collected = 0;
+let collectedCash = 0;
 let submitted: FormData | undefined;
 let paidOnValue = formatThaiDate(today);
 let method: PaymentMethod = 'transfer';
@@ -92,6 +104,7 @@ if (Astro.request.method === 'POST') {
         await repository.recordPayment(draft);
         recorded += 1;
         collected += draft.amount;
+        if (draft.method === 'cash') collectedCash += draft.amount;
       } catch (cause) {
         // Per row, not aborting: payments are append-only, so the ones
         // already written are complete and correct on their own.
@@ -143,7 +156,7 @@ const outstanding = rows.reduce(
   <PageHeader
     eyebrow="ขั้น 4 จาก 6"
     title="บันทึกเงินเข้า"
-    subtitle={`ตรวจสลิปใน LINE OA ก่อน แล้วค่อยบันทึกที่นี่ · ${cycleLabel(cycle)}`}
+    subtitle={`${cycleLabel(cycle).replace('รอบเคลียร์บิล', `เคลียร์บิลรอบ ${notebookShortName(cycle)}`)} · ตรวจสลิปใน LINE OA ก่อน แล้วค่อยบันทึกที่นี่`}
   >
     <CyclePicker slot="actions" {options} selected={cycle} />
   </PageHeader>
@@ -155,7 +168,9 @@ const outstanding = rows.reduce(
 
   {recorded > 0 && (
     <Notice tone="ok" role="status">
-      บันทึกแล้ว {recorded} รายการ รวม {formatBaht(collected)} บาท — ออกใบเสร็จได้ที่รายการด้านล่าง
+      บันทึกแล้ว {recorded} รายการ รวม {formatBaht(collected)} บาท
+      {collectedCash > 0 && collectedCash < collected && ` (โอน ${formatBaht(collected - collectedCash)} · เงินสด ${formatBaht(collectedCash)})`}
+      — ออกใบเสร็จได้ที่รายการด้านล่าง
     </Notice>
   )}
   <ErrorSummary message={errors.length > 0 ? errors.join('\n') : null} />
@@ -171,9 +186,16 @@ const outstanding = rows.reduce(
 
   <div class="flex flex-col gap-6 desk:flex-row desk:items-start">
     <form method="POST" class="min-w-0 flex-1" data-payments>
+      {/* How to use this page, said once (7 พ.ย. 2569: the old form-wide
+          โอน/เงินสด switch left people unsure what it applied to). */}
+      <ol class="mb-3 flex list-decimal flex-wrap gap-x-8 gap-y-1 pl-5 text-[15px] text-console-ink-soft">
+        <li>ใส่ยอดที่ได้รับ หรือกด <strong class="text-console-ok">รับครบ</strong></li>
+        <li>เลือก <strong>โอน</strong> หรือ <strong>เงินสด</strong> ของห้องนั้น</li>
+        <li>กด <strong>บันทึก</strong> ครั้งเดียวได้หลายห้อง</li>
+      </ol>
       <fieldset class="mb-4 flex flex-wrap items-end gap-3 border-0 p-0 desk:gap-5">
         <label class="flex flex-1 flex-col gap-1 text-[15px] font-medium text-console-ink-soft desk:flex-none">
-          วันที่รับ
+          วันที่รับเงิน (ใช้กับทุกห้องที่บันทึกครั้งนี้)
           <input
             type="text"
             name="paid_on"
@@ -181,20 +203,6 @@ const outstanding = rows.reduce(
             class:list={[INPUT, 'font-semibold desk:w-48']}
           />
         </label>
-
-        <div class="flex flex-col gap-1 text-[15px] font-medium text-console-ink-soft">
-          <span id="method-label">ช่องทาง</span>
-          <div role="radiogroup" aria-labelledby="method-label" class="flex overflow-hidden rounded-lg border-[1.5px] border-console-ink">
-            {(['transfer', 'cash'] as const).map((value) => (
-              <label class="relative cursor-pointer">
-                <input type="radio" name="method" value={value} checked={method === value} class="peer sr-only" />
-                <span class="flex min-h-11 items-center px-4 font-semibold text-console-ink peer-checked:bg-console-ink peer-checked:text-white peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:-outline-offset-4 peer-focus-visible:outline-console-highlight">
-                  {paymentMethodLabel(value)}
-                </span>
-              </label>
-            ))}
-          </div>
-        </div>
       </fieldset>
 
       <h2 class={SECTION_TITLE}>ยังไม่จ่าย ({owing.length})</h2>
@@ -206,7 +214,7 @@ const outstanding = rows.reduce(
           {owing.map((line) => (
             <li
               data-payment-row
-              class="flex flex-col gap-2 rounded-xl border border-console-line bg-console-card p-3 desk:grid desk:grid-cols-[64px_minmax(0,1fr)_150px_96px_minmax(0,1fr)] desk:items-center desk:gap-2.5 desk:rounded-none desk:border-0 desk:border-b desk:border-console-rule desk:bg-transparent desk:px-2 desk:py-1.5"
+              class="flex flex-col gap-2 rounded-xl border border-console-line bg-console-card p-3 desk:grid desk:grid-cols-[64px_minmax(0,1fr)_150px_96px_132px_minmax(0,1fr)] desk:items-center desk:gap-2.5 desk:rounded-none desk:border-0 desk:border-b desk:border-console-rule desk:bg-transparent desk:px-2 desk:py-1.5"
             >
               <div class="flex items-baseline gap-2 desk:contents">
                 <span class="font-hand text-xl font-semibold desk:text-[17px]">{line.roomLabel}</span>
@@ -241,6 +249,23 @@ const outstanding = rows.reduce(
                 รับครบ
               </button>
               </div>
+              {/* This room's own โอน / เงินสด — not a switch for the whole page. */}
+              <div role="radiogroup" aria-label={`ช่องทางรับเงิน ห้อง ${line.roomLabel}`} class="flex self-start overflow-hidden rounded-lg border-[1.5px] border-console-ink">
+                {(['transfer', 'cash'] as const).map((value) => (
+                  <label class="relative cursor-pointer">
+                    <input
+                      type="radio"
+                      name={methodFieldName(line.bill)}
+                      value={value}
+                      checked={(submitted?.get(methodFieldName(line.bill)) ?? 'transfer') === value}
+                      class="peer sr-only"
+                    />
+                    <span class="flex min-h-11 items-center px-3 text-[15px] font-semibold text-console-ink peer-checked:bg-console-ink peer-checked:text-white peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:-outline-offset-4 peer-focus-visible:outline-console-highlight">
+                      {paymentMethodLabel(value)}
+                    </span>
+                  </label>
+                ))}
+              </div>
               <label>
                 <span class="sr-only">{line.note.label}</span>
                 <input
@@ -261,7 +286,7 @@ const outstanding = rows.reduce(
           <p class="text-[15px] text-console-ink-soft">
             กรอกเฉพาะห้องที่เงินเข้าแล้ว · จ่ายบางส่วนหรือเกินยอดได้
           </p>
-          <Button type="submit" size="lg">บันทึกเงินเข้า</Button>
+          <Button type="submit" size="lg" data-save>บันทึกเงินเข้า</Button>
         </div>
       )}
     </form>
@@ -338,6 +363,19 @@ const outstanding = rows.reduce(
       if (!amount || !owed) return;
       amount.value = owed;
       amount.focus();
+      count();
     });
+    amount?.addEventListener('input', count);
   }
+
+  // The button says how many rooms it will record, so nobody has to guess
+  // whether a row they typed into is included.
+  function count() {
+    const filled = [...document.querySelectorAll<HTMLInputElement>('[data-amount]')].filter(
+      (input) => input.value.trim() !== '',
+    ).length;
+    const save = document.querySelector<HTMLButtonElement>('[data-save]');
+    if (save) save.textContent = filled > 0 ? `บันทึกเงินเข้า ${filled} ห้อง` : 'บันทึกเงินเข้า';
+  }
+  count();
 </script>

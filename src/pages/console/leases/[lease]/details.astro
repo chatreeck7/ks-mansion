@@ -6,17 +6,28 @@ import DetailSheet from '@/components/console/DetailSheet.astro';
 import ErrorSummary from '@/components/console/ErrorSummary.astro';
 import FormActions from '@/components/console/FormActions.astro';
 import FormField from '@/components/console/FormField.astro';
-import { dateFromInput, dateToInput, optionalNumberField } from '@/lib/console/lease-form';
+import {
+  dateFromInput,
+  dateToInput,
+  moveInFormValues,
+  moveInTermsFromForm,
+  optionalNumberField,
+} from '@/lib/console/lease-form';
+import MoveInTermsFields from '@/components/console/MoveInTermsFields.astro';
+import { firstBillSummary } from '@/lib/models/move-in';
 import { consolePath } from '@/lib/console/paths';
-import { getLeaseRepository, getRoomRepository } from '@/lib/repositories';
+import { getLeaseRepository, getRoomRepository, getSettingsRepository } from '@/lib/repositories';
 
 /**
- * The contract-only details of an existing lease (KS-31): วันทำสัญญา, the
- * second tenant and the booking deposit.
+ * The contract-only details of an existing lease (KS-31) — วันทำสัญญา, the
+ * second tenant and the booking deposit — and the move-in terms agreed at
+ * signing (7 พ.ย. 2569): when billing starts, the part-month rate and the
+ * start meter.
  *
- * Narrow on purpose. Rent, deposit and occupants are billing inputs with
- * their own history; this screen changes only what the paper contract prints,
- * so editing it can never re-price a bill.
+ * Rent, deposit and occupants are billing inputs with their own history and
+ * are not edited here. The move-in terms only shape the tenancy's first bill;
+ * once that bill is issued, changing them restates nothing (issued bills
+ * keep their own figures).
  */
 
 const env = Astro.locals.runtime?.env;
@@ -25,7 +36,10 @@ const lease = await repository.getLease(Astro.params.lease!);
 if (!lease) {
   return new Response(null, { status: 404, statusText: 'Not Found' });
 }
-const room = await getRoomRepository(env).getRoom(lease.roomId);
+const [room, settings] = await Promise.all([
+  getRoomRepository(env).getRoom(lease.roomId),
+  getSettingsRepository(env).resolveSettings(),
+]);
 const contractHref = consolePath(`console/leases/${lease.id}/contract`);
 
 let error: string | null = null;
@@ -35,15 +49,26 @@ let values = {
   bookingFee: lease.bookingFee === null ? '' : String(lease.bookingFee),
 };
 
+let terms = { ...lease };
+let preview: string | null = firstBillSummary(lease);
+
 if (Astro.request.method === 'POST') {
   const form = await Astro.request.formData();
   const text = (field: string) => String(form.get(field) ?? '').trim();
   values = { signedDate: text('signedDate'), coTenantName: text('coTenantName'), bookingFee: text('bookingFee') };
-  try {
+  // The move-in box reads the start date from the form; this form has none,
+  // so the lease's own is supplied.
+  form.set('startDate', dateToInput(lease.startDate));
+  terms = { ...lease, ...moveInTermsFromForm(form) };
+  preview = firstBillSummary(terms);
+  if (form.get('intent') !== 'preview') try {
     await repository.updateLease(lease.id, {
       signedDate: dateFromInput(values.signedDate),
       coTenantName: values.coTenantName || null,
       bookingFee: optionalNumberField(form, 'bookingFee'),
+      billingStartDate: terms.billingStartDate,
+      proratePerDay: terms.proratePerDay,
+      startMeter: terms.startMeter,
     });
     return Astro.redirect(contractHref, 303);
   } catch (cause) {
@@ -54,7 +79,7 @@ if (Astro.request.method === 'POST') {
 
 <ConsoleFrame title={`ข้อมูลสัญญา ห้อง ${room?.label ?? lease.roomId}`} activeSection="tenants" width="reading">
   <a href={contractHref} class="mb-3 inline-flex min-h-11 items-center text-base font-medium text-console-ink-soft no-underline hover:text-console-ink">← กลับไปสัญญา</a>
-  <DetailSheet title={`ห้อง ${room?.label ?? lease.roomId}`} meta="ข้อมูลที่พิมพ์ในสัญญาเช่าเท่านั้น — ไม่กระทบบิล">
+  <DetailSheet title={`ห้อง ${room?.label ?? lease.roomId}`} meta="ข้อมูลสัญญา และเงื่อนไขช่วงเข้าอยู่ที่ใช้คิดบิลแรก">
     <DetailSection heading="ข้อมูลสัญญา">
       <ErrorSummary message={error} />
       <form method="POST" class="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -62,6 +87,7 @@ if (Astro.request.method === 'POST') {
           hint="ถ้าเว้นว่าง สัญญาจะลงวันเริ่มเช่าแทน" />
         <FormField name="bookingFee" label="ค่ามัดจำ/จองห้อง" type="number" value={values.bookingFee} span="half" min={0} inputmode="numeric" />
         <FormField name="coTenantName" label="ผู้เช่าคนที่ 2" value={values.coTenantName} hint="เว้นว่างถ้าไม่มี" />
+        <MoveInTermsFields {...moveInFormValues(terms, settings.prorate_per_day)} {preview} />
         <FormActions submitLabel="บันทึก" cancelHref={contractHref} />
       </form>
     </DetailSection>

@@ -1,5 +1,5 @@
 import { formatBaht, formatReading } from '@/lib/format/thai';
-import { cycleFor, cycleLabel, lateMoveIn } from '@/lib/models/billing-cycle';
+import { billingStart, cycleFor, cycleLabel } from '@/lib/models/billing-cycle';
 import type { LedgerColumn, LedgerGroup, LedgerRow } from '@/lib/models/ledger';
 import {
   activeLeaseFor,
@@ -48,9 +48,9 @@ export interface WaterRow {
   /** Units consumed, metered rooms only. */
   units: number | null;
   /**
-   * The tenant moved in just before the meter round, so by default this
-   * cycle's water is not charged (`lateMoveIn`; the bill run can override).
-   * Shown, but left out of the total — the total is what the bills collect.
+   * The tenancy's agreed billing start is after this cycle's bill, so its
+   * water is not charged yet. Shown, but left out of the total — the total
+   * is what the bills will collect.
    */
   newMoveIn: boolean;
 }
@@ -96,7 +96,7 @@ export function waterRows(
       on,
     );
     if (!lease) continue;
-    const newMoveIn = lateMoveIn(lease.startDate, cycleFor(on));
+    const newMoveIn = billingStart(lease).getTime() > on.getTime();
 
     if (hasWaterMeter(room.id, readings)) {
       const latest = latestWaterReading(room.id, readings);
@@ -154,7 +154,7 @@ export function toWaterGroups(
           kind: 'text',
           // Says *why* the number is what it is, which a bare amount cannot.
           value: row.newMoveIn
-            ? 'เข้าใหม่ช่วงจดมิเตอร์ — ไม่คิดรอบนี้'
+            ? 'ยังไม่ถึงวันเริ่มคิดเงิน — ไม่คิดรอบนี้'
             : row.basis === 'metered'
               ? `มิเตอร์น้ำ${row.units === null ? '' : ` ${formatReading(row.units)} หน่วย`}`
               : `เหมา ${formatBaht(WATER_RATE_PER_OCCUPANT)}/คน`,

@@ -2,13 +2,11 @@ import { formatBaht, formatReading, formatThaiDate, formatUnits } from '@/lib/fo
 import type { Bill, BillDraft } from '@/lib/models/bill';
 import {
   chargeFor,
-  lateMoveIn,
-  movedInDuring,
-  rentPaidInAdvance,
+  billingStartsIn,
   type BillingCycle,
   type CycleCharge,
 } from '@/lib/models/billing-cycle';
-import { formatThaiMonth } from '@/lib/format/thai';
+import { rentForCycle } from '@/lib/models/move-in';
 import { activeLeaseFor, type Lease } from '@/lib/models/lease';
 import { type MeterReading } from '@/lib/models/meter-reading';
 import { chargesRent, inWalkingOrder, type Room } from '@/lib/models/room';
@@ -80,12 +78,9 @@ export interface BillLine {
   alreadyIssued: Bill | null;
   /** Why the rent is what it is, when that is not simply the lease's rate. */
   rentBasis: string | null;
-  /**
-   * The tenancy began during this cycle. Utilities are waived unless the
-   * admin asks for them — see `movedInDuring`.
-   */
+  /** This cycle carries the tenancy's first bill (its billing starts in it). */
   newMoveIn: boolean;
-  /** True when this line's utilities were waived (new move-in, or lease not started). */
+  /** True when nothing is billed yet: the agreed billing start is after this bill. */
   utilitiesWaived: boolean;
   /**
    * Nothing to collect this cycle and nothing wrong: shown, never issued.
@@ -111,12 +106,6 @@ export interface BillRunInput {
   readings: MeterReading[];
   /** Bills already on the sheet — any cycle; this filters to the one it needs. */
   existing: Bill[];
-  /**
-   * An admin's choice, per room, for a tenancy that began this cycle: `true`
-   * charges its utilities, `false` waives them. Rooms not listed take the
-   * default — waived for a late move-in (`lateMoveIn`), charged otherwise.
-   */
-  utilityChoices?: ReadonlyMap<string, boolean>;
 }
 
 /**
@@ -203,7 +192,6 @@ export function planBillRun({
   leases,
   readings,
   existing,
-  utilityChoices = new Map<string, boolean>(),
 }: BillRunInput): BillRun {
   const water = new Map(
     waterRows(rooms, leases, readings, cycle.issueDate).map((row) => [row.roomId, row]),
@@ -237,27 +225,32 @@ export function planBillRun({
     // and no rent for a month it will not be here for.
     let rentAmount = 0;
     let rentBasis: string | null = null;
+    // Move-in terms come from the lease (7 พ.ย. 2569): billing start,
+    // ค่าเช่าล่วงหน้า and the agreed part-month rate — see `rentForCycle`.
+    const terms = lease ? rentForCycle(lease, cycle) : null;
+    const futureLease = !lease
+      ? leases
+          .filter((l) => l.roomId === room.id && !l.archived && l.startDate > cycle.issueDate)
+          .sort((x, y) => x.startDate.getTime() - y.startDate.getTime())[0] ?? null
+      : null;
     if (chargesRent(room)) {
-      if (lease && rentPaidInAdvance(lease.startDate, lease.advanceRent, cycle)) {
-        // ค่าเช่าล่วงหน้า paid at move-in already covers this cycle's rent
-        // month. Charging it again is the double-billing room 206 showed.
-        rentBasis = `ค่าเช่า ${formatThaiMonth(cycle.rentMonth)} จ่ายล่วงหน้าแล้วตอนเข้า`;
-      } else if (lease) {
+      if (terms) {
         // The lease's rate, not the room's. The room's is what it is advertised
         // at now; the lease's is what this tenant agreed to.
-        rentAmount = lease.rentRate;
-      } else if (leases.some((l) => l.roomId === room.id && !l.archived && l.startDate > cycle.issueDate)) {
+        rentAmount = terms.rentAmount;
+        rentBasis = terms.basis;
+      } else if (futureLease) {
         // A signed tenancy that starts after this bill goes out (ห้องจอง):
         // nothing is owed this cycle, and the room is not missing a lease.
-        rentBasis = 'สัญญาเริ่มรอบหน้า';
+        rentBasis = `เริ่มคิดเงิน ${formatThaiDate(futureLease.billingStartDate ?? futureLease.startDate)}`;
       } else {
         problems.push('ห้องมีผู้เช่าแต่ไม่มีสัญญาเช่า');
       }
     }
 
-    const newMoveIn = lease !== null && movedInDuring(lease.startDate, cycle);
-    const chargeNewTenant = utilityChoices.get(room.id) ?? !(lease && lateMoveIn(lease.startDate, cycle));
-    const utilitiesWaived = (newMoveIn && !chargeNewTenant) || rentBasis === 'สัญญาเริ่มรอบหน้า';
+    const newMoveIn = lease !== null && billingStartsIn(lease, cycle);
+    // Nothing is billed — utilities included — before billing starts.
+    const utilitiesWaived = (terms !== null && !terms.billing) || (futureLease !== null && chargesRent(room));
 
     const reading = electricityReading(readings, room.id);
     const stale =
@@ -281,9 +274,7 @@ export function planBillRun({
     const waterAmount = waterLine?.amount ?? 0;
     const total = rentAmount + electricityAmount + waterAmount;
     const alreadyIssued = issuedThisCycle.get(room.id) ?? null;
-    const waivedBasis = newMoveIn
-      ? `เข้าใหม่ ${formatThaiDate(lease!.startDate)} — ไม่คิดน้ำไฟรอบนี้`
-      : 'ยังไม่เริ่มสัญญา';
+    const waivedBasis = rentBasis ?? 'ยังไม่เริ่มคิดเงิน';
 
     lines.push({
       roomId: room.id,

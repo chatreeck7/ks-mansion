@@ -5,6 +5,7 @@ import ConsoleLayout from '@/layouts/ConsoleLayout.astro';
 import CyclePicker from '@/components/console/CyclePicker.astro';
 import { billBatchFor } from '@/lib/console/bill-batch';
 import { letterheadFrom, payeeFrom, PAYEE_KEYS } from '@/lib/console/letterhead';
+import { collectingCycle } from '@/lib/console/history';
 import { consolePath } from '@/lib/console/paths';
 import { formatBaht } from '@/lib/format/thai';
 import { cycleFor, cycleFromId, cycleLabel, cycleOptions } from '@/lib/models/billing-cycle';
@@ -35,7 +36,10 @@ const chosen = cycleFromId(requested);
 // follows, and it matters more here because the output gets handed out.
 const unknownCycle = requested !== null && chosen === null;
 const now = new Date();
-const cycle = chosen ?? cycleFor(now);
+const cycle = chosen ?? collectingCycle(await getBillRepository(env).listBills(), now);
+// Two slips to an A4 sheet by default (7 พ.ย. 2569) — `?per=1` for one.
+const perPage = Astro.url.searchParams.get('per') === '1' ? 1 : 2;
+const perHref = (per: 1 | 2) => `${consolePath('console/bills/print')}?cycle=${cycle.id}${per === 1 ? '&per=1' : ''}`;
 // Always contains `cycle`, so the control names the month on screen even for
 // a bookmarked link older than the recent window.
 const options = cycleOptions(now, chosen);
@@ -53,7 +57,7 @@ const payee = payeeFrom(env, documentSettings);
 ---
 
 <ConsoleLayout title={`ใบแจ้งค่าห้องพัก ${cycleLabel(cycle)}`}>
-  <main class="console-root mx-auto max-w-2xl px-4 py-6 print:max-w-none print:px-0 print:py-0">
+  <main class:list={['console-root mx-auto max-w-2xl px-4 py-6 print:max-w-none print:px-0 print:py-0', perPage === 2 && 'two-up']}>
     <div class="mb-6 print:hidden">
       <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
         <a
@@ -75,7 +79,7 @@ const payee = payeeFrom(env, documentSettings);
 
       <h1 class="mb-1 font-hand text-2xl font-semibold leading-[1.4] text-console-ink">ใบแจ้งค่าห้องพักทั้งรอบ</h1>
       <p class="mb-3 text-sm text-console-ink-soft">
-        {cycleLabel(cycle)} — เรียงตามลำดับที่เดินเก็บ ใบละแผ่น
+        {cycleLabel(cycle)} — เรียงตามลำดับที่เดินเก็บ · {perPage === 2 ? 'A4 หน้าละ 2 ใบ (ตัดครึ่งตามเส้นประ)' : 'หน้าละ 1 ใบ'}
         {batch.documents.length > 0 && (
           <Fragment>
             {' '}· รวม{' '}
@@ -85,6 +89,12 @@ const payee = payeeFrom(env, documentSettings);
           </Fragment>
         )}
       </p>
+
+      <div class="mb-3 flex flex-wrap items-center gap-2 text-sm">
+        <span class="text-console-ink-soft">การพิมพ์:</span>
+        <a href={perHref(2)} aria-current={perPage === 2 ? 'page' : undefined} class:list={['rounded-md border px-3 py-1.5 no-underline', perPage === 2 ? 'border-console-ink bg-console-ink text-white' : 'border-console-line text-console-ink']}>หน้าละ 2 ใบ</a>
+        <a href={perHref(1)} aria-current={perPage === 1 ? 'page' : undefined} class:list={['rounded-md border px-3 py-1.5 no-underline', perPage === 1 ? 'border-console-ink bg-console-ink text-white' : 'border-console-line text-console-ink']}>หน้าละ 1 ใบ</a>
+      </div>
 
       <CyclePicker {options} selected={cycle} />
 
@@ -113,22 +123,27 @@ const payee = payeeFrom(env, documentSettings);
         >{' '}ก่อน แล้วกลับมาพิมพ์
       </p>
     ) : (
-      batch.documents.map((doc) => (
-        <div class="slip">
-          <BillDocument {doc} {letterhead} {payee} />
-        </div>
-      ))
+      // Their own container, so a slip's position among its siblings is its
+      // position in the run — the two-up rule counts on it.
+      <div class="slips">
+        {batch.documents.map((doc) => (
+          <div class="slip">
+            <BillDocument {doc} {letterhead} {payee} compact={perPage === 2} />
+          </div>
+        ))}
+      </div>
     )}
   </main>
 </ConsoleLayout>
 
 <style>
   /**
-   * One slip per sheet.
+   * One slip per sheet, or two (the default since 7 พ.ย. 2569 — the paper
+   * slips were always printed two to an A4 and cut in half).
    *
-   * `break-before` on every slip *after* the first rather than
-   * `break-after` on every slip: the latter ends the run with a page break
-   * and prints a blank final sheet, twenty-three times a year.
+   * `break-before` on the slip that starts a sheet rather than `break-after`
+   * on every slip: the latter ends the run with a page break and prints a
+   * blank final sheet.
    *
    * `avoid` as well, because a bill split across two sheets is not a bill —
    * the tenant gets the charges on one and the account number on the other.
@@ -137,8 +152,30 @@ const payee = payeeFrom(env, documentSettings);
     break-inside: avoid;
   }
 
-  .slip + .slip {
+  main:not(.two-up) .slip + .slip {
     break-before: page;
+  }
+
+  @media print {
+    @page {
+      size: A4;
+      margin: 8mm 10mm;
+    }
+    /* Half a sheet each: 297mm − 16mm margins = 281mm, so 140mm a slip
+       with a dashed cut line between the pair. */
+    .two-up .slip {
+      height: 138mm;
+      overflow: hidden;
+      box-sizing: border-box;
+      padding: 2mm 0;
+    }
+    .two-up .slip:nth-child(even) {
+      border-top: 1px dashed #8c8073;
+      padding-top: 4mm;
+    }
+    .two-up .slip:nth-child(odd):not(:first-child) {
+      break-before: page;
+    }
   }
 
   /* On screen they are a scrollable stack, so the run can be checked before

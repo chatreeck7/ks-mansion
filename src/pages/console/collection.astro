@@ -9,6 +9,7 @@ import Notice from '@/components/console/Notice.astro';
 import PageHeader from '@/components/console/PageHeader.astro';
 import { LINK } from '@/lib/console/ui';
 import { collectionSheetFor } from '@/lib/console/collection-sheet';
+import { collectingCycle } from '@/lib/console/history';
 import { consolePath } from '@/lib/console/paths';
 import { formatBaht, formatThaiDate } from '@/lib/format/thai';
 import { cycleFor, cycleFromId, cycleOptions } from '@/lib/models/billing-cycle';
@@ -38,7 +39,9 @@ const chosen = cycleFromId(requested);
 // A typed or stale `?cycle=` says so rather than quietly showing a different
 // month than the one in the address bar.
 const unknownCycle = requested !== null && chosen === null;
-const cycle = chosen ?? cycleFor(now);
+// No `?cycle=`: the bills being cleared now (last month's until this month
+// issues — see `collectingCycle`).
+const cycle = chosen ?? collectingCycle(await getBillRepository(env).listBills(), now);
 const options = cycleOptions(now, chosen);
 
 const [bills, payments, rooms] = await Promise.all([

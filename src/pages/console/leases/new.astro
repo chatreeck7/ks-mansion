@@ -10,17 +10,39 @@ import FormField from '@/components/console/FormField.astro';
 import { formatThaiDate } from '@/lib/format/thai';
 import { displayName } from '@/lib/models/tenant';
 import { consolePath } from '@/lib/console/paths';
-import { dateToInput, leaseDraftFromForm } from '@/lib/console/lease-form';
-import { getLeaseRepository, getRoomRepository, getTenantRepository } from '@/lib/repositories';
+import { dateToInput, leaseDraftFromForm, moveInFormValues } from '@/lib/console/lease-form';
+import MoveInTermsFields from '@/components/console/MoveInTermsFields.astro';
+import { firstBillSummary } from '@/lib/models/move-in';
+import {
+  getLeaseRepository,
+  getMeterReadingRepository,
+  getRoomRepository,
+  getSettingsRepository,
+  getTenantRepository,
+} from '@/lib/repositories';
 import type { LeaseDraft } from '@/lib/repositories/lease-repository';
 
 const env = Astro.locals.runtime?.env;
 
-const [rooms, tenants, leases] = await Promise.all([
+const [rooms, tenants, leases, readings, settings] = await Promise.all([
   getRoomRepository(env).listRooms(),
   getTenantRepository(env).listTenants(),
   getLeaseRepository(env).listLeases(),
+  getMeterReadingRepository(env).listReadings(),
+  getSettingsRepository(env).resolveSettings(),
 ]);
+
+// Latest electricity figure per room, to prefill มิเตอร์ไฟเริ่มต้น.
+const latestMeters: Record<string, number> = {};
+const latestAt: Record<string, number> = {};
+for (const r of readings) {
+  if (r.meterType !== 'electricity') continue;
+  const at = r.readDate.getTime();
+  if (latestAt[r.roomId] === undefined || at >= latestAt[r.roomId]!) {
+    latestAt[r.roomId] = at;
+    latestMeters[r.roomId] = r.currentReading;
+  }
+}
 
 /**
  * Candidates for ย้ายห้อง (KS-64): tenancies that have ended.
@@ -58,11 +80,18 @@ const cancelHref = presetRoomId
 
 let error: string | null = null;
 let values: LeaseDraft | null = null;
+let preview: string | null = null;
 
 if (Astro.request.method === 'POST') {
-  values = leaseDraftFromForm(await Astro.request.formData());
+  const form = await Astro.request.formData();
+  values = leaseDraftFromForm(form);
 
-  try {
+  // "ดูตัวอย่างบิลแรก": show what the first bill will charge, save nothing.
+  if (form.get('intent') === 'preview') {
+    preview = Number.isNaN(values.startDate.getTime())
+      ? 'ใส่วันเริ่มเช่าก่อน แล้วกดดูตัวอย่างอีกครั้ง'
+      : firstBillSummary(values);
+  } else try {
     const lease = await getLeaseRepository(env).createLease(values);
     // `astro check` reports `lease` as unused (ts 6133) — a false positive
     // of the same kind as console/index.astro's: TypeScript's analysis stops
@@ -73,6 +102,7 @@ if (Astro.request.method === 'POST') {
   }
 }
 
+const moveIn = moveInFormValues(values, settings.prorate_per_day);
 const v = {
   roomId: values?.roomId ?? presetRoomId,
   tenantId: values?.tenantId ?? presetTenantId,
@@ -184,6 +214,8 @@ const CONTROL_CLASS = INPUT;
           min={0}
           inputmode="numeric"
         />
+
+        <MoveInTermsFields {...moveIn} {latestMeters} {preview} />
 
         <div class="sm:col-span-2">
           <h3 class="mb-2 font-hand text-[17px] font-semibold text-console-ink">

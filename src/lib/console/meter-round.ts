@@ -1,4 +1,6 @@
 import type { MeterReading, MeterReadingDraft, MeterType } from '@/lib/models/meter-reading';
+import type { Lease } from '@/lib/models/lease';
+import { billingStartsIn, cycleMonthStart, type BillingCycle } from '@/lib/models/billing-cycle';
 import { inWalkingOrder, type Room } from '@/lib/models/room';
 
 /**
@@ -164,25 +166,127 @@ function latestFor(history: MeterReading[], meter: Meter): MeterReading | null {
  * repository's own list, or a withdrawn row could become the figure the next
  * reading continues from.
  */
-export function startRound(rooms: Room[], history: MeterReading[]): Round {
+/**
+ * Where a meter's round stands in a cycle: the figure it closed last round
+ * at, and what (if anything) has been read for this round.
+ *
+ * **ครั้งก่อน is fixed for the whole round** (owner, 7 พ.ย. 2569): it is the
+ * figure the meter closed at last month, and saving this month's figure must
+ * not turn that figure into the next "previous" — re-entering a reading in
+ * the same round corrects it, against the same previous, rather than
+ * stacking a second reading on top of the first.
+ *
+ * - Last round's close: the newest live reading dated before this cycle's month.
+ * - A tenancy whose billing starts this cycle and carries a start meter
+ *   (`startMetersFor`) overrides it for electricity: units before the tenant
+ *   arrived are not theirs.
+ * - This round's figure: the newest live reading inside the cycle's month.
+ */
+export interface MeterStanding {
+  previous: MeterReading | null;
+  previousReading: number | null;
+  thisRound: MeterReading | null;
+}
+
+export function meterStanding(
+  history: readonly MeterReading[],
+  meter: Meter,
+  cycle: BillingCycle,
+  startMeter: number | null = null,
+): MeterStanding {
+  const monthStart = cycleMonthStart(cycle).getTime();
+  const nextMonthStart = new Date(cycle.issueDate.getFullYear(), cycle.issueDate.getMonth() + 1, 1).getTime();
+  let previous: MeterReading | null = null;
+  let thisRound: MeterReading | null = null;
+  for (const reading of history) {
+    if (reading.archived || reading.roomId !== meter.roomId || reading.meterType !== meter.meterType) continue;
+    const at = reading.readDate.getTime();
+    if (at < monthStart) {
+      if (!previous || at >= previous.readDate.getTime()) previous = reading;
+    } else if (at < nextMonthStart) {
+      if (!thisRound || at >= thisRound.readDate.getTime()) thisRound = reading;
+    }
+  }
+  const previousReading =
+    startMeter !== null && meter.meterType === 'electricity'
+      ? startMeter
+      : previous?.currentReading ?? thisRound?.previousReading ?? null;
+  return { previous, previousReading, thisRound };
+}
+
+/**
+ * Start meters of tenancies whose billing begins in this cycle, by room —
+ * the only case where a start meter replaces last round's close.
+ */
+export function startMetersFor(leases: readonly Lease[], cycle: BillingCycle): Map<string, number> {
+  const result = new Map<string, number>();
+  for (const lease of leases) {
+    if (lease.archived || lease.startMeter === null) continue;
+    if (billingStartsIn(lease, cycle)) result.set(lease.roomId, lease.startMeter);
+  }
+  return result;
+}
+
+/**
+ * The round for a cycle. Without a cycle (older callers and tests) it behaves
+ * as it always did: the newest reading on record is the previous figure.
+ */
+export function startRound(
+  rooms: Room[],
+  history: MeterReading[],
+  cycle?: BillingCycle,
+  leases: readonly Lease[] = [],
+): Round {
   const byId = new Map(rooms.map((room) => [room.id, room]));
+  const startMeters = cycle ? startMetersFor(leases, cycle) : new Map<string, number>();
 
   const stops = metersFrom(rooms, history).map((meter): RoundStop => {
-    const previous = latestFor(history, meter);
-    return {
+    const base = {
       ...meter,
       key: stopKey(meter),
       roomLabel: byId.get(meter.roomId)?.label ?? meter.roomId,
-      previousReading: previous?.currentReading ?? null,
-      ratePerUnit: previous?.ratePerUnit ?? null,
-      state: 'unread',
-      currentReading: null,
-      note: null,
       skippedInSweep: false,
+    };
+    if (!cycle) {
+      const previous = latestFor(history, meter);
+      return {
+        ...base,
+        previousReading: previous?.currentReading ?? null,
+        ratePerUnit: previous?.ratePerUnit ?? null,
+        state: 'unread',
+        currentReading: null,
+        note: null,
+      };
+    }
+    const standing = meterStanding(history, meter, cycle, startMeters.get(meter.roomId) ?? null);
+    const entered = standing.thisRound;
+    return {
+      ...base,
+      previousReading: standing.previousReading,
+      ratePerUnit: entered?.ratePerUnit ?? standing.previous?.ratePerUnit ?? null,
+      // A figure already saved this round shows as entered — and can be
+      // corrected, which replaces it rather than stacking on it.
+      state: entered ? 'entered' : 'unread',
+      currentReading: entered?.currentReading ?? null,
+      note: entered?.note ?? null,
     };
   });
 
-  return { stops, cursor: stops.length > 0 ? 0 : null, sweeping: false };
+  const firstOpen = stops.findIndex((stop) => stop.state !== 'entered');
+  return {
+    stops,
+    cursor: stops.length === 0 ? null : firstOpen === -1 ? 0 : firstOpen,
+    sweeping: false,
+  };
+}
+
+/**
+ * Opens any stop — back to one already read to correct it, or ahead past
+ * ones not reached yet. The round is the admin's to walk in any order.
+ */
+export function goToStop(round: Round, index: number): Round {
+  if (index < 0 || index >= round.stops.length) return round;
+  return { ...round, cursor: index };
 }
 
 /**

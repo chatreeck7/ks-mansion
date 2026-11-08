@@ -1,6 +1,14 @@
 import type { APIRoute } from 'astro';
 import { METER_TYPES, type MeterType } from '@/lib/models/meter-reading';
-import { getMeterReadingRepository } from '@/lib/repositories';
+import { saveRoundReading } from '@/lib/console/meter-reading-save';
+import { startMetersFor } from '@/lib/console/meter-round';
+import { cycleFor } from '@/lib/models/billing-cycle';
+import {
+  getBillRepository,
+  getLeaseRepository,
+  getMeterReadingRepository,
+  getRoomRepository,
+} from '@/lib/repositories';
 
 /**
  * One meter reading, posted as it is entered (KS-72).
@@ -82,20 +90,43 @@ export const POST: APIRoute = async ({ request, locals }) => {
   if (typeof body === 'string') return badRequest(body);
 
   try {
-    const reading = await getMeterReadingRepository(locals.runtime?.env).recordReading({
-      roomId: body.roomId,
-      meterType: body.meterType,
-      readDate: new Date(body.readDateIso),
-      previousReading: body.previousReading,
-      currentReading: body.currentReading,
-      ratePerUnit: body.ratePerUnit,
-      note: body.note,
-    });
+    const env = locals.runtime?.env;
+    const readDate = new Date(body.readDateIso);
+    // The round the figure belongs to is the notebook page it is entered on.
+    const cycle = cycleFor(readDate);
+    const [room, leases] = await Promise.all([
+      getRoomRepository(env).getRoom(body.roomId),
+      getLeaseRepository(env).listLeasesForRoom(body.roomId),
+    ]);
+    // Saving again in the same round replaces the earlier figure, against the
+    // same ครั้งก่อน (see saveRoundReading).
+    const { saved: reading, replaced } = await saveRoundReading(
+      { readings: getMeterReadingRepository(env), bills: getBillRepository(env) },
+      {
+        roomId: body.roomId,
+        meterType: body.meterType,
+        readDate,
+        previousReading: body.previousReading,
+        currentReading: body.currentReading,
+        ratePerUnit: body.ratePerUnit,
+        note: body.note,
+      },
+      cycle,
+      { roomLabel: room?.label ?? body.roomId, startMeter: startMetersFor(leases, cycle).get(body.roomId) ?? null },
+    );
 
-    return new Response(JSON.stringify({ id: reading.id }), {
+    return new Response(
+      JSON.stringify({
+        id: reading.id,
+        previousReading: reading.previousReading,
+        currentReading: reading.currentReading,
+        replaced: replaced.length,
+      }),
+      {
       status: 201,
       headers: { 'content-type': 'application/json' },
-    });
+      },
+    );
   } catch (cause) {
     // The repository's message names the row, the column and the reason.
     // The stepper shows it verbatim, because a vaguer restatement is the one

@@ -265,3 +265,22 @@ describe('parsePaidOn', () => {
   });
 });
 
+describe('per-row payment method', () => {
+  it('records cash for one room and transfer for another in one save', () => {
+    const { drafts } = paymentsFromForm(
+      rows(),
+      form({ 'paid:b-001': '100', 'method:b-001': 'cash', 'paid:b-002': '200', 'method:b-002': 'transfer' }),
+      TODAY,
+      'transfer',
+    );
+    expect(drafts.map((d) => [d.billId, d.method])).toEqual([
+      ['b-001', 'cash'],
+      ['b-002', 'transfer'],
+    ]);
+  });
+
+  it('falls back to the form-wide method when a row sends none', () => {
+    const { drafts } = paymentsFromForm(rows(), form({ 'paid:b-001': '100' }), TODAY, 'cash');
+    expect(drafts[0]!.method).toBe('cash');
+  });
+});

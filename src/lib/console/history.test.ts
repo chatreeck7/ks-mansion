@@ -3,7 +3,7 @@ import { makeBill, makePayment, makeRoom } from '@/lib/test-support/fixtures';
 import { cycleHistory, issuedLines, viewedCycle } from './history';
 
 /** 7 ต.ค. 2569 — inside the cycle issued 26 ก.ย. 2569, id `2026-09`. */
-const NOW = new Date(2026, 9, 7);
+const NOW = new Date(2026, 8, 27); // a day in the 2026-09 notebook
 
 describe('cycleHistory', () => {
   it('lists the last twelve cycles newest first, billed or not', () => {
@@ -159,5 +159,20 @@ describe('issuedLines', () => {
 
   it('drops archived bills', () => {
     expect(issuedLines([makeBill({ archived: true })], ROOMS)).toEqual([]);
+  });
+});
+
+describe('collectingCycle', () => {
+  it("is last month's cycle until this month's bills are issued", async () => {
+    const { collectingCycle } = await import('./history');
+    const oct = [makeBill({ id: 'b-1', cycle: '2026-10' })];
+    expect(collectingCycle(oct, new Date(2026, 10, 7)).id).toBe('2026-10');
+    expect(collectingCycle([...oct, makeBill({ id: 'b-2', cycle: '2026-11' })], new Date(2026, 10, 27)).id).toBe('2026-11');
+  });
+
+  it('ignores archived bills and falls back to this month when nothing is billed', async () => {
+    const { collectingCycle } = await import('./history');
+    expect(collectingCycle([makeBill({ cycle: '2026-10', archived: true })], new Date(2026, 10, 7)).id).toBe('2026-11');
+    expect(collectingCycle([], new Date(2026, 10, 7)).id).toBe('2026-11');
   });
 });

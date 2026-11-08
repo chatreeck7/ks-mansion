@@ -127,3 +127,40 @@ describe('leaseDraftFromForm', () => {
     expect(Number.isNaN(draft.startDate.getTime())).toBe(true);
   });
 });
+
+describe('move-in terms', () => {
+  it('reads "1st of next month" as the 1st after the move-in day', async () => {
+    const { moveInTermsFromForm } = await import('./lease-form');
+    const form = new FormData();
+    form.set('startDate', '2026-10-30');
+    form.set('billingStart', 'next-month');
+    form.set('prorate', 'daily');
+    form.set('proratePerDay', '100');
+    form.set('startMeter', '9468');
+    expect(moveInTermsFromForm(form)).toEqual({
+      billingStartDate: new Date(2026, 10, 1),
+      proratePerDay: 100,
+      startMeter: 9468,
+    });
+  });
+
+  it('stores nothing extra for "from move-in, part month not charged"', async () => {
+    const { moveInTermsFromForm } = await import('./lease-form');
+    const form = new FormData();
+    form.set('startDate', '2026-10-30');
+    form.set('billingStart', 'move-in');
+    form.set('prorate', 'none');
+    form.set('proratePerDay', '100');
+    expect(moveInTermsFromForm(form)).toEqual({ billingStartDate: null, proratePerDay: null, startMeter: null });
+  });
+
+  it('round-trips the form values', async () => {
+    const { moveInFormValues } = await import('./lease-form');
+    expect(
+      moveInFormValues(
+        { startDate: new Date(2026, 9, 30), billingStartDate: new Date(2026, 10, 1), proratePerDay: 100, startMeter: 9468 },
+        '100',
+      ),
+    ).toEqual({ billingStart: 'next-month', billingStartDate: '2026-11-01', prorate: 'daily', proratePerDay: '100', startMeter: '9468' });
+  });
+});
