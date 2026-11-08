@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { resolveSettings } from '@/lib/models/settings';
 import type { TemplateBlock } from '@/lib/models/document-template';
-import { blockChangesFromForm, newBlockFromForm, settingChangesFromForm } from './template-form';
+import { blockChangesFromForm, moveChanges, newBlockFromForm, settingChangesFromForm } from './template-form';
 
 function formOf(fields: Record<string, string>): FormData {
   const form = new FormData();
@@ -63,5 +63,24 @@ describe('newBlockFromForm', () => {
         block('dt-001', 40, 'x'),
       ]),
     ).toEqual({ docType: 'contract', kind: 'fee_row', heading: 'ทำกุญแจหาย', body: '300 บาท', extra: '', position: 50 });
+  });
+});
+
+describe('moveChanges', () => {
+  const blocks = [block('a', 10, ''), block('b', 20, ''), block('c', 30, '')];
+  it('swaps a block with its neighbour', () => {
+    expect(moveChanges(blocks, 'b', 'up')).toEqual([{ id: 'b', position: 10 }, { id: 'a', position: 20 }]);
+    expect(moveChanges(blocks, 'b', 'down')).toEqual([{ id: 'b', position: 30 }, { id: 'c', position: 20 }]);
+  });
+  it('does nothing at either end', () => {
+    expect(moveChanges(blocks, 'a', 'up')).toEqual([]);
+    expect(moveChanges(blocks, 'c', 'down')).toEqual([]);
+  });
+});
+
+describe('newBlockFromForm for the monthly report', () => {
+  it('files the block under the document being edited', () => {
+    const draft = newBlockFromForm(formOf({ 'new.kind': 'table', 'new.body': 'a | b' }), [], 'monthly_report');
+    expect(draft).toMatchObject({ docType: 'monthly_report', kind: 'table', position: 10 });
   });
 });

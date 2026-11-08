@@ -1,0 +1,124 @@
+---
+// src/components/console/ElectricitySummary.astro
+import { formatBaht, formatReading } from '@/lib/format/thai';
+import { shortThaiDate, type ElectricitySummary } from '@/lib/console/month-summary';
+
+/**
+ * สรุปรายการค่าไฟฟ้าห้องพัก — one A4 sheet, floor by floor, with the
+ * family's columns in the family's order. A metered space with a water dial
+ * (ร้านซักผ้า) gets its ค่าน้ำ line directly beneath, as on paper.
+ */
+interface Props {
+  summary: ElectricitySummary;
+  building: string;
+}
+const { summary, building } = Astro.props;
+const money = (n: number) => (n === 0 ? '-' : formatBaht(n));
+---
+
+<article class="sheet bg-white text-black">
+  <h2 class="m-0 mb-1 text-center text-[17px] font-bold">{summary.title}</h2>
+  <p class="m-0 mb-3 text-center text-[13px]">{building}</p>
+  <table class="w-full border-collapse text-[13px]">
+    <thead>
+      <tr>
+        <th class="cell w-16">ชั้น</th>
+        <th class="cell text-left">ห้อง</th>
+        <th class="cell">วันที่อ่าน</th>
+        <th class="cell">ครั้งก่อน</th>
+        <th class="cell">ครั้งหลัง</th>
+        <th class="cell">หน่วยที่ใช้</th>
+        <th class="cell">หน่วยละ</th>
+        <th class="cell">คิดเป็นเงิน</th>
+      </tr>
+    </thead>
+    {summary.floors.map((floor) => (
+      <tbody class="keep">
+        {floor.rows.map((row, i) => (
+          <Fragment>
+            <tr>
+              {i === 0 && <th class="cell align-top font-semibold" rowspan={floor.rows.reduce((n, r) => n + (r.water ? 2 : 1), 0)}>ชั้นที่ {floor.floor}</th>}
+              <td class="cell">{row.label}</td>
+              <td class="cell num">{row.readDate ? shortThaiDate(row.readDate) : ''}</td>
+              {row.electricity ? (
+                <Fragment>
+                  <td class="cell num">{formatReading(row.electricity.previous)}</td>
+                  <td class="cell num">{formatReading(row.electricity.current)}</td>
+                  <td class="cell num">{formatReading(row.electricity.units)}</td>
+                  <td class="cell num">{formatReading(row.electricity.rate)}</td>
+                  <td class="cell num">{money(row.electricity.amount)}</td>
+                </Fragment>
+              ) : (
+                <td class="cell text-center text-[#6b6f78]" colspan="5">ยังไม่จดรอบนี้</td>
+              )}
+            </tr>
+            {row.water && (
+              <tr class="water">
+                <td class="cell ps-5">ค่าน้ำ</td>
+                <td class="cell"></td>
+                <td class="cell num">{formatReading(row.water.previous)}</td>
+                <td class="cell num">{formatReading(row.water.current)}</td>
+                <td class="cell num">{formatReading(row.water.units)}</td>
+                <td class="cell num">{formatReading(row.water.rate)}</td>
+                <td class="cell num">{money(row.water.amount)}</td>
+              </tr>
+            )}
+          </Fragment>
+        ))}
+        <tr class="subtotal">
+          <td class="cell text-right font-semibold" colspan="7">รวมเงินชั้นที่ {floor.floor}</td>
+          <td class="cell num font-semibold">{formatBaht(floor.subtotal)}</td>
+        </tr>
+      </tbody>
+    ))}
+    <tfoot>
+      <tr class="grand">
+        <td class="cell text-right font-bold" colspan="5">รวมเงินทั้งสิ้น</td>
+        <td class="cell num font-bold">{formatReading(summary.units)}</td>
+        <td class="cell"></td>
+        <td class="cell num font-bold">{formatBaht(summary.total)}</td>
+      </tr>
+    </tfoot>
+  </table>
+  {summary.unread.length > 0 && (
+    <p class="m-0 mt-2 text-[13px]">* ยังไม่ได้จดมิเตอร์รอบนี้: {summary.unread.join(', ')}</p>
+  )}
+</article>
+
+<style>
+  .sheet {
+    font-family: Sarabun, 'Noto Sans Thai', sans-serif;
+  }
+  .cell {
+    border: 1px solid #8c8073;
+    padding: 1px 6px;
+    font-weight: inherit;
+  }
+  th.cell {
+    font-weight: 600;
+    background: #f4f1ea;
+  }
+  .num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .water td {
+    color: #3b4252;
+  }
+  .subtotal td {
+    background: #faf8f3;
+  }
+  .grand td {
+    border-top: 2px solid #1e2d4a;
+  }
+  .keep {
+    break-inside: avoid;
+  }
+  @media print {
+    @page {
+      size: A4;
+      margin: 10mm 12mm;
+    }
+  }
+</style>

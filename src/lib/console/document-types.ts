@@ -28,6 +28,9 @@ import { cycleLabel, type BillingCycle } from '@/lib/models/billing-cycle';
 
 /** Every document type AC-4.1 names, in the order the selector lists them. */
 export const DOCUMENT_TYPE_IDS = [
+  'monthly_report',
+  'electricity',
+  'rooms_summary',
   'bills',
   'collection',
   'movements',
@@ -73,6 +76,27 @@ export interface DocumentType {
 export function documentTypesFor(cycle: BillingCycle): DocumentType[] {
   return [
     {
+      id: 'monthly_report',
+      label: 'รายงานประจำเดือน',
+      description: 'ข้อ 1–2 ระบบเติมจากงานเดือนนี้ ส่วนอื่นเป็นข้อความที่แก้ในแม่แบบเอกสาร',
+      perCycle: true,
+      availability: { ready: true, href: `${consolePath('console/documents/monthly-report')}?cycle=${cycle.id}` },
+    },
+    {
+      id: 'electricity',
+      label: 'สรุปรายการค่าไฟฟ้า',
+      description: 'เลขมิเตอร์ครั้งก่อน-ครั้งหลัง หน่วย และเงิน แยกชั้น พร้อมรวมเงิน',
+      perCycle: true,
+      availability: { ready: true, href: `${consolePath('console/documents/electricity')}?cycle=${cycle.id}` },
+    },
+    {
+      id: 'rooms_summary',
+      label: 'สรุปรายการค่าห้องพัก',
+      description: 'ค่าห้อง ค่าน้ำ ค่าไฟ รวม เครื่องใช้ และสถานะ ทุกห้อง แยกชั้น',
+      perCycle: true,
+      availability: { ready: true, href: `${consolePath('console/documents/rooms-summary')}?cycle=${cycle.id}` },
+    },
+    {
       id: 'bills',
       label: 'รายการค่าไฟ-ค่าห้อง',
       description: `ใบแจ้งค่าห้องพักทุกห้องใน${cycleLabel(cycle)} เรียงตามลำดับที่เดินเก็บ`,
@@ -93,22 +117,11 @@ export function documentTypesFor(cycle: BillingCycle): DocumentType[] {
       },
     },
     {
-      /**
-       * The data is all there — leases carry start, end, end reason and the
-       * room transfer link (KS-12, KS-63, KS-64). What is missing is the
-       * document: บัญชีแจ้งคนเข้า-ออก is a sheet with its own columns, and
-       * transcribing it is its own piece of work, not a side effect of this
-       * card.
-       */
       id: 'movements',
       label: 'บัญชีคนเข้า-ออก',
-      description: 'ใครเข้า ใครออก ออกเพราะอะไร ย้ายไปห้องไหน',
+      description: 'ห้องเข้า (ยอดแรกเข้า/จ่ายจริง) ห้องออก (อยู่มา สาเหตุ เงินประกัน) และห้องว่าง',
       perCycle: true,
-      availability: {
-        ready: false,
-        reason: 'ข้อมูลมีครบแล้วในสัญญาเช่า แต่ยังไม่ได้ทำหน้าเอกสาร',
-        blockedBy: 'KS-73',
-      },
+      availability: { ready: true, href: `${consolePath('console/documents/movements')}?cycle=${cycle.id}` },
     },
     {
       id: 'evaluations',
@@ -124,15 +137,9 @@ export function documentTypesFor(cycle: BillingCycle): DocumentType[] {
     {
       id: 'maintenance',
       label: 'รายการบำรุงรักษา',
-      description: 'ประวัติซ่อมบำรุงอุปกรณ์รายห้องและส่วนกลาง',
+      description: 'ตารางตรวจเช็คอุปกรณ์หลัก รายปี — จดงานเพิ่มได้ที่หน้าบำรุงรักษา',
       perCycle: false,
-      availability: {
-        ready: false,
-        // Nothing to export: the asset and maintenance features are Phase 2,
-        // so the console holds no maintenance record at all yet.
-        reason: 'ยังไม่มีข้อมูลบำรุงรักษาในระบบเลย',
-        blockedBy: 'F6 / F7 — Phase 2',
-      },
+      availability: { ready: true, href: consolePath('console/maintenance') },
     },
   ];
 }

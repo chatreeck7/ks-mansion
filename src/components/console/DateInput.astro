@@ -1,0 +1,110 @@
+---
+// src/components/console/DateInput.astro
+import { formatThaiDate } from '@/lib/format/thai';
+import { dateFromInput } from '@/lib/console/lease-form';
+import { INPUT, INPUT_ERROR } from '@/lib/console/ui';
+
+/**
+ * The console's one date field.
+ *
+ * A native `type="date"` underneath — on a phone that is the system's own
+ * wheel or calendar, which nobody has to learn — dressed in the same well as
+ * every other input (`INPUT`: 44px, ink outline, Plex figures). The browser
+ * shows the date in its own locale, often ค.ศ. and month-first, so the field
+ * repeats the choice underneath the way the family writes it: `7 พ.ย. 2569`.
+ * Without script the echo shows the value the page was rendered with.
+ *
+ * Submits `YYYY-MM-DD`; `dateFromInput` and `parseThaiDate` both read it.
+ */
+interface Props {
+  name: string;
+  id?: string;
+  /** `YYYY-MM-DD`, or empty. */
+  value?: string;
+  required?: boolean;
+  autofocus?: boolean;
+  error?: boolean;
+  /** Accessible name when no visible `<label for>` points at the field. */
+  ariaLabel?: string;
+  describedBy?: string;
+  /** `fit` sizes to the date rather than the column. */
+  width?: 'full' | 'fit';
+  /** Show a วันนี้ shortcut beside the field. */
+  today?: boolean;
+  min?: string;
+  max?: string;
+}
+
+const {
+  name,
+  id = name,
+  value = '',
+  required,
+  autofocus,
+  error,
+  ariaLabel,
+  describedBy,
+  width = 'full',
+  today = false,
+  min,
+  max,
+} = Astro.props;
+const parsed = dateFromInput(value);
+const echoId = `${id}-th`;
+---
+
+<span class:list={['date-field flex flex-col gap-1', width === 'fit' ? 'w-full sm:w-56' : 'w-full']}>
+  <span class="flex items-stretch gap-2">
+    <input
+      type="date"
+      {id}
+      {name}
+      {value}
+      {required}
+      {autofocus}
+      {min}
+      {max}
+      aria-label={ariaLabel}
+      aria-describedby={[echoId, describedBy].filter(Boolean).join(' ')}
+      aria-invalid={error ? 'true' : undefined}
+      data-date-input
+      class:list={[INPUT, 'date-input font-figure tabular-nums', error && INPUT_ERROR]}
+    />
+    {today && (
+      <button
+        type="button"
+        data-date-today
+        class="min-h-11 shrink-0 rounded-lg border-[1.5px] border-console-line-strong bg-console-card px-3 text-[15px] font-medium text-console-ink hover:border-console-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-console-ink"
+      >
+        วันนี้
+      </button>
+    )}
+  </span>
+  <span id={echoId} data-date-echo class="min-h-5 text-sm text-console-ink-faint" aria-live="polite">
+    {parsed ? `${formatThaiDate(parsed)} (พ.ศ.)` : ''}
+  </span>
+</span>
+
+<script>
+  const MONTHS = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+  const thai = (value: string) => {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+    return match ? `${Number(match[3])} ${MONTHS[Number(match[2]) - 1]} ${Number(match[1]) + 543} (พ.ศ.)` : '';
+  };
+  const iso = (date: Date) =>
+    `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+
+  for (const field of document.querySelectorAll<HTMLElement>('.date-field')) {
+    const input = field.querySelector<HTMLInputElement>('[data-date-input]');
+    const echo = field.querySelector<HTMLElement>('[data-date-echo]');
+    if (!input || !echo) continue;
+    const update = () => (echo.textContent = thai(input.value));
+    input.addEventListener('input', update);
+    input.addEventListener('change', update);
+    field.querySelector('[data-date-today]')?.addEventListener('click', () => {
+      input.value = iso(new Date());
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      input.focus();
+    });
+  }
+</script>

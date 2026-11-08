@@ -1,5 +1,6 @@
 ---
 // src/components/console/FormField.astro
+import DateInput from '@/components/console/DateInput.astro';
 import { INPUT, INPUT_ERROR } from '@/lib/console/ui';
 interface Props {
   name: string;
@@ -58,6 +59,16 @@ const hasControl = Astro.slots.has('default');
   {
     hasControl ? (
       <slot />
+    ) : type === 'date' ? (
+      <DateInput
+        {name}
+        value={value === undefined || value === null ? '' : String(value)}
+        {required}
+        {autofocus}
+        error={Boolean(error)}
+        describedBy={describedBy}
+        width="fit"
+      />
     ) : (
       <input
         id={name}

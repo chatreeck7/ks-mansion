@@ -1,0 +1,36 @@
+---
+// src/pages/console/documents/electricity.astro
+import ElectricitySummary from '@/components/console/ElectricitySummary.astro';
+import PrintShell from '@/components/console/PrintShell.astro';
+import { collectingCycle } from '@/lib/console/history';
+import { letterheadFrom } from '@/lib/console/letterhead';
+import { electricitySummaryFor } from '@/lib/console/month-summary';
+import { cycleFromId, cycleOptions } from '@/lib/models/billing-cycle';
+import {
+  getBillRepository,
+  getMeterReadingRepository,
+  getRoomRepository,
+  getSettingsRepository,
+} from '@/lib/repositories';
+
+/** สรุปรายการค่าไฟฟ้า for one round — the readings themselves, floor by floor. */
+const env = Astro.locals.runtime?.env;
+const now = new Date();
+const [rooms, readings, bills, settings] = await Promise.all([
+  getRoomRepository(env).listRooms(),
+  getMeterReadingRepository(env).listReadings(),
+  getBillRepository(env).listBills(),
+  getSettingsRepository(env).resolveSettings(),
+]);
+const chosen = cycleFromId(Astro.url.searchParams.get('cycle'));
+const cycle = chosen ?? collectingCycle(bills, now);
+const summary = electricitySummaryFor(cycle, rooms, readings);
+---
+
+<PrintShell
+  title={summary.title}
+  hint="ตัวเลขมาจากการจดมิเตอร์รอบนั้น (ขั้น 1) — แก้ตัวเลขที่หน้าจดมิเตอร์ ไม่ใช่ที่นี่"
+  cycles={{ options: cycleOptions(now, cycle), selected: cycle }}
+>
+  <ElectricitySummary {summary} building={letterheadFrom(env, settings).name} />
+</PrintShell>

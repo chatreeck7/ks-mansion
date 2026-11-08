@@ -1,0 +1,231 @@
+---
+// src/pages/console/maintenance.astro
+import ConsoleFrame from '@/components/console/ConsoleFrame.astro';
+import DateInput from '@/components/console/DateInput.astro';
+import ErrorSummary from '@/components/console/ErrorSummary.astro';
+import MaintenanceGridSheet from '@/components/console/MaintenanceGridSheet.astro';
+import Notice from '@/components/console/Notice.astro';
+import PageHeader from '@/components/console/PageHeader.astro';
+import { dateToInput } from '@/lib/console/lease-form';
+import { equipmentFromForm, maintenanceGrid, recordFromForm } from '@/lib/console/maintenance-log';
+import { shortThaiDate } from '@/lib/console/month-summary';
+import { buttonClass, FOCUS, INPUT, SECTION_TITLE } from '@/lib/console/ui';
+import { formatBaht, formatThaiDate, toBuddhistYear } from '@/lib/format/thai';
+import {
+  COMMON_WORK,
+  EQUIPMENT_KIND_LABELS,
+  EQUIPMENT_KINDS,
+  equipmentInOrder,
+} from '@/lib/models/maintenance';
+import { inWalkingOrder } from '@/lib/models/room';
+import { getMaintenanceRepository, getRoomRepository } from '@/lib/repositories';
+
+/**
+ * รายการบำรุงรักษา — jot a job down and print the yearly grid, one page
+ * (owner, 8 พ.ย. 2569). The form and the list are screen-only; what prints
+ * is the grid, the way ตารางตรวจเช็คอุปกรณ์หลัก has always looked.
+ *
+ * Plain POSTs like every console form. A wrong entry is archived (เก็บเข้า
+ * คลัง) and typed again, never edited in place — the log is a log.
+ */
+
+const env = Astro.locals.runtime?.env;
+const repo = getMaintenanceRepository(env);
+const today = new Date();
+let notice: string | null = null;
+let errors: string[] = [];
+let kept: FormData | null = null;
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const action = String(form.get('action') ?? '');
+  try {
+    if (action === 'record') {
+      const { draft, errors: problems } = recordFromForm(form, await repo.listEquipment(), today);
+      if (draft) {
+        await repo.addRecord(draft);
+        notice = `บันทึกแล้ว: ${draft.work}`;
+      } else {
+        errors = problems;
+        kept = form;
+      }
+    } else if (action === 'archive-record') {
+      await repo.archiveRecord(String(form.get('id') ?? ''));
+      notice = 'ลบรายการแล้ว (เก็บเข้าคลังในชีต)';
+    } else if (action === 'equipment') {
+      const { draft, errors: problems } = equipmentFromForm(form, await repo.listEquipment());
+      if (draft) {
+        await repo.addEquipment(draft);
+        notice = `เพิ่มอุปกรณ์ ${draft.name} แล้ว`;
+      } else {
+        errors = problems;
+      }
+    } else if (action === 'archive-equipment') {
+      await repo.archiveEquipment(String(form.get('id') ?? ''));
+      notice = 'เอาอุปกรณ์ออกจากตารางแล้ว (ประวัติยังอยู่ในชีต)';
+    }
+  } catch (cause) {
+    errors.push(cause instanceof Error ? cause.message : String(cause));
+  }
+}
+
+const [equipment, records, rooms] = await Promise.all([
+  repo.listEquipment(),
+  repo.listRecords(),
+  getRoomRepository(env).listRooms(),
+]);
+const ordered = equipmentInOrder(equipment);
+const grid = maintenanceGrid(equipment, records, today);
+const nameOf = new Map(equipment.map((item) => [item.id, item.brand ? `${item.name} (${item.brand})` : item.name]));
+const recent = records
+  .filter((record) => !record.archived)
+  .sort((a, b) => b.yearBE - a.yearBE || (b.doneOn?.getTime() ?? 0) - (a.doneOn?.getTime() ?? 0))
+  .slice(0, 12);
+const thisYear = toBuddhistYear(today.getFullYear());
+const yearOptions = Array.from({ length: 12 }, (_, i) => thisYear - i);
+const keep = (name: string, fallback = '') => String(kept?.get(name) ?? fallback);
+const yearOnly = Boolean(kept?.get('year_only'));
+const LABEL = 'flex flex-col gap-1 text-[15px] font-medium text-console-ink-soft';
+---
+
+<ConsoleFrame title="บำรุงรักษา" activeSection="maintenance">
+  <PageHeader title="รายการบำรุงรักษา" subtitle="จดงานล้าง/ซ่อมอุปกรณ์ แล้วพิมพ์ตารางตรวจเช็คอุปกรณ์หลักจากหน้านี้ได้เลย" printHidden>
+    <button slot="actions" type="button" data-print class={buttonClass('primary', 'md', false)}>พิมพ์ตาราง / PDF</button>
+  </PageHeader>
+
+  <div class="print:hidden">
+    {notice && <Notice tone="ok" role="status">{notice}</Notice>}
+    <ErrorSummary message={errors.length > 0 ? errors.join(' · ') : null} />
+
+    <section class="mb-6 rounded-xl border border-console-line bg-console-card p-4 desk:p-5">
+      <h2 class={SECTION_TITLE}>จดงานที่ทำ</h2>
+      <form method="POST" class="grid grid-cols-1 gap-4 sm:grid-cols-2 desk:grid-cols-4">
+        <input type="hidden" name="action" value="record" />
+        <label class:list={[LABEL, 'desk:col-span-2']}>
+          อุปกรณ์
+          <select name="equipment_id" required class={INPUT}>
+            <option value="">— เลือก —</option>
+            {EQUIPMENT_KINDS.map((kind) => {
+              const items = ordered.filter((item) => item.kind === kind);
+              return items.length > 0 && (
+                <optgroup label={EQUIPMENT_KIND_LABELS[kind]}>
+                  {items.map((item) => (
+                    <option value={item.id} selected={keep('equipment_id') === item.id}>{nameOf.get(item.id)}</option>
+                  ))}
+                </optgroup>
+              );
+            })}
+          </select>
+        </label>
+        <label class:list={[LABEL, 'desk:col-span-2']}>
+          งานที่ทำ
+          <input name="work" list="work-suggestions" required value={keep('work')} placeholder="เช่น ล้าง+เติมน้ำยา" class={INPUT} />
+          <datalist id="work-suggestions">
+            {COMMON_WORK.map((work) => <option value={work} />)}
+          </datalist>
+        </label>
+        <div class="flex flex-col gap-1" data-when>
+          <label for="done_on" class="text-[15px] font-medium text-console-ink-soft">วันที่ทำ</label>
+          <DateInput name="done_on" value={keep('done_on', dateToInput(today))} max={dateToInput(today)} today />
+          <label class="inline-flex min-h-11 items-center gap-2 text-[15px] text-console-ink-soft">
+            <input type="checkbox" name="year_only" checked={yearOnly} class="h-5 w-5 accent-console-ink" data-year-only />
+            รู้แค่ปี
+          </label>
+          <select name="year" aria-label="ปี พ.ศ." class:list={[INPUT, 'font-figure']} data-year hidden={!yearOnly}>
+            {yearOptions.map((year) => <option value={year} selected={keep('year', String(thisYear)) === String(year)}>ปี {year}</option>)}
+          </select>
+        </div>
+        <label class={LABEL}>
+          ค่าใช้จ่าย (บาท)
+          <input name="cost" inputmode="decimal" value={keep('cost')} placeholder="ไม่ใส่ก็ได้" class:list={[INPUT, 'text-right font-figure']} />
+        </label>
+        <label class:list={[LABEL, 'sm:col-span-2']}>
+          หมายเหตุ
+          <input name="note" value={keep('note')} placeholder="เช่น ช่างร้านไหน เปลี่ยนอะไหล่อะไร" class={INPUT} />
+        </label>
+        <div class="flex items-end sm:col-span-2 desk:col-span-4">
+          <button type="submit" class={buttonClass('primary', 'md', false)}>บันทึกงาน</button>
+        </div>
+      </form>
+    </section>
+
+    {recent.length > 0 && (
+      <section class="mb-6">
+        <h2 class={SECTION_TITLE}>บันทึกล่าสุด</h2>
+        <ul class="m-0 list-none border-t-2 border-console-ink p-0">
+          {recent.map((record) => (
+            <li class="flex min-h-12 flex-wrap items-center gap-x-4 gap-y-1 border-b border-console-rule py-2">
+              <span class="w-24 font-figure text-[15px] text-console-ink-soft">
+                {record.doneOn ? shortThaiDate(record.doneOn) : `ปี ${record.yearBE}`}
+              </span>
+              <span class="min-w-[8rem] font-semibold text-console-ink">{nameOf.get(record.equipmentId) ?? record.equipmentId}</span>
+              <span class="flex-1 text-console-ink">{record.work}{record.note && <span class="text-console-ink-soft"> · {record.note}</span>}</span>
+              {record.cost !== null && <span class="font-figure text-console-ink">{formatBaht(record.cost)} บาท</span>}
+              <form method="POST" class="m-0" onsubmit="return confirm('ลบรายการนี้?')">
+                <input type="hidden" name="action" value="archive-record" />
+                <input type="hidden" name="id" value={record.id} />
+                <button type="submit" class:list={['min-h-11 rounded-lg px-2 text-sm text-console-ink-soft underline-offset-2 hover:text-console-crit hover:underline', FOCUS]}>ลบ</button>
+              </form>
+            </li>
+          ))}
+        </ul>
+      </section>
+    )}
+  </div>
+
+  <section class="mb-6 overflow-x-auto rounded-xl border border-console-line bg-white p-4 print:overflow-visible print:rounded-none print:border-0 print:p-0">
+    <MaintenanceGridSheet {grid} dateLabel={`ณ ${formatThaiDate(today)}`} />
+  </section>
+
+  <details class="mb-6 rounded-xl border border-console-line bg-console-card p-4 print:hidden">
+    <summary class="cursor-pointer text-[15px] font-semibold text-console-ink">จัดการรายการอุปกรณ์ ({ordered.length})</summary>
+    <form method="POST" class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 desk:grid-cols-5">
+      <input type="hidden" name="action" value="equipment" />
+      <label class={LABEL}>ชื่อ / ห้อง<input name="name" required placeholder="เช่น 305 หรือ ปั้มน้ำดี" class={INPUT} /></label>
+      <label class={LABEL}>
+        ประเภท
+        <select name="kind" class={INPUT}>
+          {EQUIPMENT_KINDS.map((kind) => <option value={kind}>{EQUIPMENT_KIND_LABELS[kind]}</option>)}
+        </select>
+      </label>
+      <label class={LABEL}>ยี่ห้อ<input name="brand" class={INPUT} /></label>
+      <label class={LABEL}>
+        อยู่ในห้อง
+        <select name="room_id" class={INPUT}>
+          <option value="">— ส่วนกลาง —</option>
+          {inWalkingOrder(rooms).map((room) => <option value={room.id}>{room.label}</option>)}
+        </select>
+      </label>
+      <div class="flex items-end"><button type="submit" class={buttonClass('secondary', 'md', false)}>เพิ่มอุปกรณ์</button></div>
+    </form>
+    <ul class="m-0 mt-4 list-none p-0">
+      {ordered.map((item) => (
+        <li class="flex min-h-11 items-center gap-3 border-b border-console-rule">
+          <span class="flex-1">{item.name} <span class="text-sm text-console-ink-soft">· {EQUIPMENT_KIND_LABELS[item.kind]}{item.brand && ` · ${item.brand}`}</span></span>
+          <form method="POST" class="m-0" onsubmit="return confirm('เอาอุปกรณ์นี้ออกจากตาราง? ประวัติยังเก็บในชีต')">
+            <input type="hidden" name="action" value="archive-equipment" />
+            <input type="hidden" name="id" value={item.id} />
+            <button type="submit" class:list={['min-h-11 px-2 text-sm text-console-ink-soft hover:text-console-crit', FOCUS]}>เอาออก</button>
+          </form>
+        </li>
+      ))}
+    </ul>
+  </details>
+</ConsoleFrame>
+
+<script>
+  document.querySelectorAll('[data-print]').forEach((b) => b.addEventListener('click', () => window.print()));
+  // รู้แค่ปี swaps the date for a year select.
+  for (const box of document.querySelectorAll<HTMLElement>('[data-when]')) {
+    const toggle = box.querySelector<HTMLInputElement>('[data-year-only]');
+    const year = box.querySelector<HTMLSelectElement>('[data-year]');
+    const date = box.querySelector<HTMLElement>('.date-field');
+    const sync = () => {
+      if (!toggle || !year) return;
+      year.hidden = !toggle.checked;
+      if (date) date.style.display = toggle.checked ? 'none' : '';
+    };
+    toggle?.addEventListener('change', sync);
+    sync();
+  }
+</script>

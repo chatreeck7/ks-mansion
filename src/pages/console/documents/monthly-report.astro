@@ -1,0 +1,49 @@
+---
+// src/pages/console/documents/monthly-report.astro
+import MonthlyReportDocument from '@/components/console/MonthlyReportDocument.astro';
+import PrintShell from '@/components/console/PrintShell.astro';
+import { collectingCycle } from '@/lib/console/history';
+import { consolePath } from '@/lib/console/paths';
+import { LINK } from '@/lib/console/ui';
+import { monthlyReportFor } from '@/lib/documents/monthly-report';
+import { cycleFromId, cycleOptions } from '@/lib/models/billing-cycle';
+import {
+  getBillRepository,
+  getDocumentTemplateRepository,
+  getLeaseRepository,
+  getMaintenanceRepository,
+  getMeterReadingRepository,
+  getPaymentRepository,
+  getRoomRepository,
+  getSettingsRepository,
+} from '@/lib/repositories';
+
+/** รายงานประจำเดือน for a month — wording from แม่แบบเอกสาร, ข้อ 1–2 from the console. */
+const env = Astro.locals.runtime?.env;
+const now = new Date();
+const maintenance = getMaintenanceRepository(env);
+const [blocks, settings, rooms, leases, readings, bills, payments, equipment, records] = await Promise.all([
+  getDocumentTemplateRepository(env).listBlocks('monthly_report'),
+  getSettingsRepository(env).resolveSettings(),
+  getRoomRepository(env).listRooms(),
+  getLeaseRepository(env).listLeases(),
+  getMeterReadingRepository(env).listReadings(),
+  getBillRepository(env).listBills(),
+  getPaymentRepository(env).listPayments(),
+  maintenance.listEquipment(),
+  maintenance.listRecords(),
+]);
+const cycle = cycleFromId(Astro.url.searchParams.get('cycle')) ?? collectingCycle(bills, now);
+const report = monthlyReportFor({ blocks, cycle, settings, rooms, leases, readings, bills, payments, equipment, records, today: now });
+---
+
+<PrintShell
+  title={report.title}
+  hint={report.usingDefaultWording
+    ? 'ยังไม่มีข้อความรายงานในชีต — กำลังแสดงข้อความตั้งต้น กด "แก้ข้อความรายงาน" เพื่อคัดลอกลงชีตแล้วแก้ได้'
+    : 'ข้อ 1–2 ระบบเติมจากการจดมิเตอร์ บิล การรับเงิน และหน้าบำรุงรักษา · ข้อความส่วนอื่นแก้ที่แม่แบบเอกสาร และใช้ต่อในเดือนถัดไป'}
+  cycles={{ options: cycleOptions(now, cycle), selected: cycle }}
+>
+  <a slot="controls" href={`${consolePath('console/templates')}?doc=monthly_report`} class:list={[LINK, 'min-h-11 inline-flex items-center']}>แก้ข้อความรายงาน →</a>
+  <MonthlyReportDocument {report} />
+</PrintShell>

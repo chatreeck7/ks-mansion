@@ -23,8 +23,8 @@ describe('the registry', () => {
     expect(TYPES.map((type) => type.id)).toEqual([...DOCUMENT_TYPE_IDS]);
   });
 
-  it('marks the three that are built, and only those', () => {
-    expect(TYPES.filter(isReady).map((type) => type.id)).toEqual(['bills', 'collection', 'evaluations']);
+  it('marks every document built', () => {
+    expect(TYPES.filter(isReady).map((type) => type.id)).toEqual(['monthly_report', 'electricity', 'rooms_summary', 'bills', 'collection', 'movements', 'evaluations', 'maintenance']);
   });
 
   it('points a built document at the cycle it was asked for', () => {
@@ -59,14 +59,14 @@ describe('the registry', () => {
   it('says which documents are scoped to a cycle and which are not', () => {
     const perCycle = TYPES.filter((type) => type.perCycle).map((type) => type.id);
 
-    expect(perCycle).toEqual(['bills', 'collection', 'movements']);
+    expect(perCycle).toEqual(['monthly_report', 'electricity', 'rooms_summary', 'bills', 'collection', 'movements']);
   });
 });
 
 describe('selectionFrom', () => {
   /** Arriving at the page: the month's paperwork, ready to go. */
   it('ticks everything producible when there is no ?include= at all', () => {
-    expect(selectionFrom(null, TYPES)).toEqual(['bills', 'collection', 'evaluations']);
+    expect(selectionFrom(null, TYPES)).toEqual(['monthly_report', 'electricity', 'rooms_summary', 'bills', 'collection', 'movements', 'evaluations', 'maintenance']);
   });
 
   /**
@@ -110,7 +110,10 @@ describe('selectedDocuments', () => {
 
   /** Never a link to a page that does not exist. */
   it('drops an unbuilt type even when it was asked for', () => {
-    expect(selectedDocuments(['bills', 'maintenance'], TYPES).map((d) => d.id)).toEqual([
+    const withUnbuilt = TYPES.map((type) =>
+      type.id === 'maintenance' ? { ...type, availability: { ready: false as const, reason: 'x', blockedBy: 'y' } } : type,
+    );
+    expect(selectedDocuments(['bills', 'maintenance'], withUnbuilt).map((d) => d.id)).toEqual([
       'bills',
     ]);
   });

@@ -257,8 +257,12 @@ describe('parsePaidOn', () => {
     expect(parsePaidOn('2 เม.ย. 2568', TODAY).date).toEqual(TODAY);
   });
 
+  it('reads what the date picker submits', () => {
+    expect(parsePaidOn('2025-03-28', TODAY).date).toEqual(new Date(2025, 2, 28));
+  });
+
   it('refuses a date it cannot read and says what one looks like', () => {
-    const { date, error } = parsePaidOn('2025-03-28', TODAY);
+    const { date, error } = parsePaidOn('28 มีนา', TODAY);
 
     expect(date).toBeNull();
     expect(error).toContain('2 เม.ย. 2568');

@@ -1,5 +1,7 @@
 ---
 // src/pages/console/payments.astro
+import DateInput from '@/components/console/DateInput.astro';
+import { dateToInput } from '@/lib/console/lease-form';
 import ConsoleFrame from '@/components/console/ConsoleFrame.astro';
 import CyclePicker from '@/components/console/CyclePicker.astro';
 import Button from '@/components/console/Button.astro';
@@ -69,7 +71,7 @@ let recorded = 0;
 let collected = 0;
 let collectedCash = 0;
 let submitted: FormData | undefined;
-let paidOnValue = formatThaiDate(today);
+let paidOnValue = dateToInput(today);
 let method: PaymentMethod = 'transfer';
 
 async function load() {
@@ -194,15 +196,10 @@ const outstanding = rows.reduce(
         <li>กด <strong>บันทึก</strong> ครั้งเดียวได้หลายห้อง</li>
       </ol>
       <fieldset class="mb-4 flex flex-wrap items-end gap-3 border-0 p-0 desk:gap-5">
-        <label class="flex flex-1 flex-col gap-1 text-[15px] font-medium text-console-ink-soft desk:flex-none">
-          วันที่รับเงิน (ใช้กับทุกห้องที่บันทึกครั้งนี้)
-          <input
-            type="text"
-            name="paid_on"
-            value={paidOnValue}
-            class:list={[INPUT, 'font-semibold desk:w-48']}
-          />
-        </label>
+        <div class="flex flex-1 flex-col gap-1 desk:flex-none">
+          <label for="paid_on" class="text-[15px] font-medium text-console-ink-soft">วันที่รับเงิน (ใช้กับทุกห้องที่บันทึกครั้งนี้)</label>
+          <DateInput name="paid_on" value={paidOnValue} max={dateToInput(today)} width="fit" today />
+        </div>
       </fieldset>
 
       <h2 class={SECTION_TITLE}>ยังไม่จ่าย ({owing.length})</h2>

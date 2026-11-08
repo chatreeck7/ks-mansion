@@ -1,0 +1,85 @@
+---
+// src/components/console/MaintenanceGridSheet.astro
+import type { MaintenanceGrid } from '@/lib/console/maintenance-log';
+
+/**
+ * ตารางตรวจเช็คอุปกรณ์หลัก — equipment down the side, one column per year,
+ * each cell the jobs done that year with the day when known. Prints on a
+ * landscape A4, like the family's sheet.
+ */
+interface Props {
+  grid: MaintenanceGrid;
+  /** `ส่ง 26/10/69` on the paper. */
+  dateLabel: string;
+}
+const { grid, dateLabel } = Astro.props;
+---
+
+<article class="mgrid bg-white text-black">
+  <header class="mb-2 flex items-baseline justify-between gap-3">
+    <h2 class="m-0 text-[17px] font-bold">ตารางตรวจเช็คอุปกรณ์หลัก</h2>
+    <p class="m-0 text-[13px]">{dateLabel}</p>
+  </header>
+  <table class="w-full min-w-[720px] border-collapse text-[12.5px] print:min-w-0">
+    <thead>
+      <tr>
+        <th class="cell w-28 text-left">อุปกรณ์ / ห้อง</th>
+        <th class="cell w-24 text-left">ยี่ห้อ</th>
+        {grid.years.map((year) => <th class="cell">ปี {year}</th>)}
+      </tr>
+    </thead>
+    <tbody>
+      {grid.rows.map((row) => (
+        <tr>
+          <th class="cell text-left font-semibold">{row.equipment.kind === 'aircon' ? row.equipment.name : `* ${row.equipment.name}`}</th>
+          <td class="cell">{row.equipment.brand}</td>
+          {row.cells.map((entries) => (
+            <td class="cell align-top">
+              {entries.map((entry) => (
+                <span class="block leading-snug">
+                  {entry.work}
+                  {entry.day && <span class="whitespace-nowrap"> ({entry.day})</span>}
+                </span>
+              ))}
+            </td>
+          ))}
+        </tr>
+      ))}
+    </tbody>
+  </table>
+  <p class="m-0 mt-2 text-[12px] text-[#4e5566]">
+    * = อุปกรณ์ส่วนกลาง · ตัวเลขในวงเล็บ = วัน/เดือนที่ทำ{grid.older > 0 && ` · มีบันทึกเก่ากว่าปี ${grid.years[0]} อีก ${grid.older} รายการ`}
+  </p>
+</article>
+
+<style>
+  .mgrid {
+    font-family: Sarabun, 'Noto Sans Thai', sans-serif;
+  }
+  .cell {
+    border: 1px solid #8c8073;
+    padding: 2px 5px;
+    vertical-align: top;
+  }
+  thead .cell {
+    background: #f4f1ea;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  tr {
+    break-inside: avoid;
+  }
+  /* A named page, so this sheet turns landscape even inside the combined
+     export where every other section stays portrait. `!important` is the
+     one place it is needed: Chrome lets a later anonymous `@page { size: A4 }`
+     (every other document declares one) override a named page's size. */
+  @media print {
+    .mgrid {
+      page: ks-landscape;
+    }
+    @page ks-landscape {
+      size: A4 landscape !important;
+      margin: 10mm;
+    }
+  }
+</style>

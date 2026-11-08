@@ -1,0 +1,61 @@
+---
+// src/pages/console/documents/movements.astro
+import DateInput from '@/components/console/DateInput.astro';
+import MovementRegister from '@/components/console/MovementRegister.astro';
+import PrintShell from '@/components/console/PrintShell.astro';
+import { collectingCycle } from '@/lib/console/history';
+import { dateFromInput, dateToInput } from '@/lib/console/lease-form';
+import { letterheadFrom } from '@/lib/console/letterhead';
+import { movementPeriodFor, movementRegisterFor } from '@/lib/console/movements';
+import { buttonClass } from '@/lib/console/ui';
+import { cycleFromId, cycleOptions } from '@/lib/models/billing-cycle';
+import {
+  getBillRepository,
+  getLeaseRepository,
+  getRoomRepository,
+  getSettingsRepository,
+  getTenantRepository,
+} from '@/lib/repositories';
+
+/**
+ * บัญชีแจ้งคนเข้า-ออก for a period — by default the month since the last
+ * report (the day after last cycle's issue to this one's), or any range
+ * picked with the two dates.
+ */
+const env = Astro.locals.runtime?.env;
+const now = new Date();
+const params = Astro.url.searchParams;
+const [rooms, leases, tenants, bills, settings] = await Promise.all([
+  getRoomRepository(env).listRooms(),
+  getLeaseRepository(env).listLeases(),
+  getTenantRepository(env).listTenants(),
+  getBillRepository(env).listBills(),
+  getSettingsRepository(env).resolveSettings(),
+]);
+const cycle = cycleFromId(params.get('cycle')) ?? collectingCycle(bills, now);
+const fallback = movementPeriodFor(cycle);
+const from = dateFromInput(params.get('from') ?? '') ?? fallback.from;
+const to = dateFromInput(params.get('to') ?? '') ?? fallback.to;
+const period = from <= to ? { from, to } : { from: to, to: from };
+const register = movementRegisterFor(period, rooms, leases, tenants);
+---
+
+<PrintShell
+  title="บัญชีแจ้งคนเข้า-ออก"
+  hint="ข้อมูลมาจากสัญญาเช่า: วันเข้า-ออก ยอดแรกเข้า ยอดย้ายออก และสาเหตุ — แก้ได้ที่หน้าสัญญาของแต่ละห้อง"
+  cycles={{ options: cycleOptions(now, cycle), selected: cycle }}
+>
+  <form slot="controls" method="GET" class="flex flex-wrap items-start gap-2">
+    <input type="hidden" name="cycle" value={cycle.id} />
+    <label class="flex flex-col gap-1 text-[15px] font-medium text-console-ink-soft">
+      ตั้งแต่
+      <DateInput name="from" value={dateToInput(period.from)} width="fit" />
+    </label>
+    <label class="flex flex-col gap-1 text-[15px] font-medium text-console-ink-soft">
+      ถึง
+      <DateInput name="to" value={dateToInput(period.to)} width="fit" />
+    </label>
+    <button type="submit" class:list={[buttonClass('secondary', 'md', false), 'mt-7']}>ดูช่วงนี้</button>
+  </form>
+  <MovementRegister {register} building={letterheadFrom(env, settings).name} />
+</PrintShell>

@@ -1,0 +1,66 @@
+---
+// src/components/console/PrintShell.astro
+import CyclePicker from '@/components/console/CyclePicker.astro';
+import ConsoleLayout from '@/layouts/ConsoleLayout.astro';
+import { consolePath } from '@/lib/console/paths';
+import type { BillingCycle } from '@/lib/models/billing-cycle';
+
+/**
+ * The frame every printable sheet shares: back link, month picker, print
+ * button — all hidden on paper — around a white page the size of what
+ * prints. One component so the six documents behave the same way, and so a
+ * fix to how one prints is a fix to all of them.
+ */
+interface Props {
+  title: string;
+  /** Shown under the toolbar on screen only: where the figures come from. */
+  hint?: string;
+  back?: { href: string; label: string };
+  cycles?: { options: BillingCycle[]; selected: BillingCycle };
+  /** `wide` for the yearly grids that print landscape. */
+  width?: 'a4' | 'wide';
+}
+
+const {
+  title,
+  hint,
+  back = { href: consolePath('console/documents'), label: '← กลับไปเอกสาร' },
+  cycles,
+  width = 'a4',
+} = Astro.props;
+// Inside แม่แบบเอกสาร's preview pane only the paper is wanted.
+const embed = Astro.url.searchParams.has('embed');
+const LINK =
+  'inline-flex min-h-11 items-center text-base font-medium text-console-ink-soft no-underline hover:text-console-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-console-ink';
+---
+
+<ConsoleLayout {title}>
+  <main class:list={['console-root mx-auto print:max-w-none print:px-0 print:py-0', embed ? 'px-2 py-2' : 'px-4 py-6', width === 'wide' ? 'max-w-6xl' : 'max-w-4xl']}>
+    <div class:list={['mb-4 flex flex-col gap-3 print:hidden', embed && 'hidden']}>
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <a href={back.href} class={LINK}>{back.label}</a>
+        <button
+          type="button"
+          data-print
+          class="min-h-11 rounded-[10px] bg-console-ink px-4 font-semibold text-white hover:bg-console-ink/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-console-ink"
+        >
+          พิมพ์ / บันทึกเป็น PDF
+        </button>
+      </div>
+      {(cycles || Astro.slots.has('controls')) && (
+        <div class="flex flex-wrap items-start gap-x-4 gap-y-3 rounded-xl border border-console-line bg-console-card px-4 py-3">
+          {cycles && <CyclePicker options={cycles.options} selected={cycles.selected} />}
+          <slot name="controls" />
+        </div>
+      )}
+    </div>
+    {hint && !embed && <p class="mb-3 text-sm text-console-ink-soft print:hidden">{hint}</p>}
+    <div class="rounded-xl border border-console-line bg-white px-6 py-6 shadow-[0_8px_24px_rgba(30,45,74,0.08)] print:rounded-none print:border-0 print:px-0 print:py-0 print:shadow-none">
+      <slot />
+    </div>
+  </main>
+</ConsoleLayout>
+
+<script>
+  document.querySelectorAll('[data-print]').forEach((button) => button.addEventListener('click', () => window.print()));
+</script>

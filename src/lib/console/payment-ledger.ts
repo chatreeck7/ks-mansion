@@ -1,5 +1,6 @@
 import { formatBaht, formatThaiDate } from '@/lib/format/thai';
 import { parseThaiDate } from '@/lib/format/thai-parse';
+import { dateFromInput } from '@/lib/console/lease-form';
 import type { Bill } from '@/lib/models/bill';
 import type { LedgerColumn, LedgerGroup, LedgerRow } from '@/lib/models/ledger';
 import type { PillTone } from '@/lib/models/pill-tone';
@@ -254,7 +255,8 @@ export function paymentsFromForm(
 export function parsePaidOn(raw: unknown, today: Date): { date: Date | null; error: string | null } {
   if (typeof raw !== 'string' || raw.trim() === '') return { date: today, error: null };
 
-  const date = parseThaiDate(raw);
+  // The date picker submits `2026-11-07`; typed พ.ศ. text still works.
+  const date = dateFromInput(raw) ?? parseThaiDate(raw);
   if (!date) {
     return {
       date: null,

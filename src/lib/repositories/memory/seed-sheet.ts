@@ -408,6 +408,28 @@ const DOCUMENT_TEMPLATE_ROWS: (string | number)[][] = DEFAULT_CONTRACT_BLOCKS.ma
   '',
 ]);
 
+
+/**
+ * A few lines of the family's ตารางตรวจเช็คอุปกรณ์หลัก — brands and jobs are
+ * equipment facts, not anyone's personal data.
+ */
+const EQUIPMENT_HEADER = ['id', 'name', 'kind', 'brand', 'room_id', 'position', 'note', 'archived'];
+const EQUIPMENT_ROWS: (string | number)[][] = [
+  ['eq-001', '102', 'aircon', 'MIDEA', '102', 10, '', ''],
+  ['eq-002', '104', 'aircon', 'SHARP', '104', 20, '', ''],
+  ['eq-003', '204', 'aircon', 'FUJIZU', '204', 30, '', ''],
+  ['eq-004', 'หม้อแปลงไฟฟ้า', 'transformer', '', '', 900, '', ''],
+  ['eq-005', 'ปั้มน้ำบาดาล 1', 'pump', '', '', 910, '', ''],
+];
+const MAINTENANCE_LOGS_HEADER = ['id', 'equipment_id', 'year', 'done_on', 'work', 'cost', 'note', 'archived'];
+const MAINTENANCE_LOG_ROWS: (string | number)[][] = [
+  ['mt-001', 'eq-001', 2563, '3 ก.ค. 2563', 'ซ่อมแอร์', '', '', ''],
+  ['mt-002', 'eq-001', 2564, '15 พ.ย. 2564', 'ล้าง+เติมน้ำยา', '', '', ''],
+  ['mt-003', 'eq-002', 2569, '24 ม.ค. 2569', 'ล้าง+เติมน้ำยา', 1200, '', ''],
+  ['mt-004', 'eq-003', 2568, '', 'ล้าง+เติมน้ำยา', '', '', ''],
+  ['mt-005', 'eq-005', 2569, '12 พ.ค. 2569', 'ซ่อมตู้ควบคุม', 3500, '', ''],
+];
+
 // ---------------------------------------------------------------- build
 
 /**
@@ -424,6 +446,8 @@ export function createSeedSheets(): InMemorySheets {
     payments: [PAYMENTS_HEADER, ...PAYMENT_ROWS],
     settings: [SETTINGS_HEADER, ...SETTING_ROWS],
     document_templates: [DOCUMENT_TEMPLATES_HEADER, ...DOCUMENT_TEMPLATE_ROWS],
+    equipment: [EQUIPMENT_HEADER, ...EQUIPMENT_ROWS],
+    maintenance_logs: [MAINTENANCE_LOGS_HEADER, ...MAINTENANCE_LOG_ROWS],
   });
 }
 
