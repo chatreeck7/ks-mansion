@@ -24,6 +24,8 @@ describe('CONSOLE_SECTIONS', () => {
       // The register.
       'rooms',
       'tenants',
+      // ตารางตรวจเช็คอุปกรณ์หลัก: record and print on one page.
+      'maintenance',
       // KS-31: contract wording and the facts every document prints.
       'templates',
       'health',

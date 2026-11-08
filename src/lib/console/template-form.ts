@@ -3,6 +3,7 @@ import {
   type TemplateBlock,
   type TemplateBlockDraft,
   type TemplateBlockKind,
+  type TemplateDocType,
 } from '@/lib/models/document-template';
 import { SETTING_DEFINITIONS, type SettingKey, type SettingValues } from '@/lib/models/settings';
 
@@ -63,18 +64,22 @@ export function blockChangesFromForm(form: FormData, blocks: readonly TemplateBl
 }
 
 /** The "add a block" form, or null when nothing was typed into it. */
-export function newBlockFromForm(form: FormData, blocks: readonly TemplateBlock[]): TemplateBlockDraft | null {
+export function newBlockFromForm(
+  form: FormData,
+  blocks: readonly TemplateBlock[],
+  docType: TemplateDocType = 'contract',
+): TemplateBlockDraft | null {
   const body = clean(text(form, 'new.body') ?? '');
   const heading = clean(text(form, 'new.heading') ?? '');
-  if (body === '' && heading === '') return null;
   const kindRaw = text(form, 'new.kind') ?? 'clause';
+  if (body === '' && heading === '') return null;
   const kind: TemplateBlockKind = (TEMPLATE_BLOCK_KINDS as readonly string[]).includes(kindRaw)
     ? (kindRaw as TemplateBlockKind)
     : 'clause';
   const positionRaw = (text(form, 'new.position') ?? '').trim();
   const last = blocks.reduce((max, block) => Math.max(max, block.position), 0);
   return {
-    docType: 'contract',
+    docType,
     kind,
     heading,
     body,
@@ -82,4 +87,28 @@ export function newBlockFromForm(form: FormData, blocks: readonly TemplateBlock[
     // Blank means "at the end", the commonest case.
     position: positionRaw === '' ? last + 10 : Number(positionRaw),
   };
+}
+
+/**
+ * ↑ / ↓ on a block: swap its position with its neighbour's. Two writes, no
+ * renumbering — the 10, 20, 30 gaps stay as they were.
+ */
+export function moveChanges(
+  blocks: readonly TemplateBlock[],
+  id: string,
+  direction: 'up' | 'down',
+): Array<{ id: string; position: number }> {
+  const ordered = [...blocks].filter((b) => !b.archived).sort((a, b) => a.position - b.position);
+  const index = ordered.findIndex((block) => block.id === id);
+  const other = ordered[direction === 'up' ? index - 1 : index + 1];
+  const self = ordered[index];
+  if (!self || !other) return [];
+  if (self.position === other.position) {
+    // Equal numbers cannot be swapped into an order; nudge instead.
+    return [{ id: self.id, position: other.position + (direction === 'up' ? -1 : 1) }];
+  }
+  return [
+    { id: self.id, position: other.position },
+    { id: other.id, position: self.position },
+  ];
 }

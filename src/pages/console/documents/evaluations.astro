@@ -1,5 +1,6 @@
 ---
 // src/pages/console/documents/evaluations.astro
+import DateInput from '@/components/console/DateInput.astro';
 import EvaluationReport from '@/components/console/EvaluationReport.astro';
 import ConsoleLayout from '@/layouts/ConsoleLayout.astro';
 import { evaluationReportFor } from '@/lib/console/evaluation-report';
@@ -29,10 +30,9 @@ const LINK =
   <main class="console-root mx-auto max-w-5xl px-4 py-6 print:max-w-none print:px-0 print:py-0">
     <div class="mb-4 flex flex-wrap items-center justify-between gap-3 print:hidden">
       <a href={consolePath('console/documents')} class={LINK}>← กลับไปเอกสาร</a>
-      <form method="GET" class="flex flex-wrap items-center gap-2">
+      <form method="GET" class="flex flex-wrap items-start gap-2">
         <label class="text-[15px] text-console-ink-soft" for="date">ณ วันที่</label>
-        <input id="date" name="date" type="date" value={dateToInput(asOf)}
-          class="min-h-11 rounded-lg border-[1.5px] border-console-line-strong bg-console-card px-3" />
+        <DateInput name="date" value={dateToInput(asOf)} width="fit" />
         <button type="submit" class="min-h-11 rounded-[10px] border-[1.5px] border-console-ink px-3 font-semibold text-console-ink">ดู</button>
         <button type="button" data-print
           class="min-h-11 rounded-[10px] bg-console-ink px-4 font-semibold text-white hover:bg-console-ink/90">

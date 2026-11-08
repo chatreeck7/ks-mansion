@@ -1,5 +1,6 @@
 ---
 // src/components/console/MoveInTermsFields.astro
+import DateInput from './DateInput.astro';
 import FormField from './FormField.astro';
 import { INPUT } from '@/lib/console/ui';
 
@@ -55,11 +56,13 @@ const RADIO = 'h-5 w-5 accent-[#1E2D4A]';
         <input type="radio" name="billingStart" value="next-month" checked={billingStart === 'next-month'} class={RADIO} />
         วันที่ 1 ของเดือนถัดไป
       </label>
-      <label class="inline-flex min-h-11 flex-wrap items-center gap-2">
-        <input type="radio" name="billingStart" value="custom" checked={billingStart === 'custom'} class={RADIO} />
-        กำหนดวันเอง
-        <input type="date" name="billingStartDate" value={billingStartDate} aria-label="วันเริ่มคิดค่าเช่า" class:list={[INPUT, 'w-auto']} />
-      </label>
+      <div class="flex flex-wrap items-start gap-x-3 gap-y-1">
+        <label class="inline-flex min-h-11 items-center gap-2">
+          <input type="radio" name="billingStart" value="custom" checked={billingStart === 'custom'} class={RADIO} />
+          กำหนดวันเอง
+        </label>
+        <DateInput name="billingStartDate" value={billingStartDate} ariaLabel="วันเริ่มคิดค่าเช่า" width="fit" />
+      </div>
     </div>
 
     <div role="radiogroup" aria-labelledby="prorate-label" class="flex flex-col gap-1.5">
@@ -123,5 +126,14 @@ const RADIO = 'h-5 w-5 accent-[#1E2D4A]';
     };
     room.addEventListener('change', fill);
     fill();
+  }
+
+  // Picking a date means "กำหนดวันเอง" — tick it rather than make them do both.
+  for (const box of document.querySelectorAll<HTMLElement>('[data-move-in]')) {
+    const date = box.querySelector<HTMLInputElement>('input[name="billingStartDate"]');
+    const custom = box.querySelector<HTMLInputElement>('input[name="billingStart"][value="custom"]');
+    date?.addEventListener('change', () => {
+      if (custom && date.value) custom.checked = true;
+    });
   }
 </script>

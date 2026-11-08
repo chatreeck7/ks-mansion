@@ -1,0 +1,107 @@
+---
+// src/components/console/MonthlyReportDocument.astro
+import type { MonthlyReport } from '@/lib/documents/monthly-report';
+import type { Segment } from '@/lib/documents/template';
+
+/**
+ * รายงานประจำเดือน on paper: numbered sections, indented lines kept as
+ * typed, tables ruled, and the console-written parts (ข้อ 1, 2) set like the
+ * rest so the page reads as one document.
+ */
+interface Props {
+  report: MonthlyReport;
+}
+const { report } = Astro.props;
+const isEmpty = (segments: Segment[]) => segments.every((s) => s.kind === 'text' && s.text.trim() === '');
+---
+
+<article class="report bg-white text-[14.5px] leading-[1.7] text-black">
+  {report.blocks.map((block) => {
+    const segs = (segments: Segment[]) =>
+      segments.map((s) =>
+        s.kind === 'blank' ? (
+          <span class="blank" aria-label={`เว้นว่าง: ${s.name}`} />
+        ) : s.kind === 'unknown' ? (
+          <span class="unknown">{s.text}</span>
+        ) : (
+          s.text
+        ),
+      );
+    if (block.kind === 'title') {
+      return <h2 class="m-0 mb-4 text-center text-[19px] font-bold">{block.lines.map((line) => <span class="block">{segs(line)}</span>)}</h2>;
+    }
+    if (block.kind === 'table') {
+      const [head, ...body] = block.rows;
+      return (
+        <div class="keep mb-3 ms-8">
+          {!isEmpty(block.heading) && <p class="m-0 mb-1 font-semibold">{segs(block.heading)}</p>}
+          {head && (
+            <table class="border-collapse text-[13.5px]">
+              <thead>
+                <tr>{head.map((cell) => <th class="cell">{segs(cell)}</th>)}</tr>
+              </thead>
+              <tbody>
+                {body.map((row) => (
+                  <tr>{head.map((_, i) => <td class="cell">{row[i] ? segs(row[i]!) : ''}</td>)}</tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      );
+    }
+    if (block.kind === 'auto') {
+      return (
+        <div class="keep mb-2">
+          {!isEmpty(block.heading) && <h3 class="m-0 mt-3 text-[15.5px] font-bold">{segs(block.heading)}</h3>}
+          {block.auto.map((line) => <p class="m-0 ms-8 line">{line}</p>)}
+        </div>
+      );
+    }
+    return (
+      <div class="keep mb-2">
+        {!isEmpty(block.heading) && <h3 class="m-0 mt-3 text-[15.5px] font-bold">{segs(block.heading)}</h3>}
+        {block.lines.map((line) => <p class="m-0 ms-8 line">{segs(line)}</p>)}
+      </div>
+    );
+  })}
+</article>
+
+<style>
+  .report {
+    font-family: Sarabun, 'Noto Sans Thai', sans-serif;
+  }
+  .line {
+    white-space: pre-wrap;
+  }
+  .cell {
+    border: 1px solid #8c8073;
+    padding: 1px 8px;
+    text-align: left;
+    vertical-align: top;
+  }
+  th.cell {
+    background: #f4f1ea;
+    font-weight: 600;
+  }
+  .blank {
+    display: inline-block;
+    min-width: 5em;
+    border-bottom: 1px dotted #000;
+  }
+  .unknown {
+    background: #fde68a;
+  }
+  .keep {
+    break-inside: avoid;
+  }
+  @media print {
+    @page {
+      size: A4;
+      margin: 14mm 16mm;
+    }
+    .unknown {
+      background: none;
+    }
+  }
+</style>

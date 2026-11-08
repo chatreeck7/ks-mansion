@@ -6,6 +6,7 @@ import type { BillRepository } from './bill-repository';
 import type { PaymentRepository } from './payment-repository';
 import type { SettingsRepository } from './settings-repository';
 import type { DocumentTemplateRepository } from './document-template-repository';
+import type { MaintenanceRepository } from './maintenance-repository';
 import type { SheetsClient } from './sheets/sheets-client';
 import { sharedSeedSheets } from './memory/seed-sheet';
 import { createSheetsRoomRepository } from './sheets/sheets-room-repository';
@@ -16,6 +17,7 @@ import { createSheetsBillRepository } from './sheets/sheets-bill-repository';
 import { createSheetsPaymentRepository } from './sheets/sheets-payment-repository';
 import { createSheetsSettingsRepository } from './sheets/sheets-settings-repository';
 import { createSheetsDocumentTemplateRepository } from './sheets/sheets-document-template-repository';
+import { createSheetsMaintenanceRepository } from './sheets/sheets-maintenance-repository';
 import { getSheetsClient } from './sheets/client-cache';
 
 /**
@@ -139,4 +141,8 @@ export function getDocumentTemplateRepository(
   env?: Record<string, unknown>,
 ): DocumentTemplateRepository {
   return createSheetsDocumentTemplateRepository(sheetsClientFrom(env));
+}
+
+export function getMaintenanceRepository(env?: Record<string, unknown>): MaintenanceRepository {
+  return createSheetsMaintenanceRepository(sheetsClientFrom(env));
 }

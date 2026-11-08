@@ -1,0 +1,116 @@
+---
+// src/components/console/RoomSummary.astro
+import { formatBaht } from '@/lib/format/thai';
+import { shortThaiDate, type RoomSummary, type RoomSummaryTotals } from '@/lib/console/month-summary';
+
+/**
+ * สรุปรายการค่าห้องพัก — what every room was billed this round, floor by
+ * floor, with the landlord's appliances and each room's status in the last
+ * columns, exactly where the family's sheet keeps them.
+ */
+interface Props {
+  summary: RoomSummary;
+  building: string;
+}
+const { summary, building } = Astro.props;
+const money = (n: number | null) => (n === null ? '' : n === 0 ? '-' : formatBaht(n));
+const tick = (on: boolean) => (on ? '✓' : '');
+const counts = (t: RoomSummaryTotals) => [t.tv, t.fridge, t.aircon];
+---
+
+<article class="sheet bg-white text-black">
+  <h2 class="m-0 text-center text-[17px] font-bold">{summary.title}</h2>
+  <p class="m-0 mb-3 text-center text-[13px]">[{summary.subtitle}] · {building}</p>
+  <table class="w-full border-collapse text-[13px]">
+    <thead>
+      <tr>
+        <th class="cell">วันที่เข้าอยู่</th>
+        <th class="cell text-left">ห้อง</th>
+        <th class="cell">ค่าห้อง</th>
+        <th class="cell">ค่าน้ำ</th>
+        <th class="cell">ค่าไฟ</th>
+        <th class="cell">รวม</th>
+        <th class="cell w-10">TV</th>
+        <th class="cell w-12">ตู้เย็น</th>
+        <th class="cell w-10">แอร์</th>
+        <th class="cell text-left">สถานะ / หมายเหตุ</th>
+      </tr>
+    </thead>
+    {summary.floors.map((floor) => (
+      <tbody class="keep">
+        {floor.rows.map((row) => (
+          <tr class:list={[row.total === null && 'idle']}>
+            <td class="cell num">{row.movedIn && row.total !== null ? shortThaiDate(row.movedIn) : ''}</td>
+            <td class="cell">{row.label}</td>
+            <td class="cell num">{money(row.rent)}</td>
+            <td class="cell num">{money(row.water)}</td>
+            <td class="cell num">{money(row.electricity)}</td>
+            <td class="cell num font-semibold">{money(row.total)}</td>
+            <td class="cell text-center">{tick(row.tv)}</td>
+            <td class="cell text-center">{tick(row.fridge)}</td>
+            <td class="cell text-center">{tick(row.aircon)}</td>
+            <td class="cell">{row.note}</td>
+          </tr>
+        ))}
+        <tr class="subtotal">
+          <td class="cell text-right font-semibold" colspan="2">รวมชั้นที่ {floor.floor}</td>
+          <td class="cell num font-semibold">{formatBaht(floor.totals.rent)}</td>
+          <td class="cell num font-semibold">{formatBaht(floor.totals.water)}</td>
+          <td class="cell num font-semibold">{formatBaht(floor.totals.electricity)}</td>
+          <td class="cell num font-semibold">{formatBaht(floor.totals.total)}</td>
+          {counts(floor.totals).map((n) => <td class="cell text-center">{n || ''}</td>)}
+          <td class="cell">{floor.totals.billed} ห้องมีบิล</td>
+        </tr>
+      </tbody>
+    ))}
+    <tfoot>
+      <tr class="grand">
+        <td class="cell text-right font-bold" colspan="2">รวมทั้งสิ้น</td>
+        <td class="cell num font-bold">{formatBaht(summary.totals.rent)}</td>
+        <td class="cell num font-bold">{formatBaht(summary.totals.water)}</td>
+        <td class="cell num font-bold">{formatBaht(summary.totals.electricity)}</td>
+        <td class="cell num font-bold">{formatBaht(summary.totals.total)}</td>
+        {counts(summary.totals).map((n) => <td class="cell text-center font-bold">{n}</td>)}
+        <td class="cell">{summary.totals.billed} ห้องมีบิล · ว่าง {summary.vacant} ห้อง</td>
+      </tr>
+    </tfoot>
+  </table>
+</article>
+
+<style>
+  .sheet {
+    font-family: Sarabun, 'Noto Sans Thai', sans-serif;
+  }
+  .cell {
+    border: 1px solid #8c8073;
+    padding: 1px 6px;
+    font-weight: inherit;
+  }
+  th.cell {
+    font-weight: 600;
+    background: #f4f1ea;
+  }
+  .num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .idle td {
+    color: #6b6f78;
+  }
+  .subtotal td {
+    background: #faf8f3;
+  }
+  .grand td {
+    border-top: 2px solid #1e2d4a;
+  }
+  .keep {
+    break-inside: avoid;
+  }
+  @media print {
+    @page {
+      size: A4;
+      margin: 10mm 12mm;
+    }
+  }
+</style>

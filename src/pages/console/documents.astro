@@ -13,7 +13,9 @@ import {
   selectionFrom,
 } from '@/lib/console/document-types';
 import { formatThaiMonth } from '@/lib/format/thai';
-import { cycleFor, cycleFromId, cycleLabel, cycleOptions } from '@/lib/models/billing-cycle';
+import { cycleFromId, cycleLabel, cycleOptions } from '@/lib/models/billing-cycle';
+import { collectingCycle } from '@/lib/console/history';
+import { getBillRepository } from '@/lib/repositories';
 
 /**
  * Pick which documents to produce for a month (KS-27, AC-4.1).
@@ -40,8 +42,11 @@ const now = new Date();
 const requested = Astro.url.searchParams.get('cycle');
 const chosen = cycleFromId(requested);
 const unknownCycle = requested !== null && chosen === null;
-const cycle = chosen ?? cycleFor(now);
-const options = cycleOptions(now, chosen);
+// The month's paperwork is filed with the bills it covers, so the page
+// opens on the cycle whose bills exist (เดือนที่ออกบิลล่าสุด), not on a
+// notebook month that has not been billed yet.
+const cycle = chosen ?? collectingCycle(await getBillRepository(Astro.locals.runtime?.env).listBills(), now);
+const options = cycleOptions(now, cycle);
 
 const types = documentTypesFor(cycle);
 

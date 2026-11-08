@@ -1,0 +1,163 @@
+---
+// src/components/console/MovementRegister.astro
+import { formatBaht, formatThaiDate } from '@/lib/format/thai';
+import { shortThaiDate } from '@/lib/console/month-summary';
+import type { MovementRegister } from '@/lib/console/movements';
+
+/**
+ * บัญชีแจ้งคนเข้า-ออก as three plain tables instead of one twelve-column
+ * row: ห้องเข้า, ห้องออก, ห้องว่าง. Signs become words (คืน / เก็บเพิ่ม), and
+ * an empty section says so rather than vanishing.
+ */
+interface Props {
+  register: MovementRegister;
+  building: string;
+}
+const { register, building } = Astro.props;
+const money = (n: number | null) => (n === null ? '—' : formatBaht(n));
+const { period } = register;
+---
+
+<article class="sheet bg-white text-black">
+  <header class="mb-3 text-center">
+    <h2 class="m-0 text-[18px] font-bold">บัญชีแจ้งคนเข้า-ออก</h2>
+    <p class="m-0 text-[13px]">{building} · ช่วง {formatThaiDate(period.from)} – {formatThaiDate(period.to)}</p>
+  </header>
+
+  <p class="summary m-0 mb-4 flex flex-wrap justify-center gap-x-6 gap-y-1 text-[14px]">
+    <span>เข้า <strong>{register.moveIns.length}</strong> ห้อง</span>
+    <span>ออก <strong>{register.moveOuts.length}</strong> ห้อง</span>
+    <span>ว่าง ณ วันที่ {shortThaiDate(period.to)} <strong>{register.vacant.length}</strong> ห้อง</span>
+    {register.leaving.length > 0 && <span>แจ้งออกแล้ว <strong>{register.leaving.length}</strong> ห้อง</span>}
+  </p>
+
+  <section class="keep mb-5">
+    <h3 class="m-0 mb-1 text-[15px] font-bold">1. ห้องเข้า</h3>
+    {register.moveIns.length === 0 ? (
+      <p class="m-0 text-[13px] text-[#4e5566]">ไม่มีผู้เช่าเข้าใหม่ในช่วงนี้</p>
+    ) : (
+      <table class="w-full border-collapse text-[13px]">
+        <thead>
+          <tr>
+            <th class="cell">วันที่เข้า</th>
+            <th class="cell">ห้อง</th>
+            <th class="cell text-left">ผู้เช่า</th>
+            <th class="cell">ค่าเช่า/เดือน</th>
+            <th class="cell text-left">เงินแรกเข้า</th>
+            <th class="cell">ยอดที่ต้องจ่าย</th>
+            <th class="cell">จ่ายจริง</th>
+            <th class="cell">ค้าง</th>
+          </tr>
+        </thead>
+        <tbody>
+          {register.moveIns.map((row) => (
+            <tr>
+              <td class="cell num">{shortThaiDate(row.date)}</td>
+              <td class="cell text-center font-semibold">{row.roomLabel}</td>
+              <td class="cell">
+                {row.tenant}
+                {row.transferFrom && <span class="block text-[12px] text-[#4e5566]">{row.transferFrom}</span>}
+              </td>
+              <td class="cell num">{formatBaht(row.rentRate)}</td>
+              <td class="cell text-[12px]">ประกัน {formatBaht(row.deposit)} + ล่วงหน้า {formatBaht(row.advanceRent)}</td>
+              <td class="cell num">{money(row.due)}</td>
+              <td class="cell num">{money(row.paid)}</td>
+              <td class:list={['cell num', row.outstanding ? 'font-bold' : '']}>{row.outstanding === null ? '—' : row.outstanding === 0 ? 'ครบ' : formatBaht(row.outstanding)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    )}
+  </section>
+
+  <section class="keep mb-5">
+    <h3 class="m-0 mb-1 text-[15px] font-bold">2. ห้องออก</h3>
+    {register.moveOuts.length === 0 ? (
+      <p class="m-0 text-[13px] text-[#4e5566]">ไม่มีผู้เช่าออกในช่วงนี้</p>
+    ) : (
+      <table class="w-full border-collapse text-[13px]">
+        <thead>
+          <tr>
+            <th class="cell">วันที่ออก</th>
+            <th class="cell">ห้อง</th>
+            <th class="cell text-left">ผู้เช่า</th>
+            <th class="cell">อยู่มา</th>
+            <th class="cell text-left">สาเหตุ</th>
+            <th class="cell text-left">เงินประกัน</th>
+            <th class="cell">จ่ายจริง</th>
+          </tr>
+        </thead>
+        <tbody>
+          {register.moveOuts.map((row) => (
+            <tr>
+              <td class="cell num">{shortThaiDate(row.date)}</td>
+              <td class="cell text-center font-semibold">{row.roomLabel}</td>
+              <td class="cell">{row.tenant}</td>
+              <td class="cell text-center">{row.stayed}</td>
+              <td class:list={['cell', row.absconded && 'font-bold']}>{row.reason}</td>
+              <td class="cell">{row.settlement ?? '—'}</td>
+              <td class="cell num">{money(row.paid)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    )}
+  </section>
+
+  <section class="keep">
+    <h3 class="m-0 mb-1 text-[15px] font-bold">3. ห้องว่าง ณ วันที่ {formatThaiDate(period.to)}</h3>
+    {register.vacant.length === 0 ? (
+      <p class="m-0 text-[13px] text-[#4e5566]">เต็มทุกห้อง</p>
+    ) : (
+      <p class="m-0 text-[14px]">
+        {register.vacant.map((room, i) => (
+          <span>
+            {i > 0 && ' · '}<strong>{room.roomLabel}</strong>
+            {room.since && <span class="text-[12px] text-[#4e5566]"> (ว่างตั้งแต่ {shortThaiDate(room.since)})</span>}
+          </span>
+        ))}
+      </p>
+    )}
+    {register.leaving.length > 0 && (
+      <p class="m-0 mt-1 text-[14px]">
+        แจ้งออกแล้ว:{' '}
+        {register.leaving.map((room, i) => (
+          <span>{i > 0 && ' · '}<strong>{room.roomLabel}</strong>{room.until && ` (ออก ${shortThaiDate(room.until)})`}</span>
+        ))}
+      </p>
+    )}
+  </section>
+
+  <p class="m-0 mt-4 text-[12px] text-[#4e5566]">
+    เงินประกัน: "คืน" = คืนให้ผู้เช่าหลังหักค่าใช้จ่าย · "เก็บเพิ่ม" = เงินประกันไม่พอ เก็บจากผู้เช่าเพิ่ม · "—" = ยังไม่ได้บันทึก
+  </p>
+</article>
+
+<style>
+  .sheet {
+    font-family: Sarabun, 'Noto Sans Thai', sans-serif;
+  }
+  .cell {
+    border: 1px solid #8c8073;
+    padding: 2px 6px;
+    vertical-align: top;
+  }
+  th.cell {
+    font-weight: 600;
+    background: #f4f1ea;
+  }
+  .num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .keep {
+    break-inside: avoid;
+  }
+  @media print {
+    @page {
+      size: A4;
+      margin: 12mm;
+    }
+  }
+</style>

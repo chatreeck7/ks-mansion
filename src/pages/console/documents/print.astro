@@ -3,6 +3,16 @@
 import BillDocument from '@/components/console/BillDocument.astro';
 import CollectionSheet from '@/components/console/CollectionSheet.astro';
 import EvaluationReport from '@/components/console/EvaluationReport.astro';
+import ElectricitySummary from '@/components/console/ElectricitySummary.astro';
+import MaintenanceGridSheet from '@/components/console/MaintenanceGridSheet.astro';
+import MonthlyReportDocument from '@/components/console/MonthlyReportDocument.astro';
+import MovementRegister from '@/components/console/MovementRegister.astro';
+import RoomSummary from '@/components/console/RoomSummary.astro';
+import { collectingCycle } from '@/lib/console/history';
+import { maintenanceGrid } from '@/lib/console/maintenance-log';
+import { electricitySummaryFor, roomSummaryFor } from '@/lib/console/month-summary';
+import { movementPeriodFor, movementRegisterFor } from '@/lib/console/movements';
+import { monthlyReportFor } from '@/lib/documents/monthly-report';
 import { evaluationReportFor } from '@/lib/console/evaluation-report';
 import ConsoleLayout from '@/layouts/ConsoleLayout.astro';
 import { billBatchFor } from '@/lib/console/bill-batch';
@@ -15,10 +25,13 @@ import {
 import { letterheadFrom, payeeFrom } from '@/lib/console/letterhead';
 import { consolePath } from '@/lib/console/paths';
 import { formatThaiDate } from '@/lib/format/thai';
-import { cycleFor, cycleFromId, cycleLabel } from '@/lib/models/billing-cycle';
+import { cycleFromId, cycleLabel } from '@/lib/models/billing-cycle';
 import {
   getBillRepository,
+  getDocumentTemplateRepository,
   getLeaseRepository,
+  getMaintenanceRepository,
+  getMeterReadingRepository,
   getPaymentRepository,
   getRoomRepository,
   getSettingsRepository,
@@ -55,41 +68,46 @@ const env = Astro.locals.runtime?.env;
 const requested = Astro.url.searchParams.get('cycle');
 const chosen = cycleFromId(requested);
 const now = new Date();
-const cycle = chosen ?? cycleFor(now);
+
+// Everything is read once, up front: eight documents drawn from the same
+// handful of tabs, and a read per section would spend the Sheets quota
+// eight times over for one printout.
+const maintenanceRepo = getMaintenanceRepository(env);
+const [allBills, rooms, payments, leases, tenants, readings, reportBlocks, equipment, records, documentSettings] =
+  await Promise.all([
+    getBillRepository(env).listBills(),
+    getRoomRepository(env).listRooms(),
+    getPaymentRepository(env).listPayments(),
+    getLeaseRepository(env).listLeases(),
+    getTenantRepository(env).listTenants(),
+    getMeterReadingRepository(env).listReadings(),
+    getDocumentTemplateRepository(env).listBlocks('monthly_report'),
+    maintenanceRepo.listEquipment(),
+    maintenanceRepo.listRecords(),
+    getSettingsRepository(env).resolveSettings(),
+  ]);
+const cycle = chosen ?? collectingCycle(allBills, now);
 
 const types = documentTypesFor(cycle);
 const raw = Astro.url.searchParams.has('include')
   ? Astro.url.searchParams.getAll('include').join(',')
   : null;
 const sections = selectedDocuments(selectionFrom(raw, types), types);
+const wants = (id: string) => sections.some((section) => section.id === id);
 
-const wantsBills = sections.some((section) => section.id === 'bills');
-const wantsCollection = sections.some((section) => section.id === 'collection');
-const wantsEvaluations = sections.some((section) => section.id === 'evaluations');
-
-// One read each, shared by whichever sections need them, rather than a fetch
-// per section: both documents are built from the same three lists.
-const [bills, rooms, payments] = await Promise.all([
-  wantsBills || wantsCollection
-    ? getBillRepository(env).listBillsForCycle(cycle.id)
-    : Promise.resolve([]),
-  wantsBills || wantsCollection ? getRoomRepository(env).listRooms() : Promise.resolve([]),
-  wantsBills || wantsCollection ? getPaymentRepository(env).listPayments() : Promise.resolve([]),
-]);
-
-const batch = wantsBills ? billBatchFor(cycle, bills, rooms, payments) : null;
-const sheet = wantsCollection ? collectionSheetFor(cycle, bills, payments, rooms) : null;
-
+const bills = allBills.filter((bill) => bill.cycle === cycle.id && !bill.archived);
+const batch = wants('bills') ? billBatchFor(cycle, bills, rooms, payments) : null;
+const sheet = wants('collection') ? collectionSheetFor(cycle, bills, payments, rooms) : null;
 // Not per cycle: the evaluation is the building as it stands today.
-const evaluation = wantsEvaluations
-  ? await Promise.all([
-      getRoomRepository(env).listRooms(),
-      getLeaseRepository(env).listLeases(),
-      getTenantRepository(env).listTenants(),
-    ]).then(([allRooms, leases, tenants]) => evaluationReportFor(allRooms, leases, tenants, now))
+const evaluation = wants('evaluations') ? evaluationReportFor(rooms, leases, tenants, now) : null;
+const report = wants('monthly_report')
+  ? monthlyReportFor({ blocks: reportBlocks, cycle, settings: documentSettings, rooms, leases, readings, bills: allBills, payments, equipment, records, today: now })
   : null;
+const electricity = wants('electricity') ? electricitySummaryFor(cycle, rooms, readings) : null;
+const roomSummary = wants('rooms_summary') ? roomSummaryFor(cycle, rooms, leases, allBills) : null;
+const movements = wants('movements') ? movementRegisterFor(movementPeriodFor(cycle), rooms, leases, tenants) : null;
+const grid = wants('maintenance') ? maintenanceGrid(equipment, records, now) : null;
 
-const documentSettings = await getSettingsRepository(env).resolveSettings();
 const letterhead = letterheadFrom(env, documentSettings);
 const payee = payeeFrom(env, documentSettings);
 
@@ -162,7 +180,7 @@ const backToSelector = `${consolePath('console/documents')}?cycle=${cycle.id}` +
         </section>
 
         {sections.map((section) => (
-          <section class="doc-section">
+          <section class:list={['doc-section', section.id === 'maintenance' && 'landscape']}>
             {/* Named at the top of its own first sheet: pulled out of the
                 folder on its own, a section still has to say what it is. */}
             <h2 class="mb-3 border-b border-console-print/40 pb-1 text-lg font-semibold text-console-ink">
@@ -183,6 +201,11 @@ const backToSelector = `${consolePath('console/documents')}?cycle=${cycle.id}` +
             {section.id === 'collection' && <CollectionSheet sheet={sheet!} />}
 
             {section.id === 'evaluations' && <EvaluationReport report={evaluation!} />}
+            {section.id === 'monthly_report' && <MonthlyReportDocument report={report!} />}
+            {section.id === 'electricity' && <ElectricitySummary summary={electricity!} building={letterhead.name} />}
+            {section.id === 'rooms_summary' && <RoomSummary summary={roomSummary!} building={letterhead.name} />}
+            {section.id === 'movements' && <MovementRegister register={movements!} building={letterhead.name} />}
+            {section.id === 'maintenance' && <MaintenanceGridSheet grid={grid!} dateLabel={`ณ ${formatThaiDate(now)}`} />}
           </section>
         ))}
       </Fragment>
@@ -207,6 +230,14 @@ const backToSelector = `${consolePath('console/documents')}?cycle=${cycle.id}` +
 
   .slip {
     break-inside: avoid;
+  }
+
+  /* The maintenance grid's whole section — heading included — goes on the
+     landscape named page its component defines. */
+  @media print {
+    .landscape {
+      page: ks-landscape;
+    }
   }
 
   .slip + .slip {

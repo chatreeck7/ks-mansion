@@ -1,0 +1,36 @@
+---
+// src/pages/console/documents/rooms-summary.astro
+import RoomSummary from '@/components/console/RoomSummary.astro';
+import PrintShell from '@/components/console/PrintShell.astro';
+import { collectingCycle } from '@/lib/console/history';
+import { letterheadFrom } from '@/lib/console/letterhead';
+import { roomSummaryFor } from '@/lib/console/month-summary';
+import { cycleFromId, cycleOptions } from '@/lib/models/billing-cycle';
+import {
+  getBillRepository,
+  getLeaseRepository,
+  getRoomRepository,
+  getSettingsRepository,
+} from '@/lib/repositories';
+
+/** สรุปรายการค่าห้องพัก for one round — the issued bills, floor by floor. */
+const env = Astro.locals.runtime?.env;
+const now = new Date();
+const [rooms, leases, bills, settings] = await Promise.all([
+  getRoomRepository(env).listRooms(),
+  getLeaseRepository(env).listLeases(),
+  getBillRepository(env).listBills(),
+  getSettingsRepository(env).resolveSettings(),
+]);
+const chosen = cycleFromId(Astro.url.searchParams.get('cycle'));
+const cycle = chosen ?? collectingCycle(bills, now);
+const summary = roomSummaryFor(cycle, rooms, leases, bills);
+---
+
+<PrintShell
+  title={summary.title}
+  hint="ตัวเลขมาจากบิลที่ออกรอบนั้น (ขั้น 3) · เครื่องใช้ในห้องแก้ที่หน้าห้อง · หมายเหตุยอดค้างแก้ที่หน้าออกบิล"
+  cycles={{ options: cycleOptions(now, cycle), selected: cycle }}
+>
+  <RoomSummary {summary} building={letterheadFrom(env, settings).name} />
+</PrintShell>

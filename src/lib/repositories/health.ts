@@ -6,6 +6,7 @@ import {
   getPaymentRepository,
   getSettingsRepository,
   getDocumentTemplateRepository,
+  getMaintenanceRepository,
   getRoomRepository,
   getTenantRepository,
   sheetsClientFrom,
@@ -17,6 +18,10 @@ import { METER_READINGS_TAB } from './sheets/sheets-meter-reading-repository';
 import { PAYMENTS_TAB } from './sheets/sheets-payment-repository';
 import { SETTINGS_TAB } from './sheets/sheets-settings-repository';
 import { DOCUMENT_TEMPLATES_TAB } from './sheets/sheets-document-template-repository';
+import {
+  EQUIPMENT_TAB_DESCRIPTOR,
+  MAINTENANCE_LOGS_TAB_DESCRIPTOR,
+} from './sheets/sheets-maintenance-repository';
 import { ROOMS_TAB } from './sheets/sheets-room-repository';
 import { TENANTS_TAB } from './sheets/sheets-tenant-repository';
 import { diagnoseTab, type TabDiagnostic } from './tab-diagnostics';
@@ -137,6 +142,18 @@ export function repositoryProbes(env?: Record<string, unknown>): TabProbe[] {
       label: 'แม่แบบเอกสาร',
       read: () => getDocumentTemplateRepository(env).listBlocks('contract'),
       inspect: () => diagnoseTab(client(), DOCUMENT_TEMPLATES_TAB),
+    },
+    {
+      tab: 'equipment',
+      label: 'อุปกรณ์ (บำรุงรักษา)',
+      read: () => getMaintenanceRepository(env).listEquipment(),
+      inspect: () => diagnoseTab(client(), EQUIPMENT_TAB_DESCRIPTOR),
+    },
+    {
+      tab: 'maintenance_logs',
+      label: 'บันทึกบำรุงรักษา',
+      read: () => getMaintenanceRepository(env).listRecords(),
+      inspect: () => diagnoseTab(client(), MAINTENANCE_LOGS_TAB_DESCRIPTOR),
     },
   ];
 }

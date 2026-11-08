@@ -10,6 +10,13 @@ import { LEASES_TAB } from './sheets-lease-repository';
 import { createSheetsSettingsRepository, SETTINGS_TAB } from './sheets-settings-repository';
 import { createSheetsTenantRepository, TENANTS_TAB } from './sheets-tenant-repository';
 import { createSheetsLeaseRepository } from './sheets-lease-repository';
+import {
+  createSheetsMaintenanceRepository,
+  EQUIPMENT_TAB_DESCRIPTOR,
+  MAINTENANCE_LOGS_TAB_DESCRIPTOR,
+} from './sheets-maintenance-repository';
+import { parseThaiDate } from '@/lib/format/thai-parse';
+import type { EquipmentKind } from '@/lib/models/maintenance';
 
 /**
  * Sets the live spreadsheet up for editable documents (KS-31, KS-24).
@@ -43,6 +50,12 @@ import { createSheetsLeaseRepository } from './sheets-lease-repository';
 const spreadsheetId = process.env.KS_MANSION_DB_SPREADSHEET_ID?.trim() ?? '';
 const credentialsJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON?.trim() ?? '';
 const settingsFile = process.env.KS_SETTINGS_FILE?.trim() ?? '';
+/**
+ * Optional: ตารางตรวจเช็คอุปกรณ์หลัก transcribed as JSON — `[{ name, kind,
+ * brand, roomId, position, records: [{ yearBE, doneOn: "15/11/2567" | null,
+ * work }] }]`. Imported once, only into an empty equipment tab.
+ */
+const maintenanceFile = process.env.KS_MAINTENANCE_FILE?.trim() ?? '';
 const mode = process.env.KS31_APPLY?.trim() ?? '';
 const asked = mode === 'yes' || mode === 'dry-run';
 const enabled = asked && spreadsheetId !== '' && credentialsJson !== '';
@@ -106,7 +119,7 @@ describe.skipIf(!enabled)('migration: editable documents', () => {
       const find = (tab: string) => props.find((p) => p.title.toLowerCase() === tab.toLowerCase());
 
       // 1. New tabs.
-      for (const { tabName, contract } of [SETTINGS_TAB, DOCUMENT_TEMPLATES_TAB]) {
+      for (const { tabName, contract } of [SETTINGS_TAB, DOCUMENT_TEMPLATES_TAB, EQUIPMENT_TAB_DESCRIPTOR, MAINTENANCE_LOGS_TAB_DESCRIPTOR]) {
         if (find(tabName)) {
           const header = (await client.getTabValues(tabName))[0] ?? [];
           expect(header, `"${tabName}" exists with a different header — fix by hand`).toEqual([...contract.columns]);
@@ -152,7 +165,22 @@ describe.skipIf(!enabled)('migration: editable documents', () => {
         await sleep(WRITE_GAP_MS);
       }
 
+      interface SeedEquipment {
+        name: string;
+        kind: EquipmentKind;
+        brand: string;
+        roomId: string | null;
+        position: number;
+        records: Array<{ yearBE: number; doneOn: string | null; work: string }>;
+      }
+      const history: SeedEquipment[] = maintenanceFile ? JSON.parse(readFileSync(maintenanceFile, 'utf8')) : [];
+
       if (dry) {
+        log(
+          maintenanceFile
+            ? `would import ${history.length} equipment / ${history.reduce((n, e) => n + e.records.length, 0)} jobs if the equipment tab is empty`
+            : 'no maintenance file',
+        );
         log(settingsFile ? `would save settings from ${settingsFile} that are not yet stored` : 'no settings file');
         log(`would seed ${DEFAULT_CONTRACT_BLOCKS.length} contract blocks if the tab has none`);
         return;
@@ -185,6 +213,34 @@ describe.skipIf(!enabled)('migration: editable documents', () => {
       } else {
         log('contract: blocks already there, left alone');
       }
+
+      // 5. Maintenance history, once.
+      const maintenance = createSheetsMaintenanceRepository(client);
+      if (history.length > 0) {
+        if ((await maintenance.listEquipment()).length > 0) {
+          log('maintenance: equipment tab already has rows, left alone');
+        } else {
+          for (const seed of history) {
+            const item = await maintenance.addEquipment({
+              name: seed.name,
+              kind: seed.kind,
+              brand: seed.brand,
+              roomId: seed.roomId,
+              position: seed.position,
+              note: '',
+            });
+            await sleep(WRITE_GAP_MS);
+            for (const job of seed.records) {
+              const doneOn = job.doneOn ? parseThaiDate(job.doneOn) : null;
+              if (job.doneOn && !doneOn) throw new Error(`${seed.name}: "${job.doneOn}" is not a date`);
+              await maintenance.addRecord({ equipmentId: item.id, yearBE: job.yearBE, doneOn, work: job.work, cost: null, note: '' });
+              await sleep(WRITE_GAP_MS);
+            }
+          }
+          log(`maintenance: ${history.length} equipment imported`);
+        }
+      }
+      await maintenance.listRecords();
 
       // Read back through the repositories the console uses.
       await createSheetsTenantRepository(client).listTenants();
