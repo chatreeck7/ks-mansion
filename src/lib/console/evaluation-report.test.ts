@@ -47,6 +47,21 @@ describe('evaluationReportFor', () => {
   });
 });
 
+describe('evaluationReportFor — common spaces', () => {
+  it('lists a common space only while someone rents it', () => {
+    const rooms = [
+      makeRoom({ id: '101', label: '101', floor: 1 }),
+      makeRoom({ id: 'laundry', label: 'ร้านซักผ้า', floor: 0, kind: 'common' }),
+      makeRoom({ id: 'under', label: 'ห้องเช่าส่วนกลาง', floor: 0, kind: 'common' }),
+    ];
+    const tenants = [makeTenant({ id: 't-1' })];
+    const leases = [makeLease({ id: 'l-1', roomId: 'laundry', tenantId: 't-1', startDate: new Date(2024, 0, 1) })];
+    const report = evaluationReportFor(rooms, leases, tenants, asOf);
+    expect(report.rows.map((r) => r.roomLabel)).toEqual(['101', 'ร้านซักผ้า']);
+    expect(report).toMatchObject({ occupiedRooms: 1, totalRooms: 2 });
+  });
+});
+
 describe('monthsBetween', () => {
   it('counts whole months, not started ones', () => {
     expect(monthsBetween(new Date(2026, 4, 30), new Date(2026, 9, 26))).toBe(4);

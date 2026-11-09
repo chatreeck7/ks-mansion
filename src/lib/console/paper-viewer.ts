@@ -33,11 +33,16 @@ export async function mountPaperViewer(root: HTMLElement): Promise<void> {
   fragment.append(copy);
 
   try {
+    // The Thai faces change every line's height: lay out once they are in.
+    await document.fonts?.ready;
     const previewer = new Previewer();
     await previewer.preview(fragment, [{ [location.href]: css }], track);
   } catch (error) {
     console.error('paper viewer: pagination failed', error);
-    if (status) status.textContent = 'จัดหน้ากระดาษไม่สำเร็จ — แสดงแบบเลื่อนลงแทน พิมพ์ได้ตามปกติ';
+    if (status) {
+      status.classList.remove('paper-skeleton');
+      status.textContent = 'จัดหน้ากระดาษไม่สำเร็จ — แสดงแบบเลื่อนลงแทน พิมพ์ได้ตามปกติ';
+    }
     source.classList.remove('paper-source-pending');
     track.remove();
     return;
@@ -49,6 +54,9 @@ export async function mountPaperViewer(root: HTMLElement): Promise<void> {
     style.textContent = stripPageRules(style.textContent ?? '');
   }
   numberPages(track);
+  // The placeholder sheet goes before measuring, so the first fit sees the
+  // room the real sheet will have.
+  status?.remove();
   // Measure every sheet first (setup), then switch to one-at-a-time.
   setup(root, track);
   root.classList.add('paper-ready');
@@ -93,9 +101,39 @@ function setup(root: HTMLElement, track: HTMLElement): void {
     pagesEl.style.zoom = String(wide ? Math.min(1.6, width / size.w) : Math.min(1.25, width / size.w, height / size.h));
   };
 
+  // Turning a page (owner, 9 พ.ย. 2569: "จำลองการเลื่อนหน้าแบบ e-book"): the
+  // sheets lie stacked; going forward the top sheet lifts off to the left
+  // around its spine, going back the earlier sheet swings in over it.
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+  let turning: Animation | null = null;
+  const turn = (from: number, to: number) => {
+    turning?.finish();
+    if (overview || from === to || reduceMotion.matches || !root.classList.contains('paper-ready')) return;
+    const forward = to > from;
+    const leaf = pages[forward ? from : to]!;
+    const under = pages[forward ? to : from]!;
+    leaf.classList.add('paper-turning');
+    under.classList.add('paper-under');
+    const flat = { transform: 'rotateY(0deg)', boxShadow: '0 10px 30px rgba(30, 45, 74, 0.16)' };
+    const lifted = { transform: 'rotateY(-88deg)', boxShadow: '-24px 10px 40px rgba(30, 45, 74, 0.3)' };
+    const animation = leaf.animate(forward ? [flat, lifted] : [lifted, flat], {
+      duration: 420,
+      easing: forward ? 'cubic-bezier(0.45, 0, 0.8, 0.6)' : 'cubic-bezier(0.2, 0.4, 0.55, 1)',
+    });
+    turning = animation;
+    const done = () => {
+      leaf.classList.remove('paper-turning');
+      under.classList.remove('paper-under');
+      if (turning === animation) turning = null;
+    };
+    animation.addEventListener('finish', done);
+    animation.addEventListener('cancel', done);
+  };
+
   // One sheet on screen at a time — the others are not drawn at all, so
   // nothing spills past the edges.
   const show = (index: number) => {
+    const previous = current;
     current = Math.max(0, Math.min(pages.length - 1, index));
     pages.forEach((page, i) => page.classList.toggle('paper-current', i === current));
     if (counter) counter.value = String(current + 1);
@@ -103,6 +141,7 @@ function setup(root: HTMLElement, track: HTMLElement): void {
     if (next) next.disabled = current === pages.length - 1;
     fit();
     track.scrollTop = 0;
+    turn(previous, current);
   };
 
   // Swipe on a phone or a trackpad: left / right turns the page.
