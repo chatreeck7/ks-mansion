@@ -36,5 +36,8 @@ export interface BillRepository {
   issueBill(draft: BillDraft): Promise<Bill>;
   /** The one post-issue write. Free text, never inferred — see above. */
   annotateArrears(id: string, note: string | null): Promise<Bill>;
+  /** Cancels a bill (ยกเลิกบิล). It stays on the sheet and still opens by id. */
   archiveBill(id: string): Promise<Bill>;
+  /** A cycle's cancelled bills — the ones a reissue may replace. */
+  listVoidedBillsForCycle(cycle: string): Promise<Bill[]>;
 }

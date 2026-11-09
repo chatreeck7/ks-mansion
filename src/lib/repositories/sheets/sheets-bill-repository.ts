@@ -203,6 +203,10 @@ export function createSheetsBillRepository(client: SheetsClient): BillRepository
       return (await crud.list()).filter((bill) => bill.cycle === cycle);
     },
 
+    async listVoidedBillsForCycle(cycle: string) {
+      return (await crud.listArchived()).filter((bill) => bill.cycle === cycle);
+    },
+
     async listBillsForRoom(roomId: string) {
       return (await crud.list()).filter((bill) => bill.roomId === roomId);
     },

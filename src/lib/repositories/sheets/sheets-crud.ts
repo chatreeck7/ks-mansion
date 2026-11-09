@@ -44,6 +44,8 @@ export interface EntitySpec<T extends EntityRecord, D> {
 export interface SheetsCrud<T extends EntityRecord, D> {
   /** Excludes archived records. */
   list(): Promise<T[]>;
+  /** Only the archived records — what was cancelled, for a screen that offers to replace it. */
+  listArchived(): Promise<T[]>;
   /** Includes archived records, so an old link still resolves. */
   get(id: string): Promise<T | null>;
   create(draft: D): Promise<T>;
@@ -124,35 +126,44 @@ export function createSheetsCrud<T extends EntityRecord, D>(
     return entity;
   }
 
+  async function readAll(archived: boolean): Promise<T[]> {
+    const tab = await readTab(client, tabName, contract);
+
+    const records: T[] = [];
+    const rowNumberById = new Map<string, number>();
+
+    tab.dataRows.forEach((row, i) => {
+      const rowNumber = sheetRowNumber(i);
+      if (tab.isBlankRow(row)) return;
+
+      const entity = parse(tab, row, rowNumber);
+      const previousRow = rowNumberById.get(entity.id);
+      if (previousRow !== undefined) {
+        throw new SheetRowError(
+          tabName,
+          rowNumber,
+          `duplicate id "${entity.id}", already used on row ${previousRow}`,
+        );
+      }
+      rowNumberById.set(entity.id, rowNumber);
+
+      // Archived rows still take part in the duplicate check — an id stays
+      // spent whether or not the record is still active, or archiving one
+      // record would let the next one be handed its id and inherit its
+      // history.
+      if (entity.archived === archived) records.push(entity);
+    });
+
+    return records;
+  }
+
   return {
     async list(): Promise<T[]> {
-      const tab = await readTab(client, tabName, contract);
-      const records: T[] = [];
-      const rowNumberById = new Map<string, number>();
+      return readAll(false);
+    },
 
-      tab.dataRows.forEach((row, i) => {
-        const rowNumber = sheetRowNumber(i);
-        if (tab.isBlankRow(row)) return;
-
-        const entity = parse(tab, row, rowNumber);
-        const previousRow = rowNumberById.get(entity.id);
-        if (previousRow !== undefined) {
-          throw new SheetRowError(
-            tabName,
-            rowNumber,
-            `duplicate id "${entity.id}", already used on row ${previousRow}`,
-          );
-        }
-        rowNumberById.set(entity.id, rowNumber);
-
-        // Archived rows still take part in the duplicate check — an id stays
-        // spent whether or not the record is still active, or archiving one
-        // record would let the next one be handed its id and inherit its
-        // history.
-        if (!entity.archived) records.push(entity);
-      });
-
-      return records;
+    async listArchived(): Promise<T[]> {
+      return readAll(true);
     },
 
     async get(id: string): Promise<T | null> {

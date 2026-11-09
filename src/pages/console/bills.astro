@@ -15,6 +15,7 @@ import { arrearsUpdatesFromForm } from '@/lib/console/arrears';
 import { rowsFromIssued, rowsFromRun } from '@/lib/console/bill-ledger';
 import { billRunSections, draftsFrom, planBillRun } from '@/lib/console/bill-run';
 import { issuedLines, viewedCycle } from '@/lib/console/history';
+import { inReissueWindow } from '@/lib/console/bill-reissue';
 import { consolePath } from '@/lib/console/paths';
 import { formatBaht } from '@/lib/format/thai';
 import { billTotal } from '@/lib/models/bill';
@@ -118,6 +119,14 @@ const issuedBills = await getBillRepository(env).listBillsForCycle(cycle.id);
 // A past cycle is never planned — see the note at the top.
 const run = past ? null : await load();
 const allRooms = await getRoomRepository(env).listRooms();
+const roomLabelOf = new Map(allRooms.map((room) => [room.id, room.label]));
+// Cancelled bills (ยกเลิกบิล on a bill's page) whose room has nothing in
+// their place yet, while the cycle can still be reissued.
+const awaitingReissue = inReissueWindow(cycle.id, now)
+  ? (await getBillRepository(env).listVoidedBillsForCycle(cycle.id)).filter(
+      (voided) => !issuedBills.some((bill) => bill.roomId === voided.roomId),
+    )
+  : [];
 // What still needs the admin comes first; issued bills fold away while
 // there is anything left to do (found on the live console: two rooms that
 // mattered were buried in a 24-row table of finished ones).
@@ -158,6 +167,18 @@ const issuedGroups = sections
   )}
 
   {issued > 0 && <Notice tone="ok" role="status">ออกบิลแล้ว {issued} ใบ</Notice>}
+  {awaitingReissue.length > 0 && (
+    <Notice tone="warn">
+      บิลที่ยกเลิกแล้ว ยังไม่ได้ออกใหม่:{' '}
+      {awaitingReissue.map((voided, i) => (
+        <Fragment>
+          {i > 0 && ' · '}
+          <a href={consolePath(`console/bills/${voided.id}`)} class={LINK}>ห้อง {roomLabelOf.get(voided.roomId) ?? voided.roomId} ({voided.id})</a>
+        </Fragment>
+      ))}
+      {' '}— เปิดบิลแล้วกด <strong>ออกบิลใหม่</strong>
+    </Notice>
+  )}
   {annotated > 0 && <Notice tone="ok" role="status">บันทึกหมายเหตุแล้ว {annotated} รายการ</Notice>}
   <ErrorSummary message={errors.length > 0 ? errors.join('\n') : null} />
 
