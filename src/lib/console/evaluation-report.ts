@@ -1,5 +1,5 @@
 import { activeLeaseFor, type Lease } from '@/lib/models/lease';
-import { inWalkingOrder, type Room } from '@/lib/models/room';
+import { inWalkingOrder, isUnit, type Room } from '@/lib/models/room';
 import type { EvaluationGrade, Tenant } from '@/lib/models/tenant';
 
 /**
@@ -85,11 +85,18 @@ export function evaluationReportFor(
   asOf: Date,
 ): EvaluationReport {
   const tenantById = new Map(tenants.map((tenant) => [tenant.id, tenant]));
-  const rows: EvaluationRow[] = inWalkingOrder(rooms.filter((room) => !room.archived)).map((room) => {
-    const lease = activeLeaseFor(
+  const leaseOn = (room: Room) =>
+    activeLeaseFor(
       leases.filter((l) => l.roomId === room.id && !l.archived),
       asOf,
     );
+  // A common space (ห้องเช่าส่วนกลาง, ห้องใต้ถุน) only belongs on the report
+  // while someone rents it; an empty one is not a room waiting for a tenant
+  // (owner, 9 พ.ย. 2569). Vacant units still show as ว่าง.
+  const listed = inWalkingOrder(rooms.filter((room) => !room.archived))
+    .map((room) => ({ room, lease: leaseOn(room) }))
+    .filter(({ room, lease }) => isUnit(room) || lease !== null);
+  const rows: EvaluationRow[] = listed.map(({ room, lease }) => {
     const tenant = lease ? tenantById.get(lease.tenantId) ?? null : null;
     return {
       roomId: room.id,
