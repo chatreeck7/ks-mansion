@@ -76,9 +76,9 @@ const asOf = report.asOf;
 const shortDate = `${asOf.getDate()}/${asOf.getMonth() + 1}/${String(asOf.getFullYear() + 543).slice(2)}`;
 ---
 
-<article class="evaluation viz-root bg-white px-6 py-6 text-[14px] text-black print:px-0 print:py-0">
+<article class="evaluation viz-root bg-white text-[14px] text-black">
   <header class="mb-4 flex flex-wrap items-baseline justify-between gap-2">
-    <h2 class="m-0 text-[18px] font-bold">{title}</h2>
+    <h2 class="paper-title m-0 text-[18px] font-bold">{title}</h2>
     <p class="m-0 text-[14px]">รายงานวันที่ {shortDate}</p>
   </header>
 
@@ -95,12 +95,12 @@ const shortDate = `${asOf.getDate()}/${asOf.getMonth() + 1}/${String(asOf.getFul
     </defs>
   </svg>
 
-  <div class="charts mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+  <div class="charts mb-6 grid grid-cols-3 gap-4">
     {charts.map((chart) => {
       const k = scale(chart.bars);
       const height = chart.bars.length * ROW_H + 4;
       return (
-        <figure class="keep m-0 rounded-lg border border-[var(--rule)] p-3">
+        <figure class="keep paper-avoid m-0 rounded-lg border border-[var(--rule)] p-3">
           <figcaption class="mb-2 text-[14px] font-semibold">{chart.heading}</figcaption>
           {chart.legend && (
             <p class="m-0 mb-2 flex gap-4 text-[12px] text-[var(--text-secondary)]">
@@ -144,7 +144,7 @@ const shortDate = `${asOf.getDate()}/${asOf.getMonth() + 1}/${String(asOf.getFul
     })}
   </div>
 
-  <div class="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_auto]">
+  <div class="grid grid-cols-[1fr_auto] gap-4">
     <table class="w-full border-collapse text-[14px]">
       <thead>
         <tr>
@@ -167,7 +167,7 @@ const shortDate = `${asOf.getDate()}/${asOf.getMonth() + 1}/${String(asOf.getFul
         ))}
       </tbody>
     </table>
-    <aside class="keep self-start text-[14px]">
+    <aside class="keep paper-avoid self-start text-[14px]">
       <p class="m-0 font-semibold">* หมายเหตุ</p>
       <p class="m-0">A = ดีมาก</p>
       <p class="m-0">B = ดี</p>
@@ -219,14 +219,5 @@ const shortDate = `${asOf.getDate()}/${asOf.getMonth() + 1}/${String(asOf.getFul
   }
   .keep {
     break-inside: avoid;
-  }
-  @media print {
-    @page {
-      size: A4;
-      margin: 12mm 14mm;
-    }
-    .charts {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-    }
   }
 </style>

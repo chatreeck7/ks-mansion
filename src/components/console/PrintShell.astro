@@ -3,22 +3,35 @@
 import CyclePicker from '@/components/console/CyclePicker.astro';
 import ConsoleLayout from '@/layouts/ConsoleLayout.astro';
 import { consolePath } from '@/lib/console/paths';
+import { paperStylesheet } from '@/lib/console/paper';
 import type { BillingCycle } from '@/lib/models/billing-cycle';
 
 /**
- * The frame every printable sheet shares: back link, month picker, print
- * button — all hidden on paper — around a white page the size of what
- * prints. One component so the six documents behave the same way, and so a
- * fix to how one prints is a fix to all of them.
+ * Every printable document in the console opens here (owner, 9 พ.ย. 2569):
+ * the page on screen is the page that prints.
+ *
+ * The document is laid out into real A4 sheets by `paper-viewer.ts`
+ * (Paged.js + `src/lib/console/paper.ts`) — the same margins, breaks, running
+ * header and page numbers the printer gets — and shown one sheet at a time,
+ * turned left and right like an e-book: ‹ ›, arrow keys, swipe, a page
+ * number to type, and an overview of every page. One component so that all
+ * documents look and behave the same.
+ *
+ * `paper` picks the sheet: `report` (header + page numbers), `tenant` (bill,
+ * receipt, contract: no running header), `half` (two bills a sheet).
+ * Landscape is per section, with `paper-landscape` on the element.
  */
 interface Props {
   title: string;
-  /** Shown under the toolbar on screen only: where the figures come from. */
+  /** Shown above the pages on screen only: where the figures come from. */
   hint?: string;
   back?: { href: string; label: string };
   cycles?: { options: BillingCycle[]; selected: BillingCycle };
-  /** `wide` for the yearly grids that print landscape. */
-  width?: 'a4' | 'wide';
+  paper?: 'report' | 'tenant' | 'half';
+  /** The running header's first words. */
+  building?: string;
+  /** Label of the print button. */
+  printLabel?: string;
 }
 
 const {
@@ -26,17 +39,25 @@ const {
   hint,
   back = { href: consolePath('console/documents'), label: '← กลับไปเอกสาร' },
   cycles,
-  width = 'a4',
+  paper = 'report',
+  building = 'KS MANSION',
+  printLabel = 'พิมพ์ / บันทึกเป็น PDF',
 } = Astro.props;
 // Inside แม่แบบเอกสาร's preview pane only the paper is wanted.
 const embed = Astro.url.searchParams.has('embed');
 const LINK =
   'inline-flex min-h-11 items-center text-base font-medium text-console-ink-soft no-underline hover:text-console-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-console-ink';
+const header = `${building} · ${title}`;
+// The printer's copy of the paper: Chrome lays the document out itself, with
+// the same sheet the screen was drawn on.
+const printCss = `@media print {\n${paperStylesheet(header)}\n}`;
+const NAV =
+  'flex h-11 w-11 items-center justify-center rounded-lg text-2xl text-console-ink hover:bg-console-sunk disabled:opacity-30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-ink';
 ---
 
 <ConsoleLayout {title}>
-  <main class:list={['console-root mx-auto print:max-w-none print:px-0 print:py-0', embed ? 'px-2 py-2' : 'px-4 py-6', width === 'wide' ? 'max-w-6xl' : 'max-w-4xl']}>
-    <div class:list={['mb-4 flex flex-col gap-3 print:hidden', embed && 'hidden']}>
+  <div class:list={['paper-viewer flex min-h-screen flex-col', embed && 'paper-embed']} data-paper-viewer data-paper-header={header}>
+    <header class:list={['paper-chrome mx-auto w-full max-w-6xl px-4 pt-4 print:hidden', embed && 'hidden']}>
       <div class="flex flex-wrap items-center justify-between gap-3">
         <a href={back.href} class={LINK}>{back.label}</a>
         <button
@@ -44,23 +65,173 @@ const LINK =
           data-print
           class="min-h-11 rounded-[10px] bg-console-ink px-4 font-semibold text-white hover:bg-console-ink/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-console-ink"
         >
-          พิมพ์ / บันทึกเป็น PDF
+          {printLabel}
         </button>
       </div>
       {(cycles || Astro.slots.has('controls')) && (
-        <div class="flex flex-wrap items-start gap-x-4 gap-y-3 rounded-xl border border-console-line bg-console-card px-4 py-3">
+        <div class="mt-3 flex flex-wrap items-start gap-x-4 gap-y-3 rounded-xl border border-console-line bg-console-card px-4 py-3">
           {cycles && <CyclePicker options={cycles.options} selected={cycles.selected} />}
           <slot name="controls" />
         </div>
       )}
+      {hint && <p class="mb-0 mt-3 text-sm text-console-ink-soft">{hint}</p>}
+    </header>
+    {Astro.slots.has('notices') && (
+      <div class="mx-auto w-full max-w-6xl px-4 print:hidden"><slot name="notices" /></div>
+    )}
+
+    <!-- The pager: hidden until the pages exist. -->
+    <div class="paper-bar mx-auto mt-3 flex w-full max-w-6xl items-center justify-center gap-2 px-4 print:hidden" data-paper-bar>
+      <button type="button" class={NAV} data-paper-prev aria-label="หน้าก่อน">‹</button>
+      <label class="flex items-center gap-1.5 text-[15px] text-console-ink-soft">
+        <span class="sr-only">หน้าที่</span>
+        <input data-paper-page type="number" min="1" value="1" inputmode="numeric"
+          class="h-11 w-14 rounded-lg border-[1.5px] border-console-line-strong bg-console-card text-center font-figure text-[15px] text-console-ink focus:border-console-ink focus:outline-none" />
+        / <span data-paper-total class="font-figure">…</span>
+      </label>
+      <button type="button" class={NAV} data-paper-next aria-label="หน้าถัดไป">›</button>
+      <button type="button" data-paper-zoom aria-pressed="false" aria-label="ขยายเต็มความกว้าง"
+        class="ms-1 min-h-11 min-w-11 rounded-lg border-[1.5px] border-console-line-strong bg-console-card px-3 text-[15px] font-medium text-console-ink hover:border-console-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-ink">
+        <span aria-hidden="true" class="sm:hidden">⤢</span><span class="hidden sm:inline" data-label>ขยายเต็มความกว้าง</span>
+      </button>
+      <button type="button" data-paper-grid aria-pressed="false" aria-label="ดูทุกหน้า"
+        class="ms-1 min-h-11 min-w-11 rounded-lg border-[1.5px] border-console-line-strong bg-console-card px-3 text-[15px] font-medium text-console-ink hover:border-console-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-ink">
+        <span aria-hidden="true" class="sm:hidden">▦</span><span class="hidden sm:inline" data-label>ทุกหน้า</span>
+      </button>
     </div>
-    {hint && !embed && <p class="mb-3 text-sm text-console-ink-soft print:hidden">{hint}</p>}
-    <div class="rounded-xl border border-console-line bg-white px-6 py-6 shadow-[0_8px_24px_rgba(30,45,74,0.08)] print:rounded-none print:border-0 print:px-0 print:py-0 print:shadow-none">
+    <p class="mt-6 text-center text-[15px] text-console-ink-soft print:hidden" data-paper-status aria-live="polite">กำลังจัดหน้ากระดาษ…</p>
+
+    <div class="paper-track" data-paper-track></div>
+
+    <!-- The document itself: what Paged.js lays out, and what shows if it cannot. -->
+    <div class:list={['paper-source paper-source-pending mx-auto w-full max-w-4xl bg-white px-6 py-6', `paper-${paper}`]} data-paper-source>
       <slot />
     </div>
-  </main>
+  </div>
+  <style is:inline set:html={printCss}></style>
 </ConsoleLayout>
 
 <script>
+  import { mountPaperViewer } from '@/lib/console/paper-viewer';
+
   document.querySelectorAll('[data-print]').forEach((button) => button.addEventListener('click', () => window.print()));
+  const root = document.querySelector<HTMLElement>('[data-paper-viewer]');
+  if (root) {
+    mountPaperViewer(root).then(() => {
+      const status = root.querySelector<HTMLElement>('[data-paper-status]');
+      if (status && root.classList.contains('paper-ready')) status.remove();
+    });
+  }
 </script>
+
+<style is:global>
+  /* Before pagination: the document waits off-screen (still in the page, so
+     a print or a no-script visit has it). */
+  .paper-source-pending {
+    position: absolute;
+    left: -10000px;
+    top: 0;
+  }
+  .paper-viewer:not(.paper-ready) .paper-bar {
+    visibility: hidden;
+  }
+
+  /* The pages: one sheet on screen, centred; the rest are not drawn. */
+  .paper-track {
+    flex: 1;
+    overflow: hidden;
+    padding: 12px 0 20px;
+  }
+  .paper-track .pagedjs_pages {
+    display: flex;
+    justify-content: center;
+    width: auto;
+    padding: 0;
+  }
+  .paper-track .pagedjs_page {
+    flex: none;
+    background: #fff;
+    box-shadow: 0 10px 30px rgba(30, 45, 74, 0.16);
+    margin: 0 !important;
+  }
+  .paper-viewer.paper-ready:not(.paper-overview) .paper-track .pagedjs_page:not(.paper-current) {
+    display: none;
+  }
+  .paper-viewer:not(.paper-overview) .paper-track .paper-current {
+    animation: paper-turn 180ms ease-out;
+  }
+  @keyframes paper-turn {
+    from {
+      opacity: 0.4;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  /* ทุกหน้า: every sheet as a thumbnail; click one to open it. */
+  .paper-wide .paper-track {
+    overflow-y: auto;
+  }
+  .paper-overview .paper-track {
+    overflow-y: auto;
+  }
+  .paper-overview .paper-track .pagedjs_pages {
+    flex-wrap: wrap;
+    justify-content: center;
+    width: auto;
+    gap: 48px;
+    padding: 24px;
+  }
+  .paper-overview .paper-track .pagedjs_page {
+    cursor: pointer;
+    outline: 4px solid transparent;
+  }
+  .paper-overview .paper-track .pagedjs_page:hover {
+    outline-color: #f2de7c;
+  }
+
+  .paper-embed .paper-track {
+    padding-top: 4px;
+  }
+
+  /* On paper nothing scrolls sideways; a scroll box would also stop a
+     table from breaking across sheets. */
+  .paper-source .overflow-x-auto,
+  .pagedjs_page .overflow-x-auto {
+    overflow: visible;
+  }
+
+  /* Paged.js gives every sheet the default size; a landscape section is
+     drawn on a landscape sheet here, as Chrome will print it. */
+  .paper-track .pagedjs_landscape_page {
+    --pagedjs-width: 297mm;
+    --pagedjs-height: 210mm;
+    --pagedjs-pagebox-width: 297mm;
+    --pagedjs-pagebox-height: 210mm;
+    --pagedjs-width-right: 297mm;
+    --pagedjs-height-right: 210mm;
+    --pagedjs-width-left: 297mm;
+    --pagedjs-height-left: 210mm;
+  }
+
+  .paper-track .paper-pageno::after {
+    content: attr(data-pageno) !important;
+  }
+
+  /* Paper: the document itself, laid out by Chrome from the same sheet. */
+  @media print {
+    .paper-track,
+    .paper-bar,
+    [data-paper-status] {
+      display: none !important;
+    }
+    .paper-source {
+      position: static !important;
+      left: auto !important;
+      max-width: none !important;
+      padding: 0 !important;
+      margin: 0 !important;
+    }
+  }
+</style>

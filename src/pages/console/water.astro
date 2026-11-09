@@ -110,25 +110,41 @@ const text = (cell: unknown) => (cell as { value: string }).value;
           ยังไม่มีห้องที่มีสัญญาเช่า — ค่าน้ำคิดจากจำนวนผู้พักในสัญญา
         </p>
       ) : (
-        <ul class="m-0 grid list-none gap-x-7 border-t-2 border-console-ink p-0 desk:grid-cols-2">
+        <Fragment>
+        {/* Two columns of ledger rows on a desk (the room list is short and
+            wide screens have room); one on a phone. Text sits on
+            leading-none so the room, basis and amount centre on the stepper
+            instead of riding high on the Thai fonts' tall line boxes. */}
+        <div class="grid gap-x-7 border-b-2 border-console-ink desk:grid-cols-2">
+          {[0, 1].map((col) => (
+            <div class:list={['grid grid-cols-[minmax(3.5rem,max-content)_1fr_auto_4rem] items-end gap-x-3 px-2 pb-1.5 text-[14px] font-semibold text-console-ink-soft', col === 1 && 'hidden desk:grid']}>
+              <span>ห้อง</span>
+              <span>คิดจาก</span>
+              <span class="w-[152px] text-center">จำนวนผู้พัก</span>
+              <span class="text-right">ค่าน้ำ</span>
+            </div>
+          ))}
+        </div>
+        <ul class="m-0 grid list-none gap-x-7 p-0 desk:grid-cols-2">
           {lines.map((line) => {
             const occ = line.cells.occupants!;
             return (
-              <li class="flex min-h-[60px] items-center gap-2.5 border-b border-console-rule desk:min-h-[52px]">
-                <span class="min-w-14 flex-none whitespace-nowrap font-hand text-lg font-semibold">{text(line.cells.room)}</span>
-                <span class="min-w-0 flex-1 text-[15px] text-console-ink-soft">{text(line.cells.basis)}</span>
+              <li class="grid grid-cols-[minmax(3.5rem,max-content)_1fr_auto_4rem] items-center gap-x-3 border-b border-console-rule px-2 py-2">
+                <span class="whitespace-nowrap font-hand text-[18px] font-semibold leading-none text-console-ink">{text(line.cells.room)}</span>
+                <span class="min-w-0 text-[14px] leading-tight text-console-ink-soft">{text(line.cells.basis)}</span>
                 {occ.kind === 'input' ? (
                   <Stepper name={occ.name} value={occ.value} label={occ.label} />
                 ) : (
-                  <span class="w-[134px] text-center text-console-ink-faint">มิเตอร์</span>
+                  <span class="w-[152px] text-center text-[14px] leading-none text-console-ink-faint">ตามมิเตอร์</span>
                 )}
-                <span class="w-16 flex-none text-right font-figure text-[15px] font-semibold tabular-nums">
+                <span class="text-right font-figure text-[15px] font-semibold leading-none tabular-nums">
                   {formatFigure((line.cells.charge as { value: number | null }).value)}
                 </span>
               </li>
             );
           })}
         </ul>
+        </Fragment>
       )
     }
 

@@ -10,19 +10,15 @@ import ProblemCard from '@/components/console/ProblemCard.astro';
 import StatTile from '@/components/console/StatTile.astro';
 import { problemGroups } from '@/lib/console/problems';
 import { LINK, SECTION_TITLE } from '@/lib/console/ui';
-import LedgerTable from '@/components/console/LedgerTable.astro';
-import {
-  ARREARS_COLUMNS,
-  arrearsUpdatesFromForm,
-  toArrearsGroups,
-} from '@/lib/console/arrears';
-import { billRunSections, draftsFrom, planBillRun, type BillLine } from '@/lib/console/bill-run';
-import { issuedLines, viewedCycle, type IssuedLine } from '@/lib/console/history';
+import BillLedger from '@/components/console/BillLedger.astro';
+import { arrearsUpdatesFromForm } from '@/lib/console/arrears';
+import { rowsFromIssued, rowsFromRun } from '@/lib/console/bill-ledger';
+import { billRunSections, draftsFrom, planBillRun } from '@/lib/console/bill-run';
+import { issuedLines, viewedCycle } from '@/lib/console/history';
 import { consolePath } from '@/lib/console/paths';
 import { formatBaht } from '@/lib/format/thai';
 import { billTotal } from '@/lib/models/bill';
 import { cycleLabel, cycleOptions, rentLabel, utilityLabel } from '@/lib/models/billing-cycle';
-import type { LedgerColumn, LedgerGroup } from '@/lib/models/ledger';
 import {
   getBillRepository,
   getLeaseRepository,
@@ -52,103 +48,6 @@ import {
  */
 
 const env = Astro.locals.runtime?.env;
-
-const COLUMNS: LedgerColumn[] = [
-  { key: 'room', header: 'ห้อง' },
-  { key: 'rent', header: 'ค่าเช่า', align: 'right' },
-  { key: 'electricity', header: 'ค่าไฟ', align: 'right' },
-  { key: 'working', header: 'คิดจาก' },
-  { key: 'water', header: 'ค่าน้ำ', align: 'right' },
-  { key: 'total', header: 'รวม', align: 'right' },
-  { key: 'state', header: 'สถานะ' },
-  { key: 'document', header: 'ใบแจ้ง' },
-];
-
-/** A past cycle: every row was issued, and its figures are the bill's own. */
-function toIssuedGroups(lines: IssuedLine[], label: string): LedgerGroup[] {
-  return [
-    {
-      label,
-      rows: lines.map((line) => ({
-        id: line.bill.id,
-        cells: {
-          room: { kind: 'text', value: line.roomLabel },
-          rent: { kind: 'figure', value: line.bill.rentAmount },
-          electricity: { kind: 'figure', value: line.bill.electricityAmount },
-          working: { kind: 'text', value: line.electricityBasis, muted: true },
-          water: { kind: 'figure', value: line.bill.waterAmount },
-          total: { kind: 'figure', value: line.total },
-          state: { kind: 'pill', tone: 'mute', label: 'ออกแล้ว' },
-          document: {
-            kind: 'link',
-            href: consolePath(`console/bills/${line.bill.id}`),
-            label: 'เปิด / พิมพ์',
-          },
-        },
-      })),
-    },
-  ];
-}
-
-function toGroups(lines: BillLine[], label: string): LedgerGroup[] {
-  return [
-    {
-      label,
-      rows: lines.map((line) => {
-        // An issued line shows the bill as it went out, not today's re-plan:
-        // the slip in the tenant's hand is the figure that matters, and a
-        // reading added or corrected since must not restate it on screen.
-        const bill = line.alreadyIssued;
-        const shown = bill
-          ? {
-              rent: bill.rentAmount,
-              electricity: bill.electricityAmount,
-              water: bill.waterAmount,
-              total: billTotal(bill),
-              working:
-                bill.electricityPrevious !== null && bill.electricityCurrent !== null
-                  ? `${bill.electricityPrevious.toLocaleString('en-US')} → ${bill.electricityCurrent.toLocaleString('en-US')}`
-                  : line.electricityBasis,
-            }
-          : {
-              rent: line.rentAmount,
-              electricity: line.electricityAmount,
-              water: line.waterAmount,
-              total: line.total,
-              working: [line.rentBasis, line.electricityBasis].filter(Boolean).join(' · '),
-            };
-        return {
-        id: line.roomId,
-        cells: {
-          room: { kind: 'text', value: line.roomLabel },
-          rent: { kind: 'figure', value: shown.rent },
-          electricity: { kind: 'figure', value: shown.electricity },
-          working: { kind: 'text', value: shown.working, muted: true },
-          water: { kind: 'figure', value: shown.water },
-          total: { kind: 'figure', value: shown.total },
-          state: line.alreadyIssued
-            ? { kind: 'pill', tone: 'mute', label: 'ออกแล้ว' }
-            : line.problems.length > 0
-              ? { kind: 'pill', tone: 'crit', label: line.problems[0]! }
-              : line.nothingDue
-                ? { kind: 'pill', tone: 'info', label: 'ไม่มียอดรอบนี้' }
-                : { kind: 'pill', tone: 'ok', label: 'พร้อมออก' },
-          // Its own column, and a real link. Only an issued bill has a
-          // document: a planned line is a preview of one that does not exist
-          // yet, and a link to it would 404.
-          document: line.alreadyIssued
-            ? {
-                kind: 'link',
-                href: consolePath(`console/bills/${line.alreadyIssued.id}`),
-                label: 'เปิด / พิมพ์',
-              }
-            : { kind: 'text', value: '—', muted: true },
-        },
-      } satisfies LedgerGroup['rows'][number];
-      }),
-    },
-  ];
-}
 
 let issued = 0;
 let annotated = 0;
@@ -223,27 +122,25 @@ const allRooms = await getRoomRepository(env).listRooms();
 // there is anything left to do (found on the live console: two rooms that
 // mattered were buried in a 24-row table of finished ones).
 const sections = run ? billRunSections(run.lines) : null;
-const openGroups = sections
-  ? [
-      ...(sections.todo.length > 0 ? toGroups(sections.todo, 'ต้องทำ') : []),
-      ...(sections.nothingDue.length > 0 ? toGroups(sections.nothingDue, 'ไม่มียอดรอบนี้') : []),
-    ]
-  : [];
-const issuedSectionGroups = sections && sections.issued.length > 0 ? toGroups(sections.issued, cycleLabel(cycle)) : [];
-const pastGroups = run ? [] : toIssuedGroups(issuedLines(issuedBills, allRooms), cycleLabel(cycle));
 const workLeft = sections ? sections.todo.length > 0 : false;
 const blocked = run ? run.lines.filter((l) => l.problems.length > 0 && !l.alreadyIssued).length : 0;
 const problems = run ? problemGroups(run.lines) : [];
 const issuedCount = run ? run.lines.filter((l) => l.alreadyIssued).length : issuedBills.length;
 const issuedTotal = issuedBills.reduce((sum, bill) => sum + billTotal(bill), 0);
-// Only re-fill from the submission while something is still wrong; a clean
-// save shows what the sheet now holds.
-const arrearsGroups = toArrearsGroups(
-  issuedBills,
-  `บิลที่ออกแล้ว ${cycleLabel(cycle)}`,
-  errors.length > 0 ? submittedNotes : undefined,
-  new Map(allRooms.map((room) => [room.id, room.label])),
-);
+// Re-fill typed notes only while something is still wrong; a clean save
+// shows what the sheet now holds.
+const typed = errors.length > 0 ? submittedNotes : undefined;
+const openGroups = sections
+  ? [
+      ...(sections.todo.length > 0 ? [{ label: 'ต้องทำ', rows: rowsFromRun(sections.todo, typed) }] : []),
+      ...(sections.nothingDue.length > 0 ? [{ label: 'ไม่มียอดรอบนี้', rows: rowsFromRun(sections.nothingDue, typed) }] : []),
+    ]
+  : [];
+const issuedGroups = sections
+  ? sections.issued.length > 0
+    ? [{ label: 'ออกบิลแล้ว', rows: rowsFromRun(sections.issued, typed) }]
+    : []
+  : [{ label: cycleLabel(cycle), rows: rowsFromIssued(issuedLines(issuedBills, allRooms), typed) }];
 ---
 
 <ConsoleFrame title="ออกบิล" activeSection="bills">
@@ -286,86 +183,82 @@ const arrearsGroups = toArrearsGroups(
     </div>
   )}
 
-  {run ? (
-    <Fragment>
-      {openGroups.length > 0 && <LedgerTable columns={COLUMNS} groups={openGroups} />}
-      {issuedSectionGroups.length > 0 && (
-        <details class="mt-4" open={!workLeft}>
-          <summary class="flex min-h-11 cursor-pointer items-center gap-2 text-[15px] font-semibold text-console-ink">
-            ออกแล้ว {sections!.issued.length} ใบ · รวม {formatBaht(issuedTotal)} บาท
-            {workLeft && <span class="text-sm font-normal text-console-ink-soft">(กดเพื่อดู)</span>}
-          </summary>
-          <LedgerTable columns={COLUMNS} groups={issuedSectionGroups} />
-        </details>
-      )}
-    </Fragment>
-  ) : (
-    <LedgerTable columns={COLUMNS} groups={pastGroups} />
-  )}
-
-  {/* A disabled button whose label states a fact reads like an action you
-      cannot take, and the reader is left wondering what it would have done.
-      With nothing to issue there is no action, so there is no button —
-      a sentence says why, and points at what is usually the reason. */}
-  <div class="mt-4 flex flex-col gap-3 desk:flex-row desk:flex-wrap desk:items-center">
+  {/* The action bar: issue, print, move on. Above the ledger so it is the
+      first thing after what is blocking, and sticky on a phone. */}
+  <div class="sticky bottom-16 z-10 -mx-4 mb-4 flex flex-col gap-2 border-y border-console-line bg-console-paper/95 px-4 py-3 backdrop-blur desk:static desk:mx-0 desk:flex-row desk:flex-wrap desk:items-center desk:border-0 desk:bg-transparent desk:p-0">
     {!run ? (
       <Notice tone="mute" flush class="desk:flex-1">
-        {issuedBills.length === 0
-          ? 'รอบนี้ไม่ได้ออกบิลไว้'
-          : `ออกไป ${issuedBills.length} ใบ รวม ${formatBaht(issuedTotal)} บาท`}
+        {issuedBills.length === 0 ? 'รอบนี้ไม่ได้ออกบิลไว้' : `ออกไป ${issuedBills.length} ใบ รวม ${formatBaht(issuedTotal)} บาท`}
       </Notice>
     ) : run.issuable.length === 0 ? (
       <Notice tone="mute" flush class="desk:flex-1">
         {run.lines.length === 0
           ? 'ยังไม่มีห้องที่ต้องออกบิลรอบนี้'
           : run.lines.every((line) => line.alreadyIssued || line.nothingDue)
-            ? 'ออกบิลครบทุกห้องแล้วสำหรับรอบนี้ — เปิดใบแจ้งได้จากคอลัมน์ขวาสุด'
+            ? 'ออกบิลครบทุกห้องแล้วสำหรับรอบนี้'
             : 'ยังออกบิลไม่ได้ — แก้ตามการ์ดสีแดงด้านบนก่อน'}
       </Notice>
     ) : (
-      <form method="POST" class="flex flex-col gap-2 desk:flex-row desk:items-center desk:gap-4">
+      <form method="POST" class="flex items-center gap-3">
         <input type="hidden" name="action" value="issue" />
         <Button type="submit" size="lg">ออกบิล {run.issuable.length} ใบ</Button>
-        <p class="font-figure text-[15px] tabular-nums text-console-ink-soft">
-          ยอดที่จะออกรอบนี้ <span class="font-semibold text-console-ink">{formatBaht(run.total)}</span> บาท
-        </p>
+        <span class="font-figure text-[15px] tabular-nums text-console-ink-soft">
+          รวม <span class="font-semibold text-console-ink">{formatBaht(run.total)}</span> บาท
+        </span>
       </form>
     )}
-    {/* The run, not the slip. Printing a cycle one bill at a time is the thing
-        KS-24 was actually missing, so the way in belongs on the page where the
-        cycle is issued — not only in the rightmost column of each row. */}
     {issuedBills.length > 0 && (
-      <Button href={`${consolePath('console/bills/print')}?cycle=${cycle.id}`} variant="secondary" size="lg">
-        พิมพ์ใบแจ้งทั้งหมด ({issuedBills.length})
-      </Button>
-    )}
-    {issuedBills.length > 0 && (
-      <Button
-        href={past ? `${consolePath('console/payments')}?cycle=${cycle.id}` : consolePath('console/payments')}
-        variant="secondary"
-        size="lg"
-      >
-        {past ? 'ดูการรับเงินรอบนี้ →' : 'ไปขั้น 4 รับเงิน →'}
-      </Button>
+      <div class="flex flex-wrap gap-2 desk:ms-auto">
+        <Button href={`${consolePath('console/bills/print')}?cycle=${cycle.id}`} variant="secondary" size="lg">
+          พิมพ์ใบแจ้ง ({issuedBills.length})
+        </Button>
+        <Button
+          href={past ? `${consolePath('console/payments')}?cycle=${cycle.id}` : consolePath('console/payments')}
+          variant="secondary"
+          size="lg"
+        >
+          {past ? 'ดูการรับเงิน →' : 'ไปขั้น 4 รับเงิน →'}
+        </Button>
+      </div>
     )}
   </div>
 
-  {issuedBills.length > 0 && (
-    <section class="mt-10">
-      <h2 class={SECTION_TITLE}>หมายเหตุ / ยอดค้าง</h2>
-      <p class="mb-3 text-[15px] text-console-ink-soft">
-        เขียนเองทั้งหมด คอนโซลไม่คิดยอดค้างให้ — เว้นว่างไว้คือเคลียร์แล้ว
-        (ยอดค้าง กับ ค้างประกัน เป็นคนละเรื่องกัน มีแต่คนเท่านั้นที่รู้ว่าอันไหน)
-      </p>
-
-      <form method="POST">
-        <input type="hidden" name="action" value="annotate" />
-        <LedgerTable columns={ARREARS_COLUMNS} groups={arrearsGroups} />
-
-        <div class="mt-4">
-          <Button type="submit" variant="secondary" size="lg">บันทึกหมายเหตุ</Button>
-        </div>
-      </form>
-    </section>
-  )}
+  {/* One form for the notes: หมายเหตุ / ยอดค้าง sits in each issued bill's
+      row. Written by hand — the console does not work out arrears
+      (ยอดค้าง and ค้างประกัน are different things only a person can tell). */}
+  <form method="POST" data-notes-form>
+    <input type="hidden" name="action" value="annotate" />
+    {openGroups.length > 0 && <BillLedger groups={openGroups} />}
+    {issuedGroups.length > 0 && (
+      run && workLeft ? (
+        <details class="mt-4">
+          <summary class="flex min-h-11 cursor-pointer items-center gap-2 text-[15px] font-semibold text-console-ink">
+            ออกบิลแล้ว {issuedGroups[0]!.rows.length} ใบ · รวม {formatBaht(issuedTotal)} บาท
+            <span class="text-sm font-normal text-console-ink-soft">(กดเพื่อดูและใส่หมายเหตุ)</span>
+          </summary>
+          <BillLedger groups={issuedGroups} />
+        </details>
+      ) : (
+        <div class="mt-2"><BillLedger groups={issuedGroups} /></div>
+      )
+    )}
+    <div class="sticky bottom-16 z-10 mt-3 hidden items-center gap-3 rounded-xl border border-console-ink bg-console-card px-4 py-2 shadow-[0_8px_24px_rgba(30,45,74,0.12)] desk:bottom-4" data-notes-bar>
+      <span class="flex-1 text-[15px] text-console-ink" data-notes-count>แก้หมายเหตุแล้ว</span>
+      <Button type="submit" size="md">บันทึกหมายเหตุ</Button>
+    </div>
+  </form>
 </ConsoleFrame>
+
+<script>
+  // Show "บันทึกหมายเหตุ" only once a note has actually changed, with how many.
+  const form = document.querySelector<HTMLFormElement>('[data-notes-form]');
+  const bar = form?.querySelector<HTMLElement>('[data-notes-bar]');
+  const count = form?.querySelector<HTMLElement>('[data-notes-count]');
+  form?.addEventListener('input', () => {
+    const changed = [...form.querySelectorAll<HTMLInputElement>('[data-note-input]')].filter(
+      (input) => input.value.trim() !== (input.dataset.original ?? '').trim(),
+    ).length;
+    if (bar) bar.style.display = changed > 0 ? 'flex' : 'none';
+    if (count) count.textContent = `แก้หมายเหตุ ${changed} ห้อง — ยังไม่ได้บันทึก`;
+  });
+</script>

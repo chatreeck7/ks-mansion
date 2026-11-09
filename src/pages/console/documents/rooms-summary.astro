@@ -28,6 +28,7 @@ const summary = roomSummaryFor(cycle, rooms, leases, bills);
 ---
 
 <PrintShell
+  building={letterheadFrom(env, settings).name}
   title={summary.title}
   hint="ตัวเลขมาจากบิลที่ออกรอบนั้น (ขั้น 3) · เครื่องใช้ในห้องแก้ที่หน้าห้อง · หมายเหตุยอดค้างแก้ที่หน้าออกบิล"
   cycles={{ options: cycleOptions(now, cycle), selected: cycle }}

@@ -28,6 +28,7 @@ const summary = electricitySummaryFor(cycle, rooms, readings);
 ---
 
 <PrintShell
+  building={letterheadFrom(env, settings).name}
   title={summary.title}
   hint="ตัวเลขมาจากการจดมิเตอร์รอบนั้น (ขั้น 1) — แก้ตัวเลขที่หน้าจดมิเตอร์ ไม่ใช่ที่นี่"
   cycles={{ options: cycleOptions(now, cycle), selected: cycle }}

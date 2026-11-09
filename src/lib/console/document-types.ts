@@ -113,7 +113,7 @@ export function documentTypesFor(cycle: BillingCycle): DocumentType[] {
       perCycle: true,
       availability: {
         ready: true,
-        href: `${consolePath('console/collection')}?cycle=${cycle.id}`,
+        href: `${consolePath('console/documents/collection')}?cycle=${cycle.id}`,
       },
     },
     {
@@ -139,7 +139,7 @@ export function documentTypesFor(cycle: BillingCycle): DocumentType[] {
       label: 'รายการบำรุงรักษา',
       description: 'ตารางตรวจเช็คอุปกรณ์หลัก รายปี — จดงานเพิ่มได้ที่หน้าบำรุงรักษา',
       perCycle: false,
-      availability: { ready: true, href: consolePath('console/maintenance') },
+      availability: { ready: true, href: consolePath('console/documents/maintenance') },
     },
   ];
 }

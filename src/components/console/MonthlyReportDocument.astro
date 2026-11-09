@@ -28,12 +28,12 @@ const isEmpty = (segments: Segment[]) => segments.every((s) => s.kind === 'text'
         ),
       );
     if (block.kind === 'title') {
-      return <h2 class="m-0 mb-4 text-center text-[19px] font-bold">{block.lines.map((line) => <span class="block">{segs(line)}</span>)}</h2>;
+      return <h2 class="paper-title m-0 mb-4 text-center text-[19px] font-bold">{block.lines.map((line) => <span class="block">{segs(line)}</span>)}</h2>;
     }
     if (block.kind === 'table') {
       const [head, ...body] = block.rows;
       return (
-        <div class="keep mb-3 me-5 ms-8 inline-block max-w-full align-top">
+        <div class="keep paper-avoid mb-3 me-5 ms-8 inline-block max-w-full align-top">
           {!isEmpty(block.heading) && <p class="m-0 mb-1 font-semibold">{segs(block.heading)}</p>}
           {head && (
             <table class="border-collapse text-[13.5px]">
@@ -52,14 +52,14 @@ const isEmpty = (segments: Segment[]) => segments.every((s) => s.kind === 'text'
     }
     if (block.kind === 'auto') {
       return (
-        <div class="keep mb-2">
+        <div class="keep paper-avoid mb-2">
           {!isEmpty(block.heading) && <h3 class="m-0 mt-3 text-[15.5px] font-bold">{segs(block.heading)}</h3>}
           {block.auto.map((line) => <p class="m-0 ms-8 line">{line}</p>)}
         </div>
       );
     }
     return (
-      <div class="keep mb-2">
+      <div class="keep paper-avoid mb-2">
         {!isEmpty(block.heading) && <h3 class="m-0 mt-3 text-[15.5px] font-bold">{segs(block.heading)}</h3>}
         {block.lines.map((line) => <p class="m-0 ms-8 line">{segs(line)}</p>)}
       </div>
@@ -94,14 +94,5 @@ const isEmpty = (segments: Segment[]) => segments.every((s) => s.kind === 'text'
   }
   .keep {
     break-inside: avoid;
-  }
-  @media print {
-    @page {
-      size: A4;
-      margin: 14mm 16mm;
-    }
-    .unknown {
-      background: none;
-    }
   }
 </style>

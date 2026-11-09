@@ -1,6 +1,7 @@
 ---
 // src/pages/console/documents/print.astro
-import BillDocument from '@/components/console/BillDocument.astro';
+import BillSlips from '@/components/console/BillSlips.astro';
+import PrintShell from '@/components/console/PrintShell.astro';
 import CollectionSheet from '@/components/console/CollectionSheet.astro';
 import EvaluationReport from '@/components/console/EvaluationReport.astro';
 import ElectricitySummary from '@/components/console/ElectricitySummary.astro';
@@ -14,7 +15,6 @@ import { electricitySummaryFor, roomSummaryFor } from '@/lib/console/month-summa
 import { movementPeriodFor, movementRegisterFor } from '@/lib/console/movements';
 import { monthlyReportFor } from '@/lib/documents/monthly-report';
 import { evaluationReportFor } from '@/lib/console/evaluation-report';
-import ConsoleLayout from '@/layouts/ConsoleLayout.astro';
 import { billBatchFor } from '@/lib/console/bill-batch';
 import { collectionSheetFor } from '@/lib/console/collection-sheet';
 import {
@@ -113,151 +113,64 @@ const payee = payeeFrom(env, documentSettings);
 
 /** How many sheets each section will take, for the contents page. */
 function pagesIn(id: string): number {
-  if (id === 'bills') return batch?.documents.length ?? 0;
+  if (id === 'bills') return Math.ceil((batch?.documents.length ?? 0) / 2);
   return 1;
 }
+const landscape = (id: string) => id === 'maintenance' || id === 'collection';
+/** The sheet each section starts on — named on the section itself, where both
+ *  Paged.js (screen) and Chrome (print) switch sheets. */
+const sheetClass = (id: string) => (landscape(id) ? 'paper-landscape' : id === 'bills' ? 'paper-half' : null);
 
 const backToSelector = `${consolePath('console/documents')}?cycle=${cycle.id}` +
   sections.map((section) => `&include=${section.id}`).join('');
 ---
 
-<ConsoleLayout title={`เอกสารรวม ${cycleLabel(cycle)}`}>
-  <main class="console-root mx-auto max-w-4xl px-4 py-6 print:max-w-none print:px-0 print:py-0">
-    <div class="mb-6 flex flex-wrap items-center justify-between gap-3 print:hidden">
-      <a
-        href={backToSelector}
-        class="inline-flex min-h-11 items-center text-base font-medium text-console-ink-soft no-underline hover:text-console-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-console-ink"
-      >
-        ← กลับไปเลือกเอกสาร
-      </a>
-      {sections.length > 0 && (
-        <button
-          type="button"
-          data-print
-          class="inline-flex min-h-11 items-center rounded-[10px] bg-console-ink px-4 font-semibold text-white no-underline hover:bg-console-ink/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-console-ink"
-        >
-          พิมพ์ / บันทึกเป็น PDF ไฟล์เดียว
-        </button>
-      )}
-    </div>
+<PrintShell
+  title={`เอกสารรวม ${cycleLabel(cycle)}`}
+  building={letterhead.name}
+  back={{ href: backToSelector, label: '← กลับไปเลือกเอกสาร' }}
+  printLabel="พิมพ์ / บันทึกเป็น PDF ไฟล์เดียว"
+>
+  {sections.length === 0 ? (
+    <p class="text-[15px]">ยังไม่ได้เลือกเอกสาร — เลือกที่หน้าเอกสารก่อน</p>
+  ) : (
+    <Fragment>
+      {/* A contents page: the stack of paper says what it is and which month. */}
+      <section>
+        <header class="mb-6 border-b-2 border-console-print/50 pb-4">
+          <p class="mb-1 text-lg font-semibold text-console-ink">{letterhead.name}</p>
+          <h1 class="paper-title mb-1 text-2xl font-semibold text-console-ink">เอกสารประจำรอบ</h1>
+          <p class="mb-0 text-console-ink-soft">{cycleLabel(cycle)} · พิมพ์เมื่อ {formatThaiDate(now)}</p>
+        </header>
+        <h2 class="mb-2 text-lg font-semibold text-console-ink">สารบัญ</h2>
+        <ol class="mb-0 ps-5 text-console-ink">
+          {sections.map((section) => (
+            <li class="mb-1">
+              <span class="font-semibold">{section.label}</span>
+              <span class="text-console-ink-soft"> — {section.description}</span>
+              <span class="ms-1 font-figure tabular-nums text-console-ink-faint">({pagesIn(section.id)} แผ่น)</span>
+            </li>
+          ))}
+        </ol>
+      </section>
 
-    {sections.length === 0 ? (
-      <p class="rounded-lg bg-console-spine px-3 py-2 text-sm text-console-ink-soft print:hidden">
-        ยังไม่ได้เลือกเอกสาร — เลือกที่หน้า{' '}
-        <a
-          href={consolePath('console/documents')}
-          class="underline underline-offset-2 hover:no-underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-ink"
-          >เอกสาร</a
-        >{' '}ก่อน
-      </p>
-    ) : (
-      <Fragment>
-        {/* A contents page, because the thing this produces is a stack of
-            paper somebody puts in a folder. Without it the first sheet is a
-            bill for room 101 and nothing says what the other twenty-four
-            pages are, or which month any of it belongs to. */}
-        <section class="doc-section">
-          <header class="mb-6 border-b-2 border-console-print/50 pb-4">
-            <p class="mb-1 text-lg font-semibold text-console-ink">{letterhead.name}</p>
-            <h1 class="mb-1 text-2xl font-semibold text-console-ink">เอกสารประจำรอบ</h1>
-            <p class="mb-0 text-console-ink-soft">
-              {cycleLabel(cycle)} · พิมพ์เมื่อ {formatThaiDate(now)}
-            </p>
-          </header>
-
-          <h2 class="mb-2 text-lg font-semibold text-console-ink">สารบัญ</h2>
-          <ol class="mb-0 ps-5 text-console-ink">
-            {sections.map((section) => (
-              <li class="mb-1">
-                <span class="font-semibold">{section.label}</span>
-                <span class="text-console-ink-soft"> — {section.description}</span>
-                <span class="ms-1 font-figure tabular-nums text-console-ink-faint">
-                  ({pagesIn(section.id)} แผ่น)
-                </span>
-              </li>
+      {sections.map((section) => (
+        <section class:list={['paper-break', sheetClass(section.id)]}>
+          {section.id === 'bills' &&
+            (batch!.documents.length === 0 ? (
+              <p class="paper-title mb-0">ยังไม่ได้ออกบิลรอบนี้</p>
+            ) : (
+              <BillSlips docs={batch!.documents} {letterhead} {payee} perPage={2} />
             ))}
-          </ol>
+          {section.id === 'collection' && <CollectionSheet sheet={sheet!} />}
+          {section.id === 'evaluations' && <EvaluationReport report={evaluation!} />}
+          {section.id === 'monthly_report' && <MonthlyReportDocument report={report!} />}
+          {section.id === 'electricity' && <ElectricitySummary summary={electricity!} building={letterhead.name} />}
+          {section.id === 'rooms_summary' && <RoomSummary summary={roomSummary!} building={letterhead.name} />}
+          {section.id === 'movements' && <MovementRegister register={movements!} building={letterhead.name} />}
+          {section.id === 'maintenance' && <MaintenanceGridSheet grid={grid!} dateLabel={`ณ ${formatThaiDate(now)}`} />}
         </section>
-
-        {sections.map((section) => (
-          <section class:list={['doc-section', section.id === 'maintenance' && 'landscape']}>
-            {/* Named at the top of its own first sheet: pulled out of the
-                folder on its own, a section still has to say what it is. */}
-            <h2 class="mb-3 border-b border-console-print/40 pb-1 text-lg font-semibold text-console-ink">
-              {section.label}
-            </h2>
-
-            {section.id === 'bills' &&
-              (batch!.documents.length === 0 ? (
-                <p class="mb-0 text-console-ink-soft">ยังไม่ได้ออกบิลรอบนี้</p>
-              ) : (
-                batch!.documents.map((doc) => (
-                  <div class="slip">
-                    <BillDocument {doc} {letterhead} {payee} />
-                  </div>
-                ))
-              ))}
-
-            {section.id === 'collection' && <CollectionSheet sheet={sheet!} />}
-
-            {section.id === 'evaluations' && <EvaluationReport report={evaluation!} />}
-            {section.id === 'monthly_report' && <MonthlyReportDocument report={report!} />}
-            {section.id === 'electricity' && <ElectricitySummary summary={electricity!} building={letterhead.name} />}
-            {section.id === 'rooms_summary' && <RoomSummary summary={roomSummary!} building={letterhead.name} />}
-            {section.id === 'movements' && <MovementRegister register={movements!} building={letterhead.name} />}
-            {section.id === 'maintenance' && <MaintenanceGridSheet grid={grid!} dateLabel={`ณ ${formatThaiDate(now)}`} />}
-          </section>
-        ))}
-      </Fragment>
-    )}
-  </main>
-</ConsoleLayout>
-
-<style>
-  /**
-   * Every section starts on a fresh sheet, and every bill within the bill
-   * section does too.
-   *
-   * `break-before` on each one *after* the first rather than `break-after` on
-   * all of them: `break-after` would end the run with a page break and print
-   * a blank final sheet. Same reasoning as the bill run's own stylesheet —
-   * and the rules are repeated here rather than shared because a scoped
-   * Astro style cannot reach into a child component's markup.
-   */
-  .doc-section + .doc-section {
-    break-before: page;
-  }
-
-  .slip {
-    break-inside: avoid;
-  }
-
-  /* The maintenance grid's whole section — heading included — goes on the
-     landscape named page its component defines. */
-  @media print {
-    .landscape {
-      page: ks-landscape;
-    }
-  }
-
-  .slip + .slip {
-    break-before: page;
-  }
-
-  /* On screen the whole export is one scrollable stack, so it can be read
-     through before it is committed to paper. Spacing only. */
-  @media screen {
-    .doc-section + .doc-section,
-    .slip + .slip {
-      margin-top: 2rem;
-      padding-top: 2rem;
-      border-top: 1px dashed rgb(139 115 85 / 0.4);
-    }
-  }
-</style>
-
-<script>
-  // Progressive enhancement only: the page is the complete export without
-  // it, and Ctrl-P produces the same single file.
-  document.querySelector('[data-print]')?.addEventListener('click', () => window.print());
-</script>
+      ))}
+    </Fragment>
+  )}
+</PrintShell>
