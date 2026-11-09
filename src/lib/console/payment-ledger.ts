@@ -1,3 +1,4 @@
+import { westernDigits } from '@/lib/format/figure';
 import { formatBaht, formatThaiDate } from '@/lib/format/thai';
 import { parseThaiDate } from '@/lib/format/thai-parse';
 import { dateFromInput } from '@/lib/console/lease-form';
@@ -169,7 +170,7 @@ const BAHT = /^\d{1,3}(?:,\d{3})*(?:\.\d+)?$|^\d+(?:\.\d+)?$/;
  * figure beside the field is printed with them and people copy what they see.
  */
 function parseAmount(raw: string): number | null {
-  const trimmed = raw.trim();
+  const trimmed = westernDigits(raw).trim();
   if (trimmed === '') return null;
   if (!BAHT.test(trimmed)) return NaN;
   return Number(trimmed.replace(/,/g, ''));

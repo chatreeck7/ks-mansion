@@ -420,8 +420,29 @@ const missing = blocks.length > 0 ? missingDefaultBlocks(blocks, defaultsFor(doc
   // {ช่องข้อมูล}: a "+ แทรกช่องข้อมูล" button under each field, and the chip
   // row at the top — see placeholder-insert.ts.
   import { setupPlaceholderInsert } from '@/lib/console/placeholder-insert';
+  import { guardForm } from '@/lib/console/confirm-dialog';
   const templateForm = document.querySelector<HTMLFormElement>('[data-template-form]');
   if (templateForm) setupPlaceholderInsert(templateForm);
+
+  // Ticking "ลบส่วนนี้" is easy to forget about further down the page: say
+  // which parts go before saving.
+  if (templateForm) {
+    guardForm(templateForm, () => {
+      const going = [...templateForm.querySelectorAll<HTMLInputElement>('input[type="checkbox"][name$=".archive"]:checked')].map((box) => {
+        const id = box.name.slice('block.'.length, -'.archive'.length);
+        const heading = templateForm.querySelector<HTMLInputElement>(`[name="block.${id}.heading"]`)?.value.trim();
+        return { label: heading || '(ส่วนไม่มีหัวข้อ)', value: 'ลบ' };
+      });
+      if (going.length === 0) return null;
+      return {
+        title: `ลบ ${going.length} ส่วนออกจากแม่แบบ?`,
+        message: 'ส่วนที่ลบจะเก็บเข้าคลังในชีต กู้คืนได้ — การแก้ไขอื่นในหน้านี้บันทึกไปพร้อมกัน',
+        rows: going,
+        confirmLabel: 'ยืนยัน ลบและบันทึก',
+        tone: 'danger',
+      };
+    });
+  }
 
   // After ↑ / ↓ the page reloads; bring the block that moved back into view
   // so the move is visible, not lost at the top of a page of closed blocks.

@@ -1,5 +1,6 @@
 ---
 // src/pages/console/leases/[lease]/details.astro
+import { figureProblems } from '@/lib/format/figure';
 import ConsoleFrame from '@/components/console/ConsoleFrame.astro';
 import DetailSection from '@/components/console/DetailSection.astro';
 import DetailSheet from '@/components/console/DetailSheet.astro';
@@ -61,7 +62,8 @@ if (Astro.request.method === 'POST') {
   form.set('startDate', dateToInput(lease.startDate));
   terms = { ...lease, ...moveInTermsFromForm(form) };
   preview = firstBillSummary(terms);
-  if (form.get('intent') !== 'preview') try {
+  error = figureProblems(form, { bookingFee: 'ค่ามัดจำ/จองห้อง', proratePerDay: 'บาทต่อวัน', startMeter: 'มิเตอร์ไฟเริ่มต้น' });
+  if (!error && form.get('intent') !== 'preview') try {
     await repository.updateLease(lease.id, {
       signedDate: dateFromInput(values.signedDate),
       coTenantName: values.coTenantName || null,

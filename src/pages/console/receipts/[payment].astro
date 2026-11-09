@@ -90,7 +90,15 @@ const letterhead = letterheadFrom(env, await getSettingsRepository(env).resolveS
         <summary class="cursor-pointer text-console-ink-faint">
           บันทึกผิด? ยกเลิกใบเสร็จนี้
         </summary>
-        <form method="POST" class="mt-2">
+        <form
+          method="POST"
+          class="mt-2"
+          data-confirm={`ใบเสร็จ ${receipt.reference} จะถูกยกเลิกถาวร เงินรายการนี้จะไม่นับเป็นยอดรับ และเลขที่นี้จะไม่ถูกใช้ซ้ำ — ถ้าเงินเข้าจริง ต้องบันทึกรับเงินใหม่`}
+          data-confirm-title={`ยกเลิกใบเสร็จ ${receipt.reference}?`}
+          data-confirm-label="ยืนยัน ยกเลิกใบเสร็จ"
+          data-confirm-cancel="ไม่ยกเลิก"
+          data-confirm-tone="danger"
+        >
           <input type="hidden" name="action" value="void" />
           <p class="mb-2 text-console-ink-soft">
             ใบเสร็จแก้ไขไม่ได้ — ยกเลิกใบนี้แล้วบันทึกการรับเงินใหม่

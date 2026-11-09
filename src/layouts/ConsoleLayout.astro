@@ -46,10 +46,28 @@ const { title } = Astro.props;
     // Every console <select> becomes the console's own dropdown — see
     // select-menu.ts. The real select stays in the form underneath.
     import { enhanceSelects } from '@/lib/console/select-menu';
+    import { enhanceNumericInputs } from '@/lib/console/numeric-input';
+    import { enhanceConfirms } from '@/lib/console/confirm-dialog';
     enhanceSelects();
+    // Number fields refuse letters; risky forms ask first; a sent form
+    // cannot be sent twice. See each module.
+    enhanceNumericInputs();
+    enhanceConfirms();
   </script>
 
   <style is:global>
+    /* A number field that just refused a key (numeric-input.ts). */
+    input.figure-refused {
+      border-color: #b0443a !important;
+      animation: figure-refused 220ms ease-in-out;
+    }
+    @keyframes figure-refused {
+      25% { transform: translateX(-3px); }
+      75% { transform: translateX(3px); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      input.figure-refused { animation: none; }
+    }
     /**
      * The console prints on A4, because that is the paper in the building.
      *
