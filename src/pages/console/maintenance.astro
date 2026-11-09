@@ -162,7 +162,7 @@ const LABEL = 'flex flex-col gap-1 text-[15px] font-medium text-console-ink-soft
               <span class="min-w-[8rem] font-semibold text-console-ink">{nameOf.get(record.equipmentId) ?? record.equipmentId}</span>
               <span class="flex-1 text-console-ink">{record.work}{record.note && <span class="text-console-ink-soft"> · {record.note}</span>}</span>
               {record.cost !== null && <span class="font-figure text-console-ink">{formatBaht(record.cost)} บาท</span>}
-              <form method="POST" class="m-0" onsubmit="return confirm('ลบรายการนี้?')">
+              <form method="POST" class="m-0" data-confirm="ลบงานนี้ออกจากประวัติ? ข้อมูลยังเก็บในชีต" data-confirm-title="ลบรายการนี้?" data-confirm-label="ลบ" data-confirm-tone="danger">
                 <input type="hidden" name="action" value="archive-record" />
                 <input type="hidden" name="id" value={record.id} />
                 <button type="submit" class:list={['min-h-11 rounded-lg px-2 text-sm text-console-ink-soft underline-offset-2 hover:text-console-crit hover:underline', FOCUS]}>ลบ</button>
@@ -203,7 +203,7 @@ const LABEL = 'flex flex-col gap-1 text-[15px] font-medium text-console-ink-soft
       {ordered.map((item) => (
         <li class="flex min-h-11 items-center gap-3 border-b border-console-rule">
           <span class="flex-1">{item.name} <span class="text-sm text-console-ink-soft">· {EQUIPMENT_KIND_LABELS[item.kind]}{item.brand && ` · ${item.brand}`}</span></span>
-          <form method="POST" class="m-0" onsubmit="return confirm('เอาอุปกรณ์นี้ออกจากตาราง? ประวัติยังเก็บในชีต')">
+          <form method="POST" class="m-0" data-confirm="ประวัติยังเก็บในชีต" data-confirm-title="เอาอุปกรณ์นี้ออกจากตาราง?" data-confirm-label="เอาออก" data-confirm-tone="danger">
             <input type="hidden" name="action" value="archive-equipment" />
             <input type="hidden" name="id" value={item.id} />
             <button type="submit" class:list={['min-h-11 px-2 text-sm text-console-ink-soft hover:text-console-crit', FOCUS]}>เอาออก</button>

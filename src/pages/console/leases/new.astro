@@ -11,6 +11,7 @@ import { formatThaiDate } from '@/lib/format/thai';
 import { displayName } from '@/lib/models/tenant';
 import { consolePath } from '@/lib/console/paths';
 import { dateToInput, leaseDraftFromForm, moveInFormValues } from '@/lib/console/lease-form';
+import { figureProblems } from '@/lib/format/figure';
 import MoveInTermsFields from '@/components/console/MoveInTermsFields.astro';
 import { firstBillSummary } from '@/lib/models/move-in';
 import {
@@ -85,9 +86,22 @@ let preview: string | null = null;
 if (Astro.request.method === 'POST') {
   const form = await Astro.request.formData();
   values = leaseDraftFromForm(form);
+  error = figureProblems(form, {
+    rentRate: 'ค่าเช่า',
+    deposit: 'เงินประกัน',
+    advanceRent: 'ค่าเช่าล่วงหน้า',
+    occupantCount: 'จำนวนผู้พัก',
+    moveInDue: 'ยอดจ่ายวันเข้า',
+    moveInPaid: 'จ่ายจริงวันเข้า',
+    bookingFee: 'ค่ามัดจำ/จองห้อง',
+    proratePerDay: 'บาทต่อวัน',
+    startMeter: 'มิเตอร์ไฟเริ่มต้น',
+  });
 
   // "ดูตัวอย่างบิลแรก": show what the first bill will charge, save nothing.
-  if (form.get('intent') === 'preview') {
+  if (error) {
+    // Nothing is saved or previewed until every figure reads.
+  } else if (form.get('intent') === 'preview') {
     preview = Number.isNaN(values.startDate.getTime())
       ? 'ใส่วันเริ่มเช่าก่อน แล้วกดดูตัวอย่างอีกครั้ง'
       : firstBillSummary(values);
@@ -129,7 +143,7 @@ const CONTROL_CLASS = INPUT;
     <DetailSection heading="รายละเอียดสัญญา">
       <ErrorSummary message={error} />
 
-      <form method="POST" class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <form method="POST" class="grid grid-cols-1 gap-4 sm:grid-cols-2" data-new-lease>
         <FormField name="roomId" label="ห้อง" required span="half">
           <select id="roomId" name="roomId" required class={CONTROL_CLASS}>
             <option value="">— เลือกห้อง —</option>
@@ -292,3 +306,53 @@ const CONTROL_CLASS = INPUT;
     </DetailSection>
   </DetailSheet>
 </ConsoleFrame>
+
+<script>
+  import { guardForm, type ConfirmRow } from '@/lib/console/confirm-dialog';
+  import { dateFromInput } from '@/lib/console/lease-form';
+  import { parseFigure } from '@/lib/format/figure';
+  import { formatBaht, formatThaiDate } from '@/lib/format/thai';
+
+  // A new tenancy is what every bill from here on is worked from: rent,
+  // deposit, occupants (ค่าน้ำ) and the start meter (the first ค่าไฟ). Read
+  // them back once before saving. ดูตัวอย่างบิลแรก saves nothing, so it does
+  // not ask.
+  const form = document.querySelector<HTMLFormElement>('form[data-new-lease]');
+  if (form) {
+    guardForm(form, (submitter) => {
+      if (submitter?.getAttribute('name') === 'intent') return null;
+      if (!form.checkValidity()) return null;
+      const field = (name: string) => form.querySelector<HTMLInputElement | HTMLSelectElement>(`[name="${name}"]`);
+      const value = (name: string) => field(name)?.value.trim() ?? '';
+      const chosen = (name: string) => {
+        const select = field(name);
+        return select instanceof HTMLSelectElement ? (select.selectedOptions[0]?.textContent?.trim() ?? '') : '';
+      };
+      const baht = (name: string) => {
+        const amount = parseFigure(value(name));
+        return amount === null || Number.isNaN(amount) ? '—' : `${formatBaht(amount)} บาท`;
+      };
+      const start = dateFromInput(value('startDate'));
+      const rows: ConfirmRow[] = [
+        { label: 'ห้อง', value: chosen('roomId') },
+        { label: 'ผู้เช่า', value: chosen('tenantId') },
+        { label: 'เริ่มเช่า', value: start ? formatThaiDate(start) : '—' },
+        { label: 'ค่าเช่า/เดือน', value: baht('rentRate') },
+        { label: 'เงินประกัน', value: baht('deposit') },
+        { label: 'จำนวนผู้พัก', value: `${value('occupantCount') || '—'} คน`, note: 'ใช้คิดค่าน้ำ' },
+      ];
+      if (value('startMeter') !== '') rows.push({ label: 'มิเตอร์ไฟเริ่มต้น', value: value('startMeter'), note: 'ค่าไฟบิลแรกคิดจากเลขนี้' });
+      const warnings: string[] = [];
+      if (start && Math.abs(start.getTime() - Date.now()) > 45 * 86_400_000) {
+        warnings.push(`วันเริ่มเช่าห่างจากวันนี้มากกว่า 45 วัน — ตรวจปี พ.ศ./ค.ศ. อีกครั้ง`);
+      }
+      return {
+        title: 'ยืนยันบันทึกสัญญาเช่า',
+        message: 'ตัวเลขเหล่านี้ใช้ออกบิลทุกเดือนต่อจากนี้',
+        rows,
+        warnings,
+        confirmLabel: 'ยืนยัน บันทึกสัญญา',
+      };
+    });
+  }
+</script>

@@ -1,3 +1,4 @@
+import { parseFigure } from '@/lib/format/figure';
 import type { LeaseDraft } from '@/lib/repositories/lease-repository';
 
 /**
@@ -40,8 +41,7 @@ export function dateToInput(date: Date | null): string {
 
 /** Blank means "not recorded", which is 0 rather than NaN. */
 function numberField(form: FormData, field: string): number {
-  const raw = String(form.get(field) ?? '').trim();
-  return raw === '' ? 0 : Number(raw);
+  return parseFigure(form.get(field)) ?? 0;
 }
 
 /**
@@ -52,8 +52,7 @@ function numberField(form: FormData, field: string): number {
  * positive ยอดจ่าย is exactly what a tenant absconding looks like.
  */
 export function optionalNumberField(form: FormData, field: string): number | null {
-  const raw = String(form.get(field) ?? '').trim();
-  return raw === '' ? null : Number(raw);
+  return parseFigure(form.get(field));
 }
 
 export function leaseDraftFromForm(form: FormData): LeaseDraft {

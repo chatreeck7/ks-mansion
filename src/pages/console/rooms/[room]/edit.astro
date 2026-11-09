@@ -2,6 +2,7 @@
 // src/pages/console/rooms/[room]/edit.astro
 // KS-17 (rent rate) and KS-62 (แจ้งออก) — both were only ever missing a way to
 // set what the model already holds.
+import { figureProblems } from '@/lib/format/figure';
 import ConsoleFrame from '@/components/console/ConsoleFrame.astro';
 import { INPUT } from '@/lib/console/ui';
 import DetailSheet from '@/components/console/DetailSheet.astro';
@@ -31,9 +32,11 @@ let error: string | null = null;
 let values: RoomEdit = room;
 
 if (Astro.request.method === 'POST') {
-  values = roomEditFromForm(await Astro.request.formData());
+  const form = await Astro.request.formData();
+  values = roomEditFromForm(form);
+  error = figureProblems(form, { rentRate: 'ค่าเช่า' });
 
-  try {
+  if (!error) try {
     await repository.updateRoom(room.id, values);
     return Astro.redirect(detailHref, 303);
   } catch (cause) {

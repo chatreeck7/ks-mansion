@@ -1,3 +1,4 @@
+import { parseFigure } from '@/lib/format/figure';
 import type { RoomAppliances, RoomStatus } from '@/lib/models/room';
 import type { RoomEdit } from '@/lib/repositories/room-repository';
 
@@ -50,7 +51,7 @@ export function roomEditFromForm(form: FormData): RoomEdit {
     status: text('status') as RoomStatus,
     // Blank is "no rate on record" and must stay blank. Coercing it to 0 here
     // would assert the space is free, which is a different and wrong claim.
-    rentRate: rent === '' ? null : Number(rent),
+    rentRate: parseFigure(rent),
     hasMeter: text('hasMeter') === 'true',
     appliances,
   };

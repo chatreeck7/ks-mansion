@@ -199,7 +199,18 @@ const issuedGroups = sections
             : 'ยังออกบิลไม่ได้ — แก้ตามการ์ดสีแดงด้านบนก่อน'}
       </Notice>
     ) : (
-      <form method="POST" class="flex items-center gap-3">
+      <form
+        method="POST"
+        class="flex items-center gap-3"
+        data-confirm={[
+          `ออกบิล ${run.issuable.length} ห้อง รวม ${formatBaht(run.total)} บาท ของ${cycleLabel(cycle)}`,
+          blocked > 0 ? `อีก ${blocked} ห้องยังติดปัญหา จะยังไม่ออกบิลรอบนี้` : '',
+          'ออกแล้วเลขมิเตอร์ของห้องเหล่านี้จะแก้ไม่ได้ — ตรวจตัวเลขในตารางก่อน',
+        ].filter(Boolean).join(' · ')}
+        data-confirm-title={`ยืนยันออกบิล ${run.issuable.length} ใบ`}
+        data-confirm-label="ยืนยัน ออกบิล"
+        data-confirm-cancel="กลับไปตรวจ"
+      >
         <input type="hidden" name="action" value="issue" />
         <Button type="submit" size="lg">ออกบิล {run.issuable.length} ใบ</Button>
         <span class="font-figure text-[15px] tabular-nums text-console-ink-soft">

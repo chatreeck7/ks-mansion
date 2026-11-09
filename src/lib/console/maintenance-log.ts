@@ -1,3 +1,4 @@
+import { parseFigure } from '@/lib/format/figure';
 import { dateFromInput } from '@/lib/console/lease-form';
 import { toBuddhistYear } from '@/lib/format/thai';
 import type { BillingCycle } from '@/lib/models/billing-cycle';
@@ -113,9 +114,8 @@ export function recordFromForm(form: FormData, equipment: readonly Equipment[], 
     else yearBE = toBuddhistYear(doneOn.getFullYear());
   }
 
-  const costRaw = text('cost').replace(/,/g, '');
-  const cost = costRaw === '' ? null : Number(costRaw);
-  if (cost !== null && !(cost >= 0)) errors.push('ค่าใช้จ่ายต้องเป็นตัวเลข');
+  const cost = parseFigure(text('cost'));
+  if (cost !== null && Number.isNaN(cost)) errors.push('ค่าใช้จ่ายต้องเป็นตัวเลข');
 
   if (errors.length > 0 || yearBE === null) return { draft: null, errors };
   return { draft: { equipmentId, yearBE, doneOn, work, cost, note: text('note') }, errors };

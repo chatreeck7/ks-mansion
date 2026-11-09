@@ -222,6 +222,7 @@ const outstanding = rows.reduce(
           {owing.map((line) => (
             <li
               data-payment-row
+              data-room={line.roomLabel}
               class="grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-2 border-b border-console-rule px-3 py-2.5 desk:grid-cols-[minmax(6.5rem,1fr)_5.5rem_7.5rem_5rem_8rem_minmax(7rem,1fr)] desk:py-1.5"
             >
               <div class="min-w-0">
@@ -357,6 +358,11 @@ const outstanding = rows.reduce(
 </ConsoleFrame>
 
 <script>
+  import { guardForm, type ConfirmRow } from '@/lib/console/confirm-dialog';
+  import { dateFromInput } from '@/lib/console/lease-form';
+  import { parseFigure } from '@/lib/format/figure';
+  import { formatBaht, formatThaiDate } from '@/lib/format/thai';
+
   // "รับครบ" writes the outstanding amount into the row's field — one tap
   // instead of copying a figure. The amount stays visible in the field and
   // nothing is recorded until the form is submitted, so it is still the
@@ -383,4 +389,62 @@ const outstanding = rows.reduce(
     if (save) save.textContent = filled > 0 ? `บันทึกเงินเข้า ${filled} ห้อง` : 'บันทึกเงินเข้า';
   }
   count();
+
+  // Before anything is written, the summary of what will be (owner, 9 พ.ย.
+  // 2569): each room, its amount and โอน/เงินสด, the day, the total — and
+  // what is unusual about it, so a figure typed into the wrong row or an
+  // extra 0 is caught here rather than on a receipt.
+  const form = document.querySelector<HTMLFormElement>('form[data-payments]');
+  if (form) {
+    guardForm(form, () => {
+      const rows: ConfirmRow[] = [];
+      const warnings: string[] = [];
+      let total = 0;
+      let cash = 0;
+      for (const row of form.querySelectorAll<HTMLElement>('[data-payment-row]')) {
+        const raw = row.querySelector<HTMLInputElement>('[data-amount]')?.value.trim() ?? '';
+        if (raw === '') continue;
+        const amount = parseFigure(raw);
+        // Not a figure: the server says so and nothing is written.
+        if (amount === null || Number.isNaN(amount)) return null;
+        const owed = Number(row.querySelector<HTMLElement>('[data-outstanding]')?.dataset.outstanding ?? 0);
+        const method = row.querySelector<HTMLInputElement>('input[type="radio"]:checked')?.value === 'cash' ? 'cash' : 'transfer';
+        total += amount;
+        if (method === 'cash') cash += amount;
+        const over = amount - owed;
+        rows.push({
+          label: `ห้อง ${row.dataset.room}`,
+          value: `${formatBaht(amount)} · ${method === 'cash' ? 'เงินสด' : 'โอน'}`,
+          note:
+            over > 0
+              ? `เกินยอดค้าง ${formatBaht(over)} บาท (ค้าง ${formatBaht(owed)})`
+              : over < 0
+                ? `จ่ายบางส่วน — ยังค้างอีก ${formatBaht(-over)} บาท`
+                : 'รับครบยอดค้าง',
+          warn: over !== 0,
+        });
+        if (amount === 0) return null;
+        if (owed > 0 && amount >= owed * 2) warnings.push(`ห้อง ${row.dataset.room}: ยอดสูงกว่ายอดค้างมาก — ใส่ 0 เกินหรือเปล่า?`);
+      }
+      if (rows.length === 0) return null;
+
+      const paidOn = form.querySelector<HTMLInputElement>('input[name="paid_on"]')?.value ?? '';
+      const day = dateFromInput(paidOn);
+      const today = new Date();
+      const isToday = day && day.toDateString() === today.toDateString();
+      if (day && !isToday) warnings.push(`วันที่รับเงินคือ ${formatThaiDate(day)} — ไม่ใช่วันนี้`);
+
+      return {
+        title: `ยืนยันบันทึกเงินเข้า ${rows.length} ห้อง`,
+        message: `วันที่รับเงิน ${day ? formatThaiDate(day) : paidOn} · บันทึกแล้วจะออกใบเสร็จ แก้ได้ด้วยการยกเลิกใบเสร็จเท่านั้น`,
+        rows,
+        total: {
+          label: cash > 0 && cash < total ? `รวม (โอน ${formatBaht(total - cash)} · เงินสด ${formatBaht(cash)})` : 'รวม',
+          value: `${formatBaht(total)} บาท`,
+        },
+        warnings,
+        confirmLabel: 'ยืนยัน บันทึกเงินเข้า',
+      };
+    });
+  }
 </script>

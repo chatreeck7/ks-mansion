@@ -145,7 +145,7 @@ const groups = toMeterGridGroups(
   )}
   <ErrorSummary message={errors.length > 0 ? errors.join('\n') : null} />
 
-  <form method="POST">
+  <form method="POST" data-meter-grid>
     <LedgerTable columns={METER_GRID_COLUMNS} groups={groups} sheet />
 
     <div class="mt-4 flex flex-col gap-3 desk:flex-row desk:items-center desk:justify-between">
@@ -176,4 +176,44 @@ const groups = toMeterGridGroups(
       next.select();
     }
   });
+
+  // A dial misread is the slip that costs the most later — a bill worked
+  // from it. Saving asks only when something looks off: a reading below the
+  // last one, or units far above the rest of the round.
+  import { guardForm, type ConfirmRow } from '@/lib/console/confirm-dialog';
+  import { parseFigure } from '@/lib/format/figure';
+  import { formatFigure } from '@/lib/format/thai';
+
+  const grid = document.querySelector<HTMLFormElement>('form[data-meter-grid]');
+  if (grid) {
+    guardForm(grid, () => {
+      const typed = [...grid.querySelectorAll<HTMLInputElement>('input[name^="current:"]')]
+        .map((input) => {
+          const previous = parseFigure(input.closest('td')?.previousElementSibling?.textContent ?? '');
+          const current = parseFigure(input.value);
+          const room = input.closest('tr')?.querySelector('td')?.textContent?.trim() ?? '';
+          return { input, room, previous, current };
+        })
+        .filter((row) => row.previous !== null && row.current !== null && !Number.isNaN(row.current) && !Number.isNaN(row.previous!));
+      const units = typed.map((row) => row.current! - row.previous!).filter((u) => u > 0).sort((a, b) => a - b);
+      const median = units.length ? units[Math.floor(units.length / 2)]! : 0;
+      const odd: ConfirmRow[] = [];
+      for (const row of typed) {
+        if (row.input.value === row.input.defaultValue) continue;
+        const used = row.current! - row.previous!;
+        if (used < 0) {
+          odd.push({ label: `ห้อง ${row.room}`, value: `${formatFigure(row.previous!)} → ${formatFigure(row.current!)}`, note: 'เลขใหม่น้อยกว่าครั้งก่อน', warn: true });
+        } else if (median > 0 && used > Math.max(median * 3, 300)) {
+          odd.push({ label: `ห้อง ${row.room}`, value: `${formatFigure(used)} หน่วย`, note: `สูงกว่าห้องอื่นมาก (ทั่วไปราว ${formatFigure(median)} หน่วย) — ตรวจหลักของเลขอีกครั้ง`, warn: true });
+        }
+      }
+      if (odd.length === 0) return null;
+      return {
+        title: `ตรวจเลขมิเตอร์ ${odd.length} ห้องก่อนบันทึก`,
+        message: 'เลขเหล่านี้ดูผิดปกติ ถ้าถูกต้องแล้วกดบันทึกได้เลย',
+        rows: odd,
+        confirmLabel: 'ถูกต้อง บันทึก',
+      };
+    });
+  }
 </script>

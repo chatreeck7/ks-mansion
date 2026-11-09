@@ -1,5 +1,6 @@
 ---
 // src/pages/console/leases/[lease]/end.astro
+import { figureProblems, parseFigure } from '@/lib/format/figure';
 import ConsoleFrame from '@/components/console/ConsoleFrame.astro';
 import DetailSheet from '@/components/console/DetailSheet.astro';
 import DetailSection from '@/components/console/DetailSection.astro';
@@ -55,9 +56,11 @@ if (Astro.request.method === 'POST') {
   // Blank owed leaves the settlement alone rather than computing against zero,
   // which would read as "the whole deposit is refundable" on a screen someone
   // opened only to fix a date.
-  if (owedValue !== '') settledAmount = settleDeposit(lease.deposit, Number(owedValue)).amount;
+  error = figureProblems(form, { owed: 'ยอดที่ค้างทั้งหมด', moveOutPaid: 'จ่ายจริง' });
+  const owed = parseFigure(owedValue);
+  if (!error && owed !== null) settledAmount = settleDeposit(lease.deposit, owed).amount;
 
-  try {
+  if (!error) try {
     // A room transfer (KS-64) is still its own card — this records how a
     // tenancy ended, not what it continues into.
     await repository.updateLease(lease.id, {
@@ -95,7 +98,14 @@ const END_REASONS: readonly LeaseEndReason[] = ['normal', 'absconded'];
     <DetailSection heading="วันสิ้นสุด">
       <ErrorSummary message={error} />
 
-      <form method="POST" class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <form
+        method="POST"
+        class="grid grid-cols-1 gap-4 sm:grid-cols-2"
+        data-end-lease
+        data-room={room?.label ?? lease.roomId}
+        data-tenant={tenant ? displayName(tenant) : lease.tenantId}
+        data-deposit={lease.deposit}
+      >
         <FormField
           name="endDate"
           label="วันสิ้นสุดสัญญา"
@@ -189,3 +199,47 @@ const END_REASONS: readonly LeaseEndReason[] = ['normal', 'absconded'];
     </DetailSection>
   </DetailSheet>
 </ConsoleFrame>
+
+<script>
+  import { guardForm, type ConfirmRow } from '@/lib/console/confirm-dialog';
+  import { dateFromInput } from '@/lib/console/lease-form';
+  import { parseFigure } from '@/lib/format/figure';
+  import { formatBaht, formatThaiDate } from '@/lib/format/thai';
+
+  // Ending a tenancy empties the room on every screen and settles the
+  // deposit: read it back once before it is written.
+  const form = document.querySelector<HTMLFormElement>('form[data-end-lease]');
+  if (form) {
+    guardForm(form, () => {
+      const value = (name: string) => form.querySelector<HTMLInputElement | HTMLSelectElement>(`[name="${name}"]`)?.value.trim() ?? '';
+      const end = dateFromInput(value('endDate'));
+      if (!end) return null;
+      const reasonSelect = form.querySelector<HTMLSelectElement>('select[name="endReason"]');
+      const reason = reasonSelect?.selectedOptions[0]?.textContent?.trim() ?? '';
+      const owed = parseFigure(value('owed'));
+      const paid = parseFigure(value('moveOutPaid'));
+      const deposit = Number(form.dataset.deposit ?? 0);
+      const rows: ConfirmRow[] = [
+        { label: 'วันสิ้นสุด', value: formatThaiDate(end) },
+        ...(reason && value('endReason') ? [{ label: 'สาเหตุ', value: reason }] : []),
+        { label: 'เงินประกัน', value: `${formatBaht(deposit)} บาท` },
+        ...(owed !== null && !Number.isNaN(owed)
+          ? [{
+              label: 'ยอดค้างทั้งหมด',
+              value: `${formatBaht(owed)} บาท`,
+              note: owed > deposit ? `เก็บเพิ่ม ${formatBaht(owed - deposit)} บาท` : `คืนผู้เช่า ${formatBaht(deposit - owed)} บาท`,
+              warn: owed > deposit,
+            }]
+          : []),
+        ...(paid !== null && !Number.isNaN(paid) ? [{ label: 'จ่ายจริง', value: `${formatBaht(paid)} บาท` }] : []),
+      ];
+      return {
+        title: `ยืนยันสิ้นสุดสัญญา ห้อง ${form.dataset.room}`,
+        message: `${form.dataset.tenant} · หลังวันสิ้นสุด ห้องจะแสดงเป็นว่างและไม่ออกบิลให้ผู้เช่ารายนี้อีก`,
+        rows,
+        confirmLabel: 'ยืนยัน สิ้นสุดสัญญา',
+        tone: 'danger',
+      };
+    });
+  }
+</script>
