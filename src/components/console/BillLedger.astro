@@ -1,0 +1,99 @@
+---
+// src/components/console/BillLedger.astro
+import StatusPill from '@/components/console/StatusPill.astro';
+import type { BillLedgerRow } from '@/lib/console/bill-ledger';
+import { formatFigure } from '@/lib/format/thai';
+import { FOCUS, INPUT } from '@/lib/console/ui';
+
+/**
+ * ออกบิล as a compact ledger (owner, 9 พ.ย. 2569).
+ *
+ * Desk: one ruled row a room — ห้อง (with how it was worked in small type
+ * underneath) · ค่าเช่า · ค่าไฟ · ค่าน้ำ · รวม · สถานะ · หมายเหตุ/ยอดค้าง ·
+ * ใบแจ้ง. Phone: the same row stacks into a card — room and total on top,
+ * the three figures in a line, the note field full width.
+ *
+ * The note inputs are plain fields of the page's form (`arrears:<billId>`),
+ * so the existing annotate handler saves them.
+ */
+interface Props {
+  groups: Array<{ label: string; rows: BillLedgerRow[] }>;
+}
+const { groups } = Astro.props;
+const GRID =
+  'desk:grid desk:grid-cols-[minmax(9rem,1.4fr)_5.5rem_5rem_5rem_6rem_8.5rem_minmax(12rem,1.6fr)_4.5rem] desk:items-center desk:gap-x-3';
+const FIG = 'font-figure tabular-nums text-right';
+---
+
+<div class="bill-ledger">
+  <div class:list={[GRID, 'hidden border-b-2 border-console-ink px-3 pb-1.5 text-[14px] font-semibold text-console-ink-soft']}>
+    <span>ห้อง</span>
+    <span class="text-right">ค่าเช่า</span>
+    <span class="text-right">ค่าไฟ</span>
+    <span class="text-right">ค่าน้ำ</span>
+    <span class="text-right">รวม</span>
+    <span>สถานะ</span>
+    <span>หมายเหตุ / ยอดค้าง</span>
+    <span class="text-right">ใบแจ้ง</span>
+  </div>
+
+  {groups.map((group) => (
+    <section>
+      <h3 class="m-0 border-b border-console-rule bg-console-spine/70 px-3 pb-1 pt-3 font-hand text-base font-semibold text-console-ink-soft">
+        {group.label} <span class="font-console text-sm font-normal">({group.rows.length})</span>
+      </h3>
+      <ul class="m-0 list-none p-0">
+        {group.rows.map((row) => (
+          <li class:list={[GRID, 'grid grid-cols-[1fr_auto] gap-x-3 gap-y-1 border-b border-console-rule px-3 py-2.5 desk:min-h-[52px] desk:py-1.5']}>
+            <div class="min-w-0">
+              <span class="font-hand text-[18px] font-semibold text-console-ink">{row.room}</span>
+              {row.basis && <span class="block truncate text-[13px] text-console-ink-soft" title={row.basis}>{row.basis}</span>}
+            </div>
+
+            {/* Phone: total and status beside the room. */}
+            <div class="flex flex-col items-end gap-1 desk:hidden">
+              <span class:list={[FIG, 'text-[18px] font-semibold text-console-ink']}>{formatFigure(row.total)}</span>
+              <StatusPill tone={row.status.tone} label={row.status.label} />
+            </div>
+
+            <span class:list={[FIG, 'hidden desk:block']}>{formatFigure(row.rent)}</span>
+            <span class:list={[FIG, 'hidden desk:block']}>{formatFigure(row.electricity)}</span>
+            <span class:list={[FIG, 'hidden desk:block']}>{formatFigure(row.water)}</span>
+            <span class:list={[FIG, 'hidden font-semibold desk:block']}>{formatFigure(row.total)}</span>
+            <span class="hidden desk:block"><StatusPill tone={row.status.tone} label={row.status.label} /></span>
+
+            {/* Phone: the three figures in one line. */}
+            <p class="col-span-2 m-0 font-figure text-[13px] tabular-nums text-console-ink-soft desk:hidden">
+              เช่า {formatFigure(row.rent)} · ไฟ {formatFigure(row.electricity)} · น้ำ {formatFigure(row.water)}
+            </p>
+
+            <div class="col-span-2 desk:col-span-1">
+              {row.bill ? (
+                <input
+                  type="text"
+                  name={row.bill.noteField}
+                  value={row.bill.note}
+                  aria-label={`หมายเหตุ ห้อง ${row.room}`}
+                  placeholder="เช่น ยอดค้าง 1,169"
+                  data-note-input
+                  data-original={row.bill.note}
+                  class:list={[INPUT, 'min-h-10 py-1 text-[15px]']}
+                />
+              ) : null}
+            </div>
+
+            <div class="col-span-2 text-right desk:col-span-1">
+              {row.bill ? (
+                <a href={row.bill.href} class:list={['inline-flex min-h-10 items-center whitespace-nowrap font-semibold text-console-ink underline-offset-2 hover:underline', FOCUS]}>
+                  เปิด / พิมพ์
+                </a>
+              ) : (
+                <span class="hidden text-console-ink-faint desk:inline">—</span>
+              )}
+            </div>
+          </li>
+        ))}
+      </ul>
+    </section>
+  ))}
+</div>

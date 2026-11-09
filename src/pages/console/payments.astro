@@ -207,23 +207,34 @@ const outstanding = rows.reduce(
         <p class="mb-4 border-t-2 border-console-ink py-3 text-[15px] text-console-ok">✓ รับครบทุกห้องแล้ว</p>
       )}
       {owing.length > 0 && (
-        <ul class="m-0 flex list-none flex-col gap-2 p-0 desk:gap-0 desk:border-t-2 desk:border-console-ink">
+        <Fragment>
+        {/* Same ledger rows as ออกบิล: ruled, the room hand-written, figures
+            right-aligned; on a phone each row stacks into a short card. */}
+        <div class="hidden border-b-2 border-console-ink px-3 pb-1.5 text-[14px] font-semibold text-console-ink-soft desk:grid desk:grid-cols-[minmax(6.5rem,1fr)_5.5rem_7.5rem_5rem_8rem_minmax(7rem,1fr)] desk:gap-x-3">
+          <span>ห้อง</span>
+          <span class="text-right">ค้าง</span>
+          <span class="text-right">รับครั้งนี้</span>
+          <span></span>
+          <span>ช่องทาง</span>
+          <span>หมายเหตุ</span>
+        </div>
+        <ul class="m-0 list-none p-0">
           {owing.map((line) => (
             <li
               data-payment-row
-              class="flex flex-col gap-2 rounded-xl border border-console-line bg-console-card p-3 desk:grid desk:grid-cols-[64px_minmax(0,1fr)_150px_96px_132px_minmax(0,1fr)] desk:items-center desk:gap-2.5 desk:rounded-none desk:border-0 desk:border-b desk:border-console-rule desk:bg-transparent desk:px-2 desk:py-1.5"
+              class="grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-2 border-b border-console-rule px-3 py-2.5 desk:grid-cols-[minmax(6.5rem,1fr)_5.5rem_7.5rem_5rem_8rem_minmax(7rem,1fr)] desk:py-1.5"
             >
-              <div class="flex items-baseline gap-2 desk:contents">
-                <span class="font-hand text-xl font-semibold desk:text-[17px]">{line.roomLabel}</span>
-                <span class="flex-1 text-[15px] text-console-ink-soft">
-                  {line.settlement.paid > 0 ? `จ่ายแล้ว ${formatBaht(line.settlement.paid)} · ` : ''}ค้าง{' '}
-                  <span class="font-figure font-semibold text-console-ink" data-outstanding={line.settlement.outstanding}>
-                    {formatBaht(line.settlement.outstanding)}
-                  </span>
+              <div class="min-w-0">
+                <span class="font-hand text-[18px] font-semibold text-console-ink">{line.roomLabel}</span>
+                <span class="block text-[13px] text-console-ink-soft">
+                  ยอดบิล <span class="font-figure tabular-nums">{formatBaht(line.settlement.paid + line.settlement.outstanding)}</span>
+                  {line.settlement.paid > 0 && <Fragment> · จ่ายแล้ว <span class="font-figure tabular-nums">{formatBaht(line.settlement.paid)}</span></Fragment>}
                 </span>
               </div>
-              <div class="flex gap-2 desk:contents">
-              <label class="flex-1">
+              <span class="text-right font-figure text-[17px] font-semibold tabular-nums text-console-ink" data-outstanding={line.settlement.outstanding}>
+                {formatBaht(line.settlement.outstanding)}
+              </span>
+              <label class="flex min-w-0 gap-2">
                 <span class="sr-only">{line.amount.label}</span>
                 <input
                   type="text"
@@ -232,24 +243,20 @@ const outstanding = rows.reduce(
                   value={line.amount.value}
                   placeholder={line.amount.placeholder}
                   data-amount
-                  class:list={[INPUT, 'text-right font-figure tabular-nums']}
+                  class:list={[INPUT, 'min-h-10 py-1 text-right font-figure tabular-nums']}
                 />
               </label>
               <button
                 type="button"
                 data-fill
-                class:list={[
-                  'min-h-11 w-24 flex-none rounded-lg bg-console-ok px-3 text-[15px] font-semibold text-white hover:bg-console-ok/90 desk:w-auto',
-                  FOCUS,
-                ]}
+                class:list={['min-h-10 rounded-lg bg-console-ok px-3 text-[15px] font-semibold text-white hover:bg-console-ok/90 desk:col-span-1', FOCUS]}
               >
                 รับครบ
               </button>
-              </div>
               {/* This room's own โอน / เงินสด — not a switch for the whole page. */}
-              <div role="radiogroup" aria-label={`ช่องทางรับเงิน ห้อง ${line.roomLabel}`} class="flex self-start overflow-hidden rounded-lg border-[1.5px] border-console-ink">
+              <div role="radiogroup" aria-label={`ช่องทางรับเงิน ห้อง ${line.roomLabel}`} class="col-span-2 flex self-center overflow-hidden rounded-lg border-[1.5px] border-console-ink desk:col-span-1">
                 {(['transfer', 'cash'] as const).map((value) => (
-                  <label class="relative cursor-pointer">
+                  <label class="relative flex-1 cursor-pointer">
                     <input
                       type="radio"
                       name={methodFieldName(line.bill)}
@@ -257,25 +264,26 @@ const outstanding = rows.reduce(
                       checked={(submitted?.get(methodFieldName(line.bill)) ?? 'transfer') === value}
                       class="peer sr-only"
                     />
-                    <span class="flex min-h-11 items-center px-3 text-[15px] font-semibold text-console-ink peer-checked:bg-console-ink peer-checked:text-white peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:-outline-offset-4 peer-focus-visible:outline-console-highlight">
+                    <span class="flex min-h-10 items-center justify-center px-3 text-[15px] font-semibold text-console-ink peer-checked:bg-console-ink peer-checked:text-white peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:-outline-offset-4 peer-focus-visible:outline-console-highlight">
                       {paymentMethodLabel(value)}
                     </span>
                   </label>
                 ))}
               </div>
-              <label>
+              <label class="col-span-2 min-w-0 desk:col-span-1">
                 <span class="sr-only">{line.note.label}</span>
                 <input
                   type="text"
                   name={line.note.name}
                   value={line.note.value}
                   placeholder={line.note.placeholder}
-                  class:list={[INPUT, 'text-[15px]']}
+                  class:list={[INPUT, 'min-h-10 py-1 text-[15px]']}
                 />
               </label>
             </li>
           ))}
         </ul>
+        </Fragment>
       )}
 
       {rows.length > 0 && (
