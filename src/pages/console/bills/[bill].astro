@@ -5,7 +5,17 @@ import PrintShell from '@/components/console/PrintShell.astro';
 import { billDocumentFor } from '@/lib/console/bill-document';
 import { letterheadFrom, payeeFrom, PAYEE_KEYS } from '@/lib/console/letterhead';
 import { consolePath } from '@/lib/console/paths';
-import { getBillRepository, getPaymentRepository, getRoomRepository, getSettingsRepository } from '@/lib/repositories';
+import { reissuePlan } from '@/lib/console/bill-reissue';
+import { formatBaht, formatFigure } from '@/lib/format/thai';
+import { billTotal } from '@/lib/models/bill';
+import {
+  getBillRepository,
+  getLeaseRepository,
+  getMeterReadingRepository,
+  getPaymentRepository,
+  getRoomRepository,
+  getSettingsRepository,
+} from '@/lib/repositories';
 
 /**
  * One bill, on its own (KS-24). The whole cycle prints from `print.astro`;
@@ -32,7 +42,8 @@ const env = Astro.locals.runtime?.env;
 
 // `getBill` rather than a list filter: an archived bill must still resolve,
 // so a tenant holding an old slip lands on what it said instead of a 404.
-const bill = await getBillRepository(env).getBill(Astro.params.bill!);
+const bills = getBillRepository(env);
+let bill = await bills.getBill(Astro.params.bill!);
 
 if (!bill) {
   return new Response(null, { status: 404, statusText: 'Not Found' });
@@ -42,6 +53,80 @@ const [room, payments] = await Promise.all([
   getRoomRepository(env).getRoom(bill.roomId),
   getPaymentRepository(env).listPaymentsForBill(bill.id),
 ]);
+
+/**
+ * ยกเลิกบิล / ออกใหม่ (owner, 9 พ.ย. 2569: a meter figure was corrected
+ * after room 210's bill went out, so the slip and the money checked against
+ * it were both wrong).
+ *
+ * A bill is never edited. It is cancelled (archived) and the room's bill is
+ * worked again by the bill run from the figures as they now stand — see
+ * `bill-reissue.ts`. Two ways through:
+ * - the figures are already corrected: cancel and reissue in one step;
+ * - the meter still needs fixing (an issued bill locks its reading): cancel
+ *   only, fix the reading, then come back and ออกบิลใหม่ from here — or from
+ *   the list of cancelled bills on ออกบิล.
+ *
+ * Refused while money is recorded against the bill: its receipts would point
+ * at a cancelled bill, so those are cancelled first.
+ */
+const roomLabel = room?.label ?? bill.roomId;
+const received = payments.filter((payment) => !payment.archived);
+const now = new Date();
+
+async function plan(current: typeof bill) {
+  const [rooms, leases, readings, existing] = await Promise.all([
+    getRoomRepository(env).listRooms(),
+    getLeaseRepository(env).listLeases(),
+    getMeterReadingRepository(env).listReadings(),
+    bills.listBills(),
+  ]);
+  return reissuePlan({ bill: current!, rooms, leases, readings, existing, now });
+}
+
+let actionError: string | null = null;
+let justVoided = false;
+
+if (Astro.request.method === 'POST') {
+  const action = (await Astro.request.formData()).get('action');
+  if (received.length > 0) {
+    actionError = 'บิลนี้รับเงินแล้ว — ยกเลิกใบเสร็จก่อน';
+  } else if (action === 'void' || action === 'reissue') {
+    // Fresh plan from fresh reads: what is written is what the sheet says now.
+    const fresh = await plan(bill);
+    if (action === 'reissue' && !fresh.draft) {
+      actionError = fresh.problem ?? 'ออกบิลใหม่ไม่ได้';
+    } else {
+      try {
+        if (!bill.archived) await bills.archiveBill(bill.id);
+        if (action === 'reissue' && fresh.draft) {
+          const issued = await bills.issueBill(fresh.draft);
+          return Astro.redirect(consolePath(`console/bills/${issued.id}?replaced=${encodeURIComponent(bill.id)}`), 303);
+        }
+        justVoided = true;
+      } catch (cause) {
+        actionError = cause instanceof Error ? cause.message : String(cause);
+      }
+    }
+  }
+  bill = (await bills.getBill(bill.id)) ?? bill;
+}
+
+// What a reissue would write now; for a cancelled bill that already has a
+// successor, the successor instead.
+const replacement = bill.archived ? await bills.findBill(bill.roomId, bill.cycle) : null;
+const next = replacement ? null : await plan(bill);
+const replacedId = Astro.url.searchParams.get('replaced');
+const blocker =
+  received.length > 0
+    ? `บิลนี้รับเงินแล้ว ${received.length} รายการ (${formatBaht(received.reduce((sum, p) => sum + p.amount, 0))} บาท) — ยกเลิกใบเสร็จก่อน แล้วค่อยยกเลิกบิล`
+    : null;
+const electricity = (from: number | null, to: number | null) =>
+  from !== null && to !== null ? `ไฟ ${formatFigure(from)} → ${formatFigure(to)} = ${formatFigure(to - from)} หน่วย` : '';
+const oldWorking = `${electricity(bill.electricityPrevious, bill.electricityCurrent)} · รวม ${formatBaht(billTotal(bill))} บาท`;
+const newWorking = next?.draft
+  ? `${electricity(next.draft.electricityPrevious, next.draft.electricityCurrent)} · รวม ${formatBaht(billTotal(next.draft))} บาท`
+  : '';
 
 const doc = billDocumentFor(bill, room, payments);
 const documentSettings = await getSettingsRepository(env).resolveSettings();
@@ -56,11 +141,105 @@ const payee = payeeFrom(env, documentSettings);
   building={letterhead.name}
 >
   <Fragment slot="notices">
-    {!payee.configured && (
-      <p class="mb-0 mt-3 rounded-lg bg-console-crit-bg px-3 py-2 text-sm text-console-crit">
-        ยังไม่ได้ตั้งบัญชีรับโอน — ตั้งในหน้าแม่แบบเอกสาร (หรือ {PAYEE_KEYS.join(', ')} ใน Cloudflare Pages)
-        แล้วบิลทุกใบจะแสดงช่องทางโอนทันที ไม่ต้องออกบิลใหม่
+    {replacedId && !bill.archived && (
+      <p class="mb-0 mt-3 rounded-lg bg-console-ok/10 px-3 py-2 text-[15px] font-medium text-console-ok" role="status">
+        ออกบิลใหม่แล้ว แทนบิล {replacedId} ที่ยกเลิก — ใช้ใบนี้เก็บเงิน
       </p>
+    )}
+    {bill.archived && (
+      <p class="mb-0 mt-3 rounded-lg bg-console-crit-bg px-3 py-2 text-[15px] font-medium text-console-crit" role={justVoided ? 'status' : undefined}>
+        {justVoided ? 'ยกเลิกบิลนี้แล้ว' : 'บิลนี้ถูกยกเลิกแล้ว'} — ไม่ใช้เก็บเงิน
+        {replacement && (
+          <Fragment> · <a href={consolePath(`console/bills/${replacement.id}`)} class="underline">เปิดบิลที่ออกใหม่ {replacement.id} →</a></Fragment>
+        )}
+      </p>
+    )}
+    {actionError && (
+      <p class="mb-0 mt-3 rounded-lg bg-console-crit-bg px-3 py-2 text-sm text-console-crit" role="alert">{actionError}</p>
+    )}
+
+    {/* Cancelled, nothing in its place yet: offer the reissue here. */}
+    {bill.archived && !replacement && next && (
+      <div class="mt-3 rounded-lg border border-console-line bg-console-card px-3 py-3 text-sm">
+        {next.draft ? (
+          <form
+            method="POST"
+            class="m-0 flex flex-wrap items-center gap-3"
+            data-confirm={`ห้อง ${roomLabel}: ${newWorking}`}
+            data-confirm-title={`ออกบิลใหม่ ห้อง ${roomLabel}?`}
+            data-confirm-label="ยืนยัน ออกบิลใหม่"
+            data-confirm-cancel="กลับไปตรวจ"
+          >
+            <input type="hidden" name="action" value="reissue" />
+            <span class="text-console-ink-soft">ตามข้อมูลล่าสุด: <strong class="font-figure text-console-ink">{newWorking}</strong></span>
+            <button type="submit" class="min-h-11 rounded-[10px] bg-console-ink px-4 font-semibold text-white hover:bg-console-ink/90">ออกบิลใหม่ ห้อง {roomLabel}</button>
+          </form>
+        ) : (
+          <p class="m-0 text-console-crit">ยังออกบิลใหม่ไม่ได้: {next.problem}
+            {' '}<a href={consolePath('console/meter-round/grid')} class="underline">ไปหน้าจดมิเตอร์</a>
+          </p>
+        )}
+        {next.draft && (
+          <p class="mb-0 mt-2 text-console-ink-soft">
+            ถ้าเลขมิเตอร์ยังไม่ถูก <a href={consolePath('console/meter-round/grid')} class="underline">แก้ที่หน้าจดมิเตอร์</a> ก่อน แล้วกลับมาหน้านี้
+          </p>
+        )}
+      </div>
+    )}
+
+    {/* An active bill: cancel, or cancel and reissue. */}
+    {!bill.archived && (
+      <details class="mt-3 text-sm" open={Boolean(next?.changed) || undefined}>
+        <summary class="cursor-pointer text-console-ink-soft">บิลผิด? ยกเลิกแล้วออกใหม่</summary>
+        <div class="mt-2 flex flex-col gap-3 rounded-lg border border-console-line bg-console-card px-3 py-3">
+          {blocker ? (
+            <p class="m-0 font-medium text-console-crit">{blocker}</p>
+          ) : (
+            <Fragment>
+              <dl class="m-0 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+                <dt class="text-console-ink-soft">ในบิลนี้</dt>
+                <dd class="m-0 font-figure">{oldWorking}</dd>
+                <dt class="text-console-ink-soft">ข้อมูลล่าสุด</dt>
+                <dd class:list={['m-0 font-figure', next?.changed && 'font-semibold text-console-crit']}>
+                  {next?.draft ? newWorking : next?.problem}
+                  {next?.draft && !next.changed && <span class="font-console text-console-ink-soft"> (ตรงกับบิล)</span>}
+                </dd>
+              </dl>
+              <div class="flex flex-wrap gap-2">
+                {next?.draft && next.changed && (
+                  <form
+                    method="POST"
+                    class="m-0"
+                    data-confirm={`บิล ${bill.id} จะถูกยกเลิก และออกบิลใบใหม่ให้ห้อง ${roomLabel}: ${newWorking} (เดิม ${oldWorking})`}
+                    data-confirm-title={`ยกเลิกแล้วออกบิลใหม่ ห้อง ${roomLabel}?`}
+                    data-confirm-label="ยืนยัน ออกบิลใหม่"
+                    data-confirm-cancel="ไม่ทำ"
+                  >
+                    <input type="hidden" name="action" value="reissue" />
+                    <button type="submit" class="min-h-11 rounded-[10px] bg-console-ink px-4 font-semibold text-white hover:bg-console-ink/90">
+                      ยกเลิกใบนี้ แล้วออกใบใหม่ตามข้อมูลล่าสุด
+                    </button>
+                  </form>
+                )}
+                <form
+                  method="POST"
+                  class="m-0"
+                  data-confirm={`บิล ${bill.id} ห้อง ${roomLabel} จะถูกยกเลิก เลขมิเตอร์รอบนี้ของห้องนี้จะแก้ได้อีกครั้ง แก้เสร็จแล้วกลับมาที่หน้านี้เพื่อออกบิลใหม่`}
+                  data-confirm-title={`ยกเลิกบิลห้อง ${roomLabel}?`}
+                  data-confirm-label="ยืนยัน ยกเลิกบิล"
+                  data-confirm-cancel="ไม่ยกเลิก"
+                  data-confirm-tone="danger"
+                >
+                  <input type="hidden" name="action" value="void" />
+                  <button type="submit" class="min-h-11 rounded-[10px] border border-console-crit/40 px-4 text-console-crit hover:bg-console-crit-bg">
+                    ยกเลิกบิลอย่างเดียว (จะไปแก้เลขมิเตอร์ก่อน)
+                  </button>
+                </form>
+              </div>
+            </Fragment>
+          )}
+        </div>
+      </details>
     )}
   </Fragment>
   <BillDocument {doc} {letterhead} {payee} />
