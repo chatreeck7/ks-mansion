@@ -48,8 +48,10 @@ export async function mountPaperViewer(root: HTMLElement): Promise<void> {
   for (const style of document.querySelectorAll<HTMLStyleElement>('style[data-pagedjs-inserted-styles]')) {
     style.textContent = stripPageRules(style.textContent ?? '');
   }
-  root.classList.add('paper-ready');
+  numberPages(track);
+  // Measure every sheet first (setup), then switch to one-at-a-time.
   setup(root, track);
+  root.classList.add('paper-ready');
 }
 
 function setup(root: HTMLElement, track: HTMLElement): void {
@@ -69,58 +71,63 @@ function setup(root: HTMLElement, track: HTMLElement): void {
   let overview = false;
   let wide = false;
 
-  const naturalWidth = Math.max(...pages.map((p) => p.offsetWidth));
-  const naturalHeight = Math.max(...pages.map((p) => p.offsetHeight));
+  // Natural (unzoomed) size of each sheet: portrait and landscape differ.
+  const sizes = pages.map((p) => ({ w: p.offsetWidth, h: p.offsetHeight }));
+  const widest = Math.max(...sizes.map((s) => s.w));
 
   const fit = () => {
     if (overview) {
       const perRow = window.innerWidth < 640 ? 2 : 4;
-      const zoom = (track.clientWidth - 48) / (perRow * (naturalWidth + 24));
+      const zoom = (track.clientWidth - 48) / (perRow * (widest + 48));
+      track.style.height = '';
       pagesEl.style.zoom = String(Math.min(0.5, zoom));
       return;
     }
+    const size = sizes[current]!;
     const top = track.getBoundingClientRect().top;
     const height = Math.max(240, window.innerHeight - top - 24);
-    const width = track.clientWidth - (window.innerWidth < 640 ? 16 : 96);
+    const width = track.clientWidth - (window.innerWidth < 640 ? 16 : 64);
     // ขยายเต็มความกว้าง: the sheet as wide as the window, read by scrolling
     // down inside it; otherwise the whole sheet fits on screen.
     track.style.height = wide ? `${height}px` : '';
-    pagesEl.style.zoom = String(wide ? Math.min(1.6, width / naturalWidth) : Math.min(1.25, width / naturalWidth, height / naturalHeight));
+    pagesEl.style.zoom = String(wide ? Math.min(1.6, width / size.w) : Math.min(1.25, width / size.w, height / size.h));
   };
 
-  const show = (index: number, smooth = true) => {
+  // One sheet on screen at a time — the others are not drawn at all, so
+  // nothing spills past the edges.
+  const show = (index: number) => {
     current = Math.max(0, Math.min(pages.length - 1, index));
+    pages.forEach((page, i) => page.classList.toggle('paper-current', i === current));
     if (counter) counter.value = String(current + 1);
     if (prev) prev.disabled = current === 0;
     if (next) next.disabled = current === pages.length - 1;
-    if (!overview) pages[current]!.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', inline: 'center', block: 'nearest' });
+    fit();
+    track.scrollTop = 0;
   };
 
-  // Which page is in the middle after a swipe or a trackpad scroll.
-  let settle = 0;
-  track.addEventListener('scroll', () => {
-    if (overview) return;
-    window.clearTimeout(settle);
-    settle = window.setTimeout(() => {
-      const mid = track.getBoundingClientRect().left + track.clientWidth / 2;
-      let best = 0;
-      let distance = Infinity;
-      pages.forEach((page, i) => {
-        const r = page.getBoundingClientRect();
-        const d = Math.abs(r.left + r.width / 2 - mid);
-        if (d < distance) {
-          distance = d;
-          best = i;
-        }
-      });
-      if (best !== current) {
-        current = best;
-        if (counter) counter.value = String(current + 1);
-        if (prev) prev.disabled = current === 0;
-        if (next) next.disabled = current === pages.length - 1;
-      }
-    }, 80);
+  // Swipe on a phone or a trackpad: left / right turns the page.
+  let startX: number | null = null;
+  track.addEventListener('pointerdown', (event) => {
+    if (!overview && event.pointerType !== 'mouse') startX = event.clientX;
   });
+  track.addEventListener('pointerup', (event) => {
+    if (startX === null) return;
+    const dx = event.clientX - startX;
+    startX = null;
+    if (Math.abs(dx) > 50) show(current + (dx < 0 ? 1 : -1));
+  });
+  let wheelLock = 0;
+  track.addEventListener(
+    'wheel',
+    (event) => {
+      if (overview || Math.abs(event.deltaX) < Math.abs(event.deltaY) || Math.abs(event.deltaX) < 30) return;
+      event.preventDefault();
+      if (Date.now() < wheelLock) return;
+      wheelLock = Date.now() + 450;
+      show(current + (event.deltaX > 0 ? 1 : -1));
+    },
+    { passive: false },
+  );
 
   prev?.addEventListener('click', () => show(current - 1));
   next?.addEventListener('click', () => show(current + 1));
@@ -130,22 +137,21 @@ function setup(root: HTMLElement, track: HTMLElement): void {
     root.classList.toggle('paper-overview', overview);
     grid.setAttribute('aria-pressed', String(overview));
     setLabel(grid, overview ? 'ดูทีละหน้า' : 'ทุกหน้า');
-    fit();
-    if (!overview) show(current, false);
+    if (overview) fit();
+    else show(current);
   });
   zoomButton?.addEventListener('click', () => {
     wide = !wide;
     root.classList.toggle('paper-wide', wide);
     zoomButton.setAttribute('aria-pressed', String(wide));
     setLabel(zoomButton, wide ? 'พอดีหน้า' : 'ขยายเต็มความกว้าง');
-    fit();
-    show(current, false);
+    show(current);
   });
   pages.forEach((page, i) =>
     page.addEventListener('click', () => {
       if (!overview) return;
       grid?.click();
-      show(i, false);
+      show(i);
     }),
   );
   document.addEventListener('keydown', (event) => {
@@ -163,12 +169,8 @@ function setup(root: HTMLElement, track: HTMLElement): void {
       show(pages.length - 1);
     }
   });
-  window.addEventListener('resize', () => {
-    fit();
-    show(current, false);
-  });
-  fit();
-  show(0, false);
+  window.addEventListener('resize', () => (overview ? fit() : show(current)));
+  show(0);
 }
 
 /** Removes every `@page …{…}` rule (with nested margin boxes) from a stylesheet. */
@@ -202,4 +204,22 @@ function setLabel(button: HTMLElement, text: string): void {
   button.setAttribute('aria-label', text);
   const label = button.querySelector('[data-label]');
   if (label) label.textContent = text;
+}
+
+/**
+ * Paged.js restarts `counter(page)` when the sheet kind changes (a landscape
+ * section reads "หน้า 1 / 13" on screen while Chrome prints "หน้า 8 / 13"),
+ * so the footer number is written from the page's real position instead —
+ * only on sheets whose footer shows a page number at all.
+ */
+function numberPages(track: HTMLElement): void {
+  const pages = [...track.querySelectorAll<HTMLElement>('.pagedjs_page')];
+  pages.forEach((page, i) => {
+    const box = page.querySelector<HTMLElement>('.pagedjs_margin-bottom-right .pagedjs_margin-content');
+    if (!box) return;
+    const content = getComputedStyle(box, '::after').content;
+    if (!content || content === 'none' || !content.includes('หน้า')) return;
+    box.dataset.pageno = `หน้า ${i + 1} / ${pages.length}`;
+    box.classList.add('paper-pageno');
+  });
 }

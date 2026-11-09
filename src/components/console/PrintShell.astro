@@ -136,30 +136,37 @@ const NAV =
     visibility: hidden;
   }
 
-  /* The pages, side by side, one in view at a time. */
+  /* The pages: one sheet on screen, centred; the rest are not drawn. */
   .paper-track {
     flex: 1;
-    overflow-x: auto;
-    overflow-y: hidden;
-    scroll-snap-type: x mandatory;
-    scrollbar-width: none;
+    overflow: hidden;
     padding: 12px 0 20px;
-  }
-  .paper-track::-webkit-scrollbar {
-    display: none;
   }
   .paper-track .pagedjs_pages {
     display: flex;
-    gap: 32px;
-    width: max-content;
-    padding: 0 50vw;
+    justify-content: center;
+    width: auto;
+    padding: 0;
   }
   .paper-track .pagedjs_page {
     flex: none;
-    scroll-snap-align: center;
     background: #fff;
     box-shadow: 0 10px 30px rgba(30, 45, 74, 0.16);
     margin: 0 !important;
+  }
+  .paper-viewer.paper-ready:not(.paper-overview) .paper-track .pagedjs_page:not(.paper-current) {
+    display: none;
+  }
+  .paper-viewer:not(.paper-overview) .paper-track .paper-current {
+    animation: paper-turn 180ms ease-out;
+  }
+  @keyframes paper-turn {
+    from {
+      opacity: 0.4;
+    }
+    to {
+      opacity: 1;
+    }
   }
 
   /* ทุกหน้า: every sheet as a thumbnail; click one to open it. */
@@ -168,7 +175,6 @@ const NAV =
   }
   .paper-overview .paper-track {
     overflow-y: auto;
-    scroll-snap-type: none;
   }
   .paper-overview .paper-track .pagedjs_pages {
     flex-wrap: wrap;
@@ -207,6 +213,10 @@ const NAV =
     --pagedjs-height-right: 210mm;
     --pagedjs-width-left: 297mm;
     --pagedjs-height-left: 210mm;
+  }
+
+  .paper-track .paper-pageno::after {
+    content: attr(data-pageno) !important;
   }
 
   /* Paper: the document itself, laid out by Chrome from the same sheet. */
