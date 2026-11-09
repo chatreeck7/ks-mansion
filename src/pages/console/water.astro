@@ -111,27 +111,33 @@ const text = (cell: unknown) => (cell as { value: string }).value;
         </p>
       ) : (
         <Fragment>
-        {/* The same ledger rows as ออกบิล and รับเงิน: header, ruled rows,
-            the room hand-written, the money right-aligned. */}
-        <div class="grid grid-cols-[minmax(4.5rem,auto)_1fr_auto_5rem] items-end gap-x-3 border-b-2 border-console-ink px-3 pb-1.5 text-[14px] font-semibold text-console-ink-soft">
-          <span>ห้อง</span>
-          <span>คิดจาก</span>
-          <span class="w-[134px] text-center">จำนวนผู้พัก</span>
-          <span class="text-right">ค่าน้ำ</span>
+        {/* Two columns of ledger rows on a desk (the room list is short and
+            wide screens have room); one on a phone. Text sits on
+            leading-none so the room, basis and amount centre on the stepper
+            instead of riding high on the Thai fonts' tall line boxes. */}
+        <div class="grid gap-x-7 border-b-2 border-console-ink desk:grid-cols-2">
+          {[0, 1].map((col) => (
+            <div class:list={['grid grid-cols-[minmax(3.5rem,max-content)_1fr_auto_4rem] items-end gap-x-3 px-2 pb-1.5 text-[14px] font-semibold text-console-ink-soft', col === 1 && 'hidden desk:grid']}>
+              <span>ห้อง</span>
+              <span>คิดจาก</span>
+              <span class="w-[152px] text-center">จำนวนผู้พัก</span>
+              <span class="text-right">ค่าน้ำ</span>
+            </div>
+          ))}
         </div>
-        <ul class="m-0 list-none p-0">
+        <ul class="m-0 grid list-none gap-x-7 p-0 desk:grid-cols-2">
           {lines.map((line) => {
             const occ = line.cells.occupants!;
             return (
-              <li class="grid min-h-[56px] grid-cols-[minmax(4.5rem,auto)_1fr_auto_5rem] items-center gap-x-3 border-b border-console-rule px-3 py-1.5">
-                <span class="whitespace-nowrap font-hand text-[18px] font-semibold text-console-ink">{text(line.cells.room)}</span>
-                <span class="min-w-0 text-[14px] text-console-ink-soft">{text(line.cells.basis)}</span>
+              <li class="grid grid-cols-[minmax(3.5rem,max-content)_1fr_auto_4rem] items-center gap-x-3 border-b border-console-rule px-2 py-2">
+                <span class="whitespace-nowrap font-hand text-[18px] font-semibold leading-none text-console-ink">{text(line.cells.room)}</span>
+                <span class="min-w-0 text-[14px] leading-tight text-console-ink-soft">{text(line.cells.basis)}</span>
                 {occ.kind === 'input' ? (
                   <Stepper name={occ.name} value={occ.value} label={occ.label} />
                 ) : (
-                  <span class="w-[134px] text-center text-[14px] text-console-ink-faint">ตามมิเตอร์</span>
+                  <span class="w-[152px] text-center text-[14px] leading-none text-console-ink-faint">ตามมิเตอร์</span>
                 )}
-                <span class="text-right font-figure text-[15px] font-semibold tabular-nums">
+                <span class="text-right font-figure text-[15px] font-semibold leading-none tabular-nums">
                   {formatFigure((line.cells.charge as { value: number | null }).value)}
                 </span>
               </li>
