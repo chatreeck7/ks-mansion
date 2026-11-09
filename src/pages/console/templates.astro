@@ -58,6 +58,9 @@ const settingsRepo = getSettingsRepository(env);
 const templatesRepo = getDocumentTemplateRepository(env);
 
 let notice: string | null = null;
+/** The block just moved or edited: shown open, highlighted and scrolled to after the reload. */
+let focusBlockId: string | null = null;
+const editedIds = new Set<string>();
 const errors: string[] = [];
 
 if (Astro.request.method === 'POST') {
@@ -78,6 +81,7 @@ if (Astro.request.method === 'POST') {
       const blocks = await templatesRepo.listBlocks(docType);
       const changes = blockChangesFromForm(form, blocks);
       for (const change of changes) {
+        if (!change.archive) editedIds.add(change.id);
         if (Object.keys(change.changes).length > 0) await templatesRepo.updateBlock(change.id, change.changes);
         if (change.archive) await templatesRepo.archiveBlock(change.id);
       }
@@ -88,7 +92,12 @@ if (Astro.request.method === 'POST') {
         for (const swap of moveChanges(await templatesRepo.listBlocks(docType), moveId, direction)) {
           await templatesRepo.updateBlock(swap.id, { position: swap.position });
         }
-        notice = changes.length > 0 ? `บันทึก ${changes.length} ส่วน และย้ายลำดับแล้ว` : 'ย้ายลำดับแล้ว';
+        focusBlockId = moveId;
+        const after = await templatesRepo.listBlocks(docType);
+        const at = after.findIndex((block) => block.id === moveId);
+        const moved = after[at];
+        const name = moved ? (moved.heading || moved.body.split('\n')[0] || '').slice(0, 40) : '';
+        notice = `ย้าย “${name}” ${direction === 'up' ? 'ขึ้น' : 'ลง'}เป็นส่วนที่ ${at + 1} แล้ว` + (changes.length > 0 ? ` · บันทึกข้อความ ${changes.length} ส่วน` : '');
       } else {
         notice = changes.length === 0 ? 'ไม่มีข้อความที่เปลี่ยน' : `บันทึก ${changes.length} ส่วนแล้ว`;
       }
@@ -217,7 +226,7 @@ const missing = blocks.length > 0 ? missingDefaultBlocks(blocks, defaultsFor(doc
               <button type="submit" class={buttonClass('primary', 'md', false)}>เติมอีก {missing.length} ส่วน</button>
             </form>
           )}
-          <form method="POST" class="flex flex-col gap-3" data-template-form>
+          <form method="POST" class="flex flex-col gap-3" data-template-form data-placeholders={JSON.stringify(placeholders)}>
             <input type="hidden" name="action" value="blocks" />
 
             <div class="sticky top-0 z-10 -mx-1 flex flex-col gap-2 border-b border-console-line bg-console-paper/95 px-1 py-2 backdrop-blur">
@@ -227,8 +236,14 @@ const missing = blocks.length > 0 ? missingDefaultBlocks(blocks, defaultsFor(doc
                 <span class="text-sm text-console-ink-soft">{blocks.length} ส่วน · แก้หลายส่วนแล้วกดบันทึกครั้งเดียวได้</span>
               </div>
               <details class="text-sm">
-                <summary class="cursor-pointer text-[15px] font-medium text-console-ink">แทรกช่องข้อมูลอัตโนมัติ ({placeholders.length})</summary>
-                <p class="m-0 mt-1 text-console-ink-soft">คลิกช่องข้อความที่จะแทรกก่อน แล้วกดชื่อช่อง — ระบบจะเติมข้อมูลจริงตอนพิมพ์ ถ้าไม่มีข้อมูลจะเป็นเส้นจุดให้เขียนมือ</p>
+                <summary class="cursor-pointer text-[15px] font-medium text-console-ink">ช่องข้อมูลอัตโนมัติที่ใช้ได้ ({placeholders.length})</summary>
+                <p class="m-0 mt-1 text-console-ink-soft">
+                  ใส่ในข้อความได้ ระบบจะเติมข้อมูลจริงตอนพิมพ์ (ถ้าไม่มีข้อมูลจะเป็นเส้นจุดให้เขียนมือ) ·
+                  วิธีที่ง่ายที่สุด: เปิดส่วนที่จะแก้ แล้วกด <strong>+ แทรกช่องข้อมูล</strong> ใต้ช่องข้อความ ·
+                  หรือคลิกในช่องข้อความก่อน แล้วกดชื่อช่องด้านล่าง
+                </p>
+                <p class="m-0 mt-1 font-medium text-console-ink" data-insert-target>ยังไม่ได้เลือกช่องข้อความ — กดชื่อช่องตอนนี้จะคัดลอกไว้ให้วางเอง</p>
+                <p class="m-0 mt-1 min-h-5 text-console-ok" data-chip-status aria-live="polite"></p>
                 <div class="mt-2 flex max-h-40 flex-wrap gap-1.5 overflow-y-auto">
                   {placeholders.map((p) => (
                     <button type="button" data-insert={`{${p.name}}`} title={p.description}
@@ -246,7 +261,13 @@ const missing = blocks.length > 0 ? missingDefaultBlocks(blocks, defaultsFor(doc
                 ? AUTO_BLOCK_LABELS[block.body.trim() as keyof typeof AUTO_BLOCK_LABELS] ?? block.body
                 : block.body.split('\n')[0]);
               return (
-                <details class="group rounded-lg border border-console-line bg-console-card" open={unknown.length > 0} data-block>
+                <details
+                  id={`block-${block.id}`}
+                  class:list={['group rounded-lg border bg-console-card', block.id === focusBlockId ? 'border-console-ink ring-2 ring-console-highlight' : 'border-console-line']}
+                  open={unknown.length > 0 || block.id === focusBlockId || editedIds.has(block.id)}
+                  data-block
+                  data-focus-block={block.id === focusBlockId ? '' : undefined}
+                >
                   <summary class="flex min-h-11 cursor-pointer items-center gap-3 px-3 py-2 text-[15px] marker:text-console-ink-faint">
                     <span class="w-6 shrink-0 text-right font-figure text-sm text-console-ink-faint">{index + 1}</span>
                     <span class="shrink-0 rounded bg-console-mute-bg px-1.5 text-xs text-console-ink-soft">{TEMPLATE_BLOCK_KIND_LABELS[block.kind]}</span>
@@ -257,7 +278,7 @@ const missing = blocks.length > 0 ? missingDefaultBlocks(blocks, defaultsFor(doc
                     {needsHeading(block.kind) && (
                       <label class="flex flex-col gap-1 text-sm text-console-ink-soft">
                         {headingLabel(block.kind)}
-                        <input name={`block.${block.id}.heading`} value={block.heading} class={INPUT} data-template-field />
+                        <input name={`block.${block.id}.heading`} value={block.heading} class={INPUT} data-template-field data-field-label={`ส่วนที่ ${index + 1} · ${headingLabel(block.kind)}`} />
                       </label>
                     )}
                     {block.kind === 'auto' ? (
@@ -275,15 +296,30 @@ const missing = blocks.length > 0 ? missingDefaultBlocks(blocks, defaultsFor(doc
                           rows={Math.min(14, Math.max(2, block.body.split('\n').length + (block.body.length > 120 ? 2 : 0)))}
                           class:list={[INPUT, 'py-2 leading-relaxed', block.kind === 'table' && 'font-figure text-[14px]']}
                           data-template-field
+                          data-field-label={`ส่วนที่ ${index + 1} · ข้อความ`}
                           data-table={block.kind === 'table' ? '' : undefined}
                         >{block.body}</textarea>
                       </label>
+                    )}
+                    {block.kind !== 'auto' && (
+                      <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+                        <button
+                          type="button"
+                          data-insert-menu={`block.${block.id}.body`}
+                          aria-haspopup="dialog"
+                          aria-expanded="false"
+                          class="min-h-11 rounded-lg border border-dashed border-console-ink/50 px-3 text-[15px] font-medium text-console-ink hover:border-console-ink hover:bg-console-highlight/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-ink"
+                        >
+                          + แทรกช่องข้อมูล
+                        </button>
+                        <span class="text-sm text-console-ok" data-insert-status={`block.${block.id}.body`} aria-live="polite"></span>
+                      </div>
                     )}
                     {block.kind === 'table' && <div class="overflow-x-auto" data-table-preview aria-hidden="true" />}
                     {block.kind === 'fee_row' && (
                       <label class="flex flex-col gap-1 text-sm text-console-ink-soft">
                         ค่าซ่อมแซม
-                        <input name={`block.${block.id}.extra`} value={block.extra} class={INPUT} data-template-field />
+                        <input name={`block.${block.id}.extra`} value={block.extra} class={INPUT} data-template-field data-field-label={`ส่วนที่ ${index + 1} · ค่าซ่อมแซม`} />
                       </label>
                     )}
                     {unknown.length > 0 && (
@@ -381,24 +417,15 @@ const missing = blocks.length > 0 ? missingDefaultBlocks(blocks, defaultsFor(doc
 </ConsoleFrame>
 
 <script>
-  // Insert a {placeholder} at the caret of the last field typed in.
-  let target: HTMLInputElement | HTMLTextAreaElement | null = null;
-  document.addEventListener('focusin', (event) => {
-    const el = event.target as HTMLElement;
-    if (el.matches?.('[data-template-field]')) target = el as HTMLInputElement | HTMLTextAreaElement;
-  });
-  for (const button of document.querySelectorAll<HTMLButtonElement>('[data-insert]')) {
-    button.addEventListener('mousedown', (event) => event.preventDefault());
-    button.addEventListener('click', () => {
-      if (!target) return;
-      const text = button.dataset.insert ?? '';
-      const start = target.selectionStart ?? target.value.length;
-      const end = target.selectionEnd ?? start;
-      target.setRangeText(text, start, end, 'end');
-      target.dispatchEvent(new Event('input', { bubbles: true }));
-      target.focus();
-    });
-  }
+  // {ช่องข้อมูล}: a "+ แทรกช่องข้อมูล" button under each field, and the chip
+  // row at the top — see placeholder-insert.ts.
+  import { setupPlaceholderInsert } from '@/lib/console/placeholder-insert';
+  const templateForm = document.querySelector<HTMLFormElement>('[data-template-form]');
+  if (templateForm) setupPlaceholderInsert(templateForm);
+
+  // After ↑ / ↓ the page reloads; bring the block that moved back into view
+  // so the move is visible, not lost at the top of a page of closed blocks.
+  document.querySelector<HTMLElement>('[data-focus-block]')?.scrollIntoView({ block: 'center' });
 
   // Open or close every block at once.
   const toggle = document.querySelector<HTMLButtonElement>('[data-toggle-all]');
