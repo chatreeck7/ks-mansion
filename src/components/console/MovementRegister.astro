@@ -20,7 +20,7 @@ const { period } = register;
 
 <article class="sheet bg-white text-black">
   <header class="mb-3 text-center">
-    <h2 class="m-0 text-[18px] font-bold">บัญชีแจ้งคนเข้า-ออก</h2>
+    <h2 class="paper-title m-0 text-[18px] font-bold">บัญชีแจ้งคนเข้า-ออก</h2>
     <p class="m-0 text-[13px]">{building} · ช่วง {formatThaiDate(period.from)} – {formatThaiDate(period.to)}</p>
   </header>
 
@@ -31,7 +31,7 @@ const { period } = register;
     {register.leaving.length > 0 && <span>แจ้งออกแล้ว <strong>{register.leaving.length}</strong> ห้อง</span>}
   </p>
 
-  <section class="keep mb-5">
+  <section class="keep paper-avoid mb-5">
     <h3 class="m-0 mb-1 text-[15px] font-bold">1. ห้องเข้า</h3>
     {register.moveIns.length === 0 ? (
       <p class="m-0 text-[13px] text-[#4e5566]">ไม่มีผู้เช่าเข้าใหม่ในช่วงนี้</p>
@@ -70,7 +70,7 @@ const { period } = register;
     )}
   </section>
 
-  <section class="keep mb-5">
+  <section class="keep paper-avoid mb-5">
     <h3 class="m-0 mb-1 text-[15px] font-bold">2. ห้องออก</h3>
     {register.moveOuts.length === 0 ? (
       <p class="m-0 text-[13px] text-[#4e5566]">ไม่มีผู้เช่าออกในช่วงนี้</p>
@@ -153,11 +153,5 @@ const { period } = register;
   }
   .keep {
     break-inside: avoid;
-  }
-  @media print {
-    @page {
-      size: A4;
-      margin: 12mm;
-    }
   }
 </style>

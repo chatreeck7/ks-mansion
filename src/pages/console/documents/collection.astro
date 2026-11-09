@@ -1,0 +1,39 @@
+---
+// src/pages/console/documents/collection.astro
+import CollectionSheet from '@/components/console/CollectionSheet.astro';
+import PrintShell from '@/components/console/PrintShell.astro';
+import { collectionSheetFor } from '@/lib/console/collection-sheet';
+import { collectingCycle } from '@/lib/console/history';
+import { letterheadFrom } from '@/lib/console/letterhead';
+import { consolePath } from '@/lib/console/paths';
+import { cycleFromId, cycleOptions } from '@/lib/models/billing-cycle';
+import { getBillRepository, getPaymentRepository, getRoomRepository, getSettingsRepository } from '@/lib/repositories';
+
+/**
+ * แบบฟอร์มเก็บเงินค่าห้อง on its sheet: A4 landscape, as wide as the
+ * sixteen day columns need (owner, 9 พ.ย. 2569: it showed landscape and
+ * printed portrait).
+ */
+const env = Astro.locals.runtime?.env;
+const now = new Date();
+const [bills, rooms, payments, settings] = await Promise.all([
+  getBillRepository(env).listBills(),
+  getRoomRepository(env).listRooms(),
+  getPaymentRepository(env).listPayments(),
+  getSettingsRepository(env).resolveSettings(),
+]);
+const cycle = cycleFromId(Astro.url.searchParams.get('cycle')) ?? collectingCycle(bills, now);
+const sheet = collectionSheetFor(cycle, bills.filter((b) => b.cycle === cycle.id && !b.archived), payments, rooms);
+---
+
+<PrintShell
+  title="แบบฟอร์มเก็บเงินค่าห้อง"
+  building={letterheadFrom(env, settings).name}
+  back={{ href: `${consolePath('console/collection')}?cycle=${cycle.id}`, label: '← กลับไปใบเก็บเงิน' }}
+  cycles={{ options: cycleOptions(now, cycle), selected: cycle }}
+  hint="ยอดและการติ๊กรับเงินมาจากขั้น 4 รับเงิน · หมายเหตุค้างเขียนที่ขั้น 3"
+>
+  <div class="paper-landscape">
+    <CollectionSheet {sheet} />
+  </div>
+</PrintShell>

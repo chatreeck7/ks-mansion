@@ -1,0 +1,29 @@
+---
+// src/pages/console/documents/maintenance.astro
+import MaintenanceGridSheet from '@/components/console/MaintenanceGridSheet.astro';
+import PrintShell from '@/components/console/PrintShell.astro';
+import { letterheadFrom } from '@/lib/console/letterhead';
+import { maintenanceGrid } from '@/lib/console/maintenance-log';
+import { consolePath } from '@/lib/console/paths';
+import { formatThaiDate } from '@/lib/format/thai';
+import { getMaintenanceRepository, getSettingsRepository } from '@/lib/repositories';
+
+/** ตารางตรวจเช็คอุปกรณ์หลัก as it prints: A4 landscape. */
+const env = Astro.locals.runtime?.env;
+const repo = getMaintenanceRepository(env);
+const [equipment, records, settings] = await Promise.all([
+  repo.listEquipment(),
+  repo.listRecords(),
+  getSettingsRepository(env).resolveSettings(),
+]);
+const today = new Date();
+---
+
+<PrintShell
+  title="ตารางตรวจเช็คอุปกรณ์หลัก"
+  building={letterheadFrom(env, settings).name}
+  back={{ href: consolePath('console/maintenance'), label: '← กลับไปบำรุงรักษา' }}
+  hint="จดงานเพิ่มหรือแก้ที่หน้าบำรุงรักษา"
+>
+  <MaintenanceGridSheet grid={maintenanceGrid(equipment, records, today)} dateLabel={`ณ ${formatThaiDate(today)}`} />
+</PrintShell>

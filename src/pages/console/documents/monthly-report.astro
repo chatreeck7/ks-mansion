@@ -5,6 +5,7 @@ import PrintShell from '@/components/console/PrintShell.astro';
 import { collectingCycle } from '@/lib/console/history';
 import { consolePath } from '@/lib/console/paths';
 import { LINK } from '@/lib/console/ui';
+import { letterheadFrom } from '@/lib/console/letterhead';
 import { monthlyReportFor } from '@/lib/documents/monthly-report';
 import { cycleFromId, cycleOptions } from '@/lib/models/billing-cycle';
 import {
@@ -38,6 +39,7 @@ const report = monthlyReportFor({ blocks, cycle, settings, rooms, leases, readin
 ---
 
 <PrintShell
+  building={letterheadFrom(env, settings).name}
   title={report.title}
   hint={report.usingDefaultWording
     ? 'ยังไม่มีข้อความรายงานในชีต — กำลังแสดงข้อความตั้งต้น กด "แก้ข้อความรายงาน" เพื่อคัดลอกลงชีตแล้วแก้ได้'

@@ -25,7 +25,7 @@ const empty = (segments: Segment[]) => segments.every((s) => s.kind === 'text' &
 ---
 
 {/* Rendered as an inline helper so every block kind shares one look for a filled or blank value. */}
-<article class="contract mx-auto bg-white px-10 py-10 text-[15px] leading-[1.75] text-black shadow-[0_8px_24px_rgba(30,45,74,0.12)] print:px-0 print:py-0 print:shadow-none">
+<article class="contract mx-auto bg-white text-[15px] leading-[1.75] text-black">
   {
     contract.blocks.map((block, index) => {
       const segs = (segments: Segment[]) =>
@@ -44,7 +44,7 @@ const empty = (segments: Segment[]) => segments.every((s) => s.kind === 'text' &
       if (block.kind === 'fee_row') {
         if (index !== firstFee) return null;
         return (
-          <table class="keep my-3 w-full border-collapse text-[14px]">
+          <table class="keep paper-avoid my-3 w-full border-collapse text-[14px]">
             <thead>
               <tr>
                 <th class="w-10 border border-black px-2 py-1 text-center font-semibold">ที่</th>
@@ -70,7 +70,7 @@ const empty = (segments: Segment[]) => segments.every((s) => s.kind === 'text' &
       if (block.kind === 'item_row') {
         if (index !== firstItem) return null;
         return (
-          <ol class="keep my-2 list-none pl-6">
+          <ol class="keep paper-avoid my-2 list-none pl-6">
             {items.map((item, n) => (
               <li class="flex gap-3">
                 <span class="w-6 shrink-0 text-right">{n + 1}.</span>
@@ -92,7 +92,7 @@ const empty = (segments: Segment[]) => segments.every((s) => s.kind === 'text' &
 
       if (block.kind === 'clause') {
         return (
-          <section class="keep mt-3">
+          <section class="keep paper-avoid mt-3">
             {!empty(block.heading) && <h2 class="m-0 text-[15px] font-bold">{segs(block.heading)}</h2>}
             {block.lines.map((line) => (
               <p class="m-0 pl-6 indent-0">{segs(line)}</p>
@@ -103,7 +103,7 @@ const empty = (segments: Segment[]) => segments.every((s) => s.kind === 'text' &
 
       // paragraph and closing
       return (
-        <div class:list={['keep', block.kind === 'closing' ? 'mt-4' : 'mt-2', index === 0 ? 'text-right text-[14px]' : '']}>
+        <div class:list={['keep paper-avoid', block.kind === 'closing' ? 'mt-4' : 'mt-2', index === 0 ? 'text-right text-[14px]' : '']}>
           {block.lines.map((line) => (
             <p class:list={['m-0', index > 0 && block.kind !== 'title' ? 'indent-10' : '']}>{segs(line)}</p>
           ))}
@@ -112,7 +112,7 @@ const empty = (segments: Segment[]) => segments.every((s) => s.kind === 'text' &
     })
   }
 
-  <section class="keep mt-10 grid grid-cols-2 gap-x-10 gap-y-8 text-[14px]">
+  <section class="keep paper-avoid mt-10 grid grid-cols-2 gap-x-10 gap-y-8 text-[14px]">
     {[
       { role: 'ผู้เช่าคนที่ 1', name: contract.tenantName },
       { role: 'ผู้เช่าคนที่ 2', name: contract.coTenantName },
@@ -153,14 +153,5 @@ const empty = (segments: Segment[]) => segments.every((s) => s.kind === 'text' &
   }
   .keep {
     break-inside: avoid;
-  }
-  @media print {
-    @page {
-      size: A4;
-      margin: 15mm 18mm;
-    }
-    .contract :global(.unknown) {
-      background: none;
-    }
   }
 </style>

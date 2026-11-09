@@ -1,0 +1,46 @@
+---
+// src/components/console/BillSlips.astro
+import BillDocument from '@/components/console/BillDocument.astro';
+import type { BillDocument as BillDoc } from '@/lib/console/bill-document';
+import type { Letterhead, PayeeConfig } from '@/lib/console/letterhead';
+
+/**
+ * A run of ใบแจ้งค่าห้องพัก on paper — two to an A4 sheet, cut on the dashed
+ * line (the default since 7 พ.ย. 2569), or one a sheet. Shared by the bill
+ * print page and the combined export so both cut the paper the same way.
+ *
+ * The sheet breaks are `paper-break` on the slip that starts a sheet, so the
+ * on-screen pages (paper-viewer) and the printer agree; a slip never splits.
+ */
+interface Props {
+  docs: BillDoc[];
+  letterhead: Letterhead;
+  payee: PayeeConfig;
+  perPage?: 1 | 2;
+}
+const { docs, letterhead, payee, perPage = 2 } = Astro.props;
+const startsSheet = (i: number) => i > 0 && (perPage === 1 || i % 2 === 0);
+---
+
+<div class:list={['slips', perPage === 2 ? 'paper-half two-up' : 'paper-tenant']}>
+  {docs.map((doc, i) => (
+    <div class:list={['slip paper-avoid', startsSheet(i) && 'paper-break', perPage === 2 && i % 2 === 1 && 'second']}>
+      <BillDocument {doc} {letterhead} {payee} compact={perPage === 2} />
+    </div>
+  ))}
+</div>
+
+<style>
+  /* Half a sheet each: 297mm − 16mm margins = 281mm, so 138mm a slip with a
+     dashed cut line between the pair. */
+  .two-up .slip {
+    height: 138mm;
+    overflow: hidden;
+    box-sizing: border-box;
+    padding: 2mm 0;
+  }
+  .two-up .slip.second {
+    border-top: 1px dashed #8c8073;
+    padding-top: 4mm;
+  }
+</style>

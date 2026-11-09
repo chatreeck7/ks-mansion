@@ -1,7 +1,7 @@
 ---
 // src/pages/console/bills/[bill].astro
 import BillDocument from '@/components/console/BillDocument.astro';
-import ConsoleLayout from '@/layouts/ConsoleLayout.astro';
+import PrintShell from '@/components/console/PrintShell.astro';
 import { billDocumentFor } from '@/lib/console/bill-document';
 import { letterheadFrom, payeeFrom, PAYEE_KEYS } from '@/lib/console/letterhead';
 import { consolePath } from '@/lib/console/paths';
@@ -49,37 +49,19 @@ const letterhead = letterheadFrom(env, documentSettings);
 const payee = payeeFrom(env, documentSettings);
 ---
 
-<ConsoleLayout title={`ใบแจ้งค่าห้องพัก ${doc.reference}`}>
-  <main class="console-root mx-auto max-w-2xl px-4 py-6 print:max-w-none print:px-0 print:py-0">
-    <div class="mb-4 flex flex-wrap items-center justify-between gap-3 print:hidden">
-      <a
-        href={consolePath('console/bills')}
-        class="inline-flex min-h-11 items-center text-base font-medium text-console-ink-soft no-underline hover:text-console-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-console-ink"
-      >
-        ← กลับไปหน้าบิล
-      </a>
-      <button
-        type="button"
-        data-print
-        class="inline-flex min-h-11 items-center rounded-[10px] border-[1.5px] border-console-ink px-4 text-[15px] font-semibold text-console-ink no-underline hover:bg-console-ink/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-console-ink"
-      >
-        พิมพ์ / บันทึกเป็น PDF
-      </button>
-    </div>
-
-    <BillDocument {doc} {letterhead} {payee} />
-
+<PrintShell
+  title={`ใบแจ้งค่าห้องพัก ${doc.reference}`}
+  back={{ href: consolePath('console/bills'), label: '← กลับไปหน้าบิล' }}
+  paper="tenant"
+  building={letterhead.name}
+>
+  <Fragment slot="notices">
     {!payee.configured && (
-      <p class="mt-4 text-sm text-console-ink-faint print:hidden">
+      <p class="mb-0 mt-3 rounded-lg bg-console-crit-bg px-3 py-2 text-sm text-console-crit">
         ยังไม่ได้ตั้งบัญชีรับโอน — ตั้งในหน้าแม่แบบเอกสาร (หรือ {PAYEE_KEYS.join(', ')} ใน Cloudflare Pages)
         แล้วบิลทุกใบจะแสดงช่องทางโอนทันที ไม่ต้องออกบิลใหม่
       </p>
     )}
-  </main>
-</ConsoleLayout>
-
-<script>
-  // Progressive enhancement only: the page is a complete document without it,
-  // and Ctrl-P still prints.
-  document.querySelector('[data-print]')?.addEventListener('click', () => window.print());
-</script>
+  </Fragment>
+  <BillDocument {doc} {letterhead} {payee} />
+</PrintShell>

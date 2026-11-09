@@ -41,6 +41,7 @@ const register = movementRegisterFor(period, rooms, leases, tenants);
 ---
 
 <PrintShell
+  building={letterheadFrom(env, settings).name}
   title="บัญชีแจ้งคนเข้า-ออก"
   hint="ข้อมูลมาจากสัญญาเช่า: วันเข้า-ออก ยอดแรกเข้า ยอดย้ายออก และสาเหตุ — แก้ได้ที่หน้าสัญญาของแต่ละห้อง"
   cycles={{ options: cycleOptions(now, cycle), selected: cycle }}

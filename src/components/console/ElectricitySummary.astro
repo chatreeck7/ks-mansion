@@ -17,7 +17,7 @@ const money = (n: number) => (n === 0 ? '-' : formatBaht(n));
 ---
 
 <article class="sheet bg-white text-black">
-  <h2 class="m-0 mb-1 text-center text-[17px] font-bold">{summary.title}</h2>
+  <h2 class="paper-title m-0 mb-1 text-center text-[17px] font-bold">{summary.title}</h2>
   <p class="m-0 mb-3 text-center text-[13px]">{building}</p>
   <table class="w-full border-collapse text-[13px]">
     <thead>
@@ -33,7 +33,7 @@ const money = (n: number) => (n === 0 ? '-' : formatBaht(n));
       </tr>
     </thead>
     {summary.floors.map((floor) => (
-      <tbody class="keep">
+      <tbody class="keep paper-avoid">
         {floor.rows.map((row, i) => (
           <Fragment>
             <tr>
@@ -114,11 +114,5 @@ const money = (n: number) => (n === 0 ? '-' : formatBaht(n));
   }
   .keep {
     break-inside: avoid;
-  }
-  @media print {
-    @page {
-      size: A4;
-      margin: 10mm 12mm;
-    }
   }
 </style>

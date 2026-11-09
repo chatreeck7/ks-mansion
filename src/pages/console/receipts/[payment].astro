@@ -1,6 +1,6 @@
 ---
 // src/pages/console/receipts/[payment].astro
-import ConsoleLayout from '@/layouts/ConsoleLayout.astro';
+import PrintShell from '@/components/console/PrintShell.astro';
 import { consolePath } from '@/lib/console/paths';
 import { receiptFor, receiptPeriodLabel } from '@/lib/console/receipt';
 import { letterheadFrom } from '@/lib/console/letterhead';
@@ -71,31 +71,42 @@ const receipt = receiptFor(payment, bill, room, known ? billPayments : [...billP
 const letterhead = letterheadFrom(env, await getSettingsRepository(env).resolveSettings());
 ---
 
-<ConsoleLayout title={`ใบเสร็จ ${receipt.reference}`}>
-  <main class="console-root mx-auto max-w-2xl px-4 py-6 print:max-w-none print:px-0 print:py-0">
-    <div class="mb-4 flex flex-wrap items-center justify-between gap-3 print:hidden">
-      <a
-        href={consolePath('console/payments')}
-        class="inline-flex min-h-11 items-center text-base font-medium text-console-ink-soft no-underline hover:text-console-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-console-ink"
-      >
-        ← กลับไปหน้ารับเงิน
-      </a>
-      <button
-        type="button"
-        data-print
-        class="rounded-sm border border-console-print/40 px-3 py-1.5 text-sm text-console-ink hover:bg-console-sunk focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-ink"
-      >
-        พิมพ์ใบเสร็จ
-      </button>
-    </div>
-
+<PrintShell
+  title={`ใบเสร็จ ${receipt.reference}`}
+  back={{ href: consolePath('console/payments'), label: '← กลับไปหน้ารับเงิน' }}
+  paper="tenant"
+  building={letterhead.name}
+  printLabel="พิมพ์ใบเสร็จ"
+>
+  <Fragment slot="notices">
     {payment.archived && (
-      <p class="mb-4 rounded-sm bg-console-crit-bg px-3 py-2 font-semibold text-console-crit">
+      <p class="mb-0 mt-3 rounded-lg bg-console-crit-bg px-3 py-2 font-semibold text-console-crit">
         ใบเสร็จนี้ถูกยกเลิกแล้ว — ไม่ใช่หลักฐานการชำระเงิน
       </p>
     )}
 
-    <article class="border border-console-print/30 bg-console-card p-6 print:border-0 print:p-0">
+    {!payment.archived && (
+      <details class="mt-6 text-sm print:hidden">
+        <summary class="cursor-pointer text-console-ink-faint">
+          บันทึกผิด? ยกเลิกใบเสร็จนี้
+        </summary>
+        <form method="POST" class="mt-2">
+          <input type="hidden" name="action" value="void" />
+          <p class="mb-2 text-console-ink-soft">
+            ใบเสร็จแก้ไขไม่ได้ — ยกเลิกใบนี้แล้วบันทึกการรับเงินใหม่
+            เลขที่ {receipt.reference} จะไม่ถูกนำกลับมาใช้ซ้ำ
+          </p>
+          <button
+            type="submit"
+            class="rounded-sm border border-console-crit/40 px-3 py-1.5 text-console-crit hover:bg-console-crit-bg focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-crit"
+          >
+            ยกเลิกใบเสร็จ {receipt.reference}
+          </button>
+        </form>
+      </details>
+    )}
+  </Fragment>
+    <article class="bg-white">
       <header class="mb-5 flex flex-wrap justify-between gap-4 border-b border-console-print/25 pb-4">
         <div>
           <p class="mb-0 text-lg font-semibold text-console-ink">{letterhead.name}</p>
@@ -195,32 +206,5 @@ const letterhead = letterheadFrom(env, await getSettingsRepository(env).resolveS
         ))}
       </div>
     </article>
+</PrintShell>
 
-    {!payment.archived && (
-      <details class="mt-6 text-sm print:hidden">
-        <summary class="cursor-pointer text-console-ink-faint">
-          บันทึกผิด? ยกเลิกใบเสร็จนี้
-        </summary>
-        <form method="POST" class="mt-2">
-          <input type="hidden" name="action" value="void" />
-          <p class="mb-2 text-console-ink-soft">
-            ใบเสร็จแก้ไขไม่ได้ — ยกเลิกใบนี้แล้วบันทึกการรับเงินใหม่
-            เลขที่ {receipt.reference} จะไม่ถูกนำกลับมาใช้ซ้ำ
-          </p>
-          <button
-            type="submit"
-            class="rounded-sm border border-console-crit/40 px-3 py-1.5 text-console-crit hover:bg-console-crit-bg focus-visible:outline focus-visible:outline-2 focus-visible:outline-console-crit"
-          >
-            ยกเลิกใบเสร็จ {receipt.reference}
-          </button>
-        </form>
-      </details>
-    )}
-  </main>
-</ConsoleLayout>
-
-<script>
-  // Progressive enhancement only: the page is a complete document without
-  // this, and Ctrl-P still prints it.
-  document.querySelector('[data-print]')?.addEventListener('click', () => window.print());
-</script>

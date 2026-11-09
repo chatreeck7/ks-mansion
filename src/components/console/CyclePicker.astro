@@ -33,8 +33,8 @@ interface Props {
 const { options, selected } = Astro.props;
 ---
 
-<form method="GET" class="flex flex-wrap items-end gap-2" data-cycle-picker>
-  <label class="flex flex-col gap-1 text-[15px] font-medium text-console-ink-soft">
+<form method="GET" class="flex min-w-0 max-w-full flex-wrap items-end gap-2" data-cycle-picker>
+  <label class="flex min-w-0 max-w-full flex-col gap-1 text-[15px] font-medium text-console-ink-soft">
     เลือกเดือน
     <select
       name="cycle"

@@ -7,6 +7,7 @@ import MaintenanceGridSheet from '@/components/console/MaintenanceGridSheet.astr
 import Notice from '@/components/console/Notice.astro';
 import PageHeader from '@/components/console/PageHeader.astro';
 import { dateToInput } from '@/lib/console/lease-form';
+import { consolePath } from '@/lib/console/paths';
 import { equipmentFromForm, maintenanceGrid, recordFromForm } from '@/lib/console/maintenance-log';
 import { shortThaiDate } from '@/lib/console/month-summary';
 import { buttonClass, FOCUS, INPUT, SECTION_TITLE } from '@/lib/console/ui';
@@ -90,7 +91,7 @@ const LABEL = 'flex flex-col gap-1 text-[15px] font-medium text-console-ink-soft
 
 <ConsoleFrame title="บำรุงรักษา" activeSection="maintenance">
   <PageHeader title="รายการบำรุงรักษา" subtitle="จดงานล้าง/ซ่อมอุปกรณ์ แล้วพิมพ์ตารางตรวจเช็คอุปกรณ์หลักจากหน้านี้ได้เลย" printHidden>
-    <button slot="actions" type="button" data-print class={buttonClass('primary', 'md', false)}>พิมพ์ตาราง / PDF</button>
+    <a slot="actions" href={consolePath('console/documents/maintenance')} class:list={[buttonClass('primary', 'md', false), 'no-underline']}>ดูหน้ากระดาษ / พิมพ์ PDF</a>
   </PageHeader>
 
   <div class="print:hidden">
@@ -214,7 +215,6 @@ const LABEL = 'flex flex-col gap-1 text-[15px] font-medium text-console-ink-soft
 </ConsoleFrame>
 
 <script>
-  document.querySelectorAll('[data-print]').forEach((b) => b.addEventListener('click', () => window.print()));
   // รู้แค่ปี swaps the date for a year select.
   for (const box of document.querySelectorAll<HTMLElement>('[data-when]')) {
     const toggle = box.querySelector<HTMLInputElement>('[data-year-only]');

@@ -11,6 +11,7 @@ import { LINK } from '@/lib/console/ui';
 import { collectionSheetFor } from '@/lib/console/collection-sheet';
 import { collectingCycle } from '@/lib/console/history';
 import { consolePath } from '@/lib/console/paths';
+import { buttonClass } from '@/lib/console/ui';
 import { formatBaht, formatThaiDate } from '@/lib/format/thai';
 import { cycleFor, cycleFromId, cycleOptions } from '@/lib/models/billing-cycle';
 import { getBillRepository, getPaymentRepository, getRoomRepository } from '@/lib/repositories';
@@ -87,7 +88,7 @@ const owing = sheet.rows
         </p>
       </PageHeader>
       <CyclePicker {options} selected={cycle} />
-      <Button data-print size="lg" class="hidden desk:inline-flex">พิมพ์ / บันทึก PDF</Button>
+      <a href={`${consolePath('console/documents/collection')}?cycle=${cycle.id}`} class:list={[buttonClass('primary', 'lg', false), 'hidden no-underline desk:inline-flex']}>ดูหน้ากระดาษ / พิมพ์ PDF</a>
       <p class="hidden text-[15px] leading-relaxed text-console-ink-soft desk:block">
         พิมพ์ได้ทุกเมื่อ พิมพ์ซ้ำได้ ไม่มีผลกับข้อมูล · หมายเหตุค้างเขียนที่
         <a href={consolePath('console/bills')} class={LINK}>ขั้น 3</a>
