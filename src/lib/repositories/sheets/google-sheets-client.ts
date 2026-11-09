@@ -275,6 +275,22 @@ export function createGoogleSheetsClient(options: GoogleSheetsClientOptions): Sh
       );
     },
 
+    async appendRows(tabName: string, rows: CellValue[][]): Promise<void> {
+      if (rows.length === 0) return;
+      if (rows.some((row) => row.length === 0)) {
+        throw new Error(`Refusing to append an empty row to tab "${tabName}".`);
+      }
+      const query = new URLSearchParams({
+        valueInputOption: VALUE_INPUT_OPTION,
+        insertDataOption: 'INSERT_ROWS',
+      });
+      await request(
+        `/values/${encodeURIComponent(a1Tab(tabName))}:append?${query}`,
+        `append ${rows.length} rows to tab "${tabName}"`,
+        { method: 'POST', body: JSON.stringify({ values: rows }) },
+      );
+    },
+
     async updateRow(tabName: string, rowNumber: number, values: CellValue[]): Promise<void> {
       if (!Number.isInteger(rowNumber) || rowNumber <= HEADER_ROW) {
         throw new Error(

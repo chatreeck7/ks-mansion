@@ -1,5 +1,5 @@
 import { ARCHIVED_COLUMN, type Archivable } from '@/lib/models/archivable';
-import type { SheetsClient } from './sheets-client';
+import type { CellValue, SheetsClient } from './sheets-client';
 import {
   findRow,
   readTab,
@@ -53,6 +53,11 @@ export interface SheetsCrud<T extends EntityRecord, D> {
    * key — and refuses an id already in use, exactly as `create` does.
    */
   createWithId(id: string, draft: D): Promise<T>;
+  /**
+   * Several records in one read and one append. Every row is checked
+   * before anything is written, so either all of them land or none do.
+   */
+  createMany(drafts: readonly D[]): Promise<T[]>;
   update(id: string, changes: Partial<D>): Promise<T>;
   archive(id: string): Promise<T>;
 }
@@ -170,6 +175,33 @@ export function createSheetsCrud<T extends EntityRecord, D>(
       const tab = await readTab(client, tabName, contract);
       const id = nextId(tab, 'id', idPrefix);
       return appendAs(tab, id, draft);
+    },
+
+    async createMany(drafts: readonly D[]): Promise<T[]> {
+      const { idPrefix } = spec;
+      if (!idPrefix) {
+        throw new Error(`A ${label} cannot be created through the console.`);
+      }
+      if (drafts.length === 0) return [];
+
+      const tab = await readTab(client, tabName, contract);
+      let next = Number(nextId(tab, 'id', idPrefix).slice(idPrefix.length));
+      const rows: CellValue[][] = [];
+      const entities: T[] = [];
+      drafts.forEach((draft, i) => {
+        let id = `${idPrefix}${String(next).padStart(3, '0')}`;
+        while (findRow(tab, 'id', id)) {
+          next += 1;
+          id = `${idPrefix}${String(next).padStart(3, '0')}`;
+        }
+        next += 1;
+        const row = buildRow(tab, null, { ...spec.toRowValues(draft), id, [ARCHIVED_COLUMN]: false });
+        entities.push(validated(tab, row, sheetRowNumber(tab.dataRows.length + i)));
+        rows.push(row);
+      });
+
+      await client.appendRows(tabName, rows);
+      return entities;
     },
 
     async createWithId(id: string, draft: D): Promise<T> {

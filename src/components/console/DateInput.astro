@@ -7,12 +7,11 @@ import { INPUT, INPUT_ERROR } from '@/lib/console/ui';
 /**
  * The console's one date field.
  *
- * A native `type="date"` underneath — on a phone that is the system's own
- * wheel or calendar, which nobody has to learn — dressed in the same well as
- * every other input (`INPUT`: 44px, ink outline, Plex figures). The browser
- * shows the date in its own locale, often ค.ศ. and month-first, so the field
- * repeats the choice underneath the way the family writes it: `7 พ.ย. 2569`.
- * Without script the echo shows the value the page was rendered with.
+ * Rendered as a native `type="date"` so it works with no script at all,
+ * then turned by `date-picker.ts` into a button reading `8 พ.ย. 2569` that
+ * opens the console's own calendar — พ.ศ., Thai month names, the notebook's
+ * colours (owner, 8 พ.ย. 2569). The echo line under the field is only for
+ * the no-script case, where the browser shows its own ค.ศ. date.
  *
  * Submits `YYYY-MM-DD`; `dateFromInput` and `parseThaiDate` both read it.
  */
@@ -86,25 +85,19 @@ const echoId = `${id}-th`;
 </span>
 
 <script>
-  const MONTHS = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
-  const thai = (value: string) => {
-    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-    return match ? `${Number(match[3])} ${MONTHS[Number(match[2]) - 1]} ${Number(match[1]) + 543} (พ.ศ.)` : '';
-  };
+  import { enhanceDateInputs } from '@/lib/console/date-picker';
+
   const iso = (date: Date) =>
     `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 
   for (const field of document.querySelectorAll<HTMLElement>('.date-field')) {
     const input = field.querySelector<HTMLInputElement>('[data-date-input]');
-    const echo = field.querySelector<HTMLElement>('[data-date-echo]');
-    if (!input || !echo) continue;
-    const update = () => (echo.textContent = thai(input.value));
-    input.addEventListener('input', update);
-    input.addEventListener('change', update);
     field.querySelector('[data-date-today]')?.addEventListener('click', () => {
+      if (!input) return;
       input.value = iso(new Date());
       input.dispatchEvent(new Event('change', { bubbles: true }));
-      input.focus();
     });
   }
+  // Last, so the วันนี้ shortcut above is bound to the field before it is swapped.
+  enhanceDateInputs();
 </script>

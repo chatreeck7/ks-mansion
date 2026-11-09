@@ -16,5 +16,6 @@ export interface MaintenanceRepository {
   archiveEquipment(id: string): Promise<Equipment>;
   listRecords(): Promise<MaintenanceRecord[]>;
   addRecord(draft: MaintenanceRecordDraft): Promise<MaintenanceRecord>;
+  addRecords(drafts: readonly MaintenanceRecordDraft[]): Promise<MaintenanceRecord[]>;
   archiveRecord(id: string): Promise<MaintenanceRecord>;
 }

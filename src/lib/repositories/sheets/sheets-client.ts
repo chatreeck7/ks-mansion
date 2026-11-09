@@ -36,6 +36,12 @@ export interface SheetsWriter {
   /** Adds a row after the tab's existing data. */
   appendRow(tabName: string, values: CellValue[]): Promise<void>;
   /**
+   * Several rows in one request. A page that writes twenty rows one at a
+   * time spends twenty round trips and re-reads the tab before each; on the
+   * Workers free tier that is enough to cut the request off half way.
+   */
+  appendRows(tabName: string, rows: CellValue[][]): Promise<void>;
+  /**
    * Overwrites one existing row. `rowNumber` is the 1-indexed row an admin
    * sees in the sheet, so the header is row 1 and data starts at row 2.
    */

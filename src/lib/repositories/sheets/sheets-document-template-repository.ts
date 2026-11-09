@@ -72,6 +72,7 @@ export function createSheetsDocumentTemplateRepository(
       return blocksFor(await crud.list(), docType);
     },
     addBlock: crud.create,
+    addBlocks: crud.createMany,
     updateBlock: crud.update,
     archiveBlock: crud.archive,
   };
