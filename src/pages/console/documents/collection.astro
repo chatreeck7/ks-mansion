@@ -10,9 +10,9 @@ import { cycleFromId, cycleOptions } from '@/lib/models/billing-cycle';
 import { getBillRepository, getPaymentRepository, getRoomRepository, getSettingsRepository } from '@/lib/repositories';
 
 /**
- * แบบฟอร์มเก็บเงินค่าห้อง on its sheet: A4 landscape, as wide as the
- * sixteen day columns need (owner, 9 พ.ย. 2569: it showed landscape and
- * printed portrait).
+ * แบบฟอร์มเก็บเงินค่าห้อง on its sheet: one A4 portrait page (owner,
+ * 27 พ.ย. 2569: landscape ran onto two sheets and wasted paper). The `form`
+ * sheet narrows the side margins so the sixteen day columns fit the width.
  */
 const env = Astro.locals.runtime?.env;
 const now = new Date();
@@ -33,7 +33,7 @@ const sheet = collectionSheetFor(cycle, bills.filter((b) => b.cycle === cycle.id
   cycles={{ options: cycleOptions(now, cycle), selected: cycle }}
   hint="ยอดและการติ๊กรับเงินมาจากขั้น 4 รับเงิน · หมายเหตุค้างเขียนที่ขั้น 3"
 >
-  <div class="paper-landscape">
+  <div class="paper-form">
     <CollectionSheet {sheet} />
   </div>
 </PrintShell>

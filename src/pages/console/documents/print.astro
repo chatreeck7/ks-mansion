@@ -116,10 +116,10 @@ function pagesIn(id: string): number {
   if (id === 'bills') return Math.ceil((batch?.documents.length ?? 0) / 2);
   return 1;
 }
-const landscape = (id: string) => id === 'maintenance' || id === 'collection';
+const landscape = (id: string) => id === 'maintenance';
 /** The sheet each section starts on — named on the section itself, where both
  *  Paged.js (screen) and Chrome (print) switch sheets. */
-const sheetClass = (id: string) => (landscape(id) ? 'paper-landscape' : id === 'bills' ? 'paper-half' : null);
+const sheetClass = (id: string) => (landscape(id) ? 'paper-landscape' : id === 'collection' ? 'paper-form' : id === 'bills' ? 'paper-half' : null);
 
 const backToSelector = `${consolePath('console/documents')}?cycle=${cycle.id}` +
   sections.map((section) => `&include=${section.id}`).join('');

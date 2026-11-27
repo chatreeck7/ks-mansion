@@ -67,6 +67,14 @@ const PAPER_CSS = `/*
   @bottom-right { content: none; }
 }
 
+/* A form filled in by hand on one portrait sheet — the collection sheet's
+   sixteen day columns. Same running header as a report, narrower sides:
+   the width goes to the day grid (owner, 27 พ.ย. 2569: landscape spilled
+   onto two sheets; portrait on one is what the building wants). */
+@page form {
+  margin: 14mm 9mm 12mm 9mm;
+}
+
 /* The yearly maintenance grid. */
 @page landscape {
   size: A4 landscape;
@@ -76,6 +84,7 @@ const PAPER_CSS = `/*
 .paper-tenant { page: tenant; }
 .paper-half { page: half; }
 .paper-landscape { page: landscape; }
+.paper-form { page: form; }
 
 
 .paper-break { break-before: page; }
