@@ -59,15 +59,25 @@ const NOTE_COL = 'w-[18mm]';
  */
 const BODY_BUDGET_MM = 200;
 const rowMm = Math.max(6, Math.min(8.5, Math.floor((BODY_BUDGET_MM / (sheet.rows.length + 1)) * 10) / 10));
-const rowStyle = `height: ${rowMm}mm`;
+const sheetStyle = `--row: ${rowMm}mm`;
+/**
+ * Printing from an iPhone lays A4 out as 595 × 842 CSS px — a point taken as
+ * a pixel — where Chrome uses 794 × 1123. Every mm and px then lands on paper
+ * a third larger, and the 6.6mm rows printed at ~8.7mm: two sheets again
+ * (owner, 28 พ.ย. 2569, iOS 27). A print page that narrow is that case, so
+ * there the rows and heading shrink by the same ratio and the sheet comes out
+ * as Chrome draws it. Chrome's A4 is ~720px wide here, well clear of 640.
+ */
+// Spelled out in full (not built from a prefix) so Tailwind finds them.
+const ROW = 'h-[var(--row)] [@media_print_and_(max-width:640px)]:h-[calc(var(--row)*0.72)]';
 /** "ร้านซักผ้า", "ห้องเช่าส่วนกลาง": set small so they take two lines, not four. */
 const roomLabelClass = (label: string) => (label.length > 4 ? 'font-console text-[9px]' : 'font-figure');
 ---
 
-<article class="text-sm leading-tight">
+<article class={`text-sm leading-tight [@media_print_and_(max-width:640px)]:text-xs`} style={sheetStyle}>
   <header class="mb-2">
-    <p class="paper-title mb-0 text-[13px] font-semibold text-console-ink">{collectionHeading(sheet.cycle)}</p>
-    <p class="mb-0 text-xs text-console-ink-soft">{cycleLabel(sheet.cycle)}</p>
+    <p class={`paper-title mb-0 text-[13px] font-semibold text-console-ink [@media_print_and_(max-width:640px)]:text-[10px]`}>{collectionHeading(sheet.cycle)}</p>
+    <p class={`mb-0 text-xs text-console-ink-soft [@media_print_and_(max-width:640px)]:text-[9px]`}>{cycleLabel(sheet.cycle)}</p>
   </header>
 
   <div class="overflow-x-auto">
@@ -100,7 +110,7 @@ const roomLabelClass = (label: string) => (label.length > 4 ? 'font-console text
       </thead>
       <tbody>
         {sheet.rows.map((row) => (
-          <tr style={rowStyle}>
+          <tr class={ROW}>
             <td class={`${CELL} ${ROOM_COL} ${roomLabelClass(row.roomLabel)} text-center text-console-ink`}>
               {row.roomLabel}
             </td>
@@ -120,7 +130,7 @@ const roomLabelClass = (label: string) => (label.length > 4 ? 'font-console text
             <td class={`${CELL} ${NOTE_COL} break-words text-xs leading-tight text-console-ink`}>{row.note ?? ''}</td>
           </tr>
         ))}
-        <tr style={rowStyle}>
+        <tr class={ROW}>
           <td class={`${CELL} ${ROOM_COL} text-center font-semibold text-console-ink`}>รวม</td>
           <td
             class={`${CELL} ${DUE_COL} text-right font-figure font-semibold tabular-nums text-console-ink`}
