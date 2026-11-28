@@ -30,26 +30,44 @@ interface Props {
 
 const { sheet } = Astro.props;
 
-/** Ruled like the paper: every cell bordered, nothing relying on colour. */
-const CELL = 'border border-console-print/60 px-1 py-0.5';
+/**
+ * Ruled like the paper: every cell bordered, nothing relying on colour.
+ * `leading-none`: a row's height is set below, not by the font's line box —
+ * Safari on iPhone prints the Thai and mono faces with a taller line than
+ * Chrome, which pushed every 8.5mm row to ~10.5mm and the sheet onto a
+ * second page (owner, 28 พ.ย. 2569).
+ */
+const CELL = 'border border-console-print/60 px-1 py-0.5 leading-none';
 /**
  * Sized to one A4 portrait sheet (owner, 27 พ.ย. 2569: landscape spilled
  * onto a second sheet). The `form` page leaves 192mm across; the columns are
  * fixed in mm so the layout never depends on what happens to be written in:
- * ห้อง 12 + ค่าห้องฯ 16 + หมายเหตุ 20, and the sixteen day columns share the
- * rest (~9mm each — room for a tick or a handwritten figure). Rows are held
- * at 8.5mm so a hand can write in them and ~25 rooms still fit one sheet.
+ * ห้อง 16 + ค่าห้องฯ 16 + หมายเหตุ 18, and the sixteen day columns share the
+ * rest (~8.9mm each — room for a tick or a handwritten figure).
  */
-const ROOM_COL = 'w-[12mm]';
+const ROOM_COL = 'w-[16mm]';
 const DUE_COL = 'w-[16mm]';
-const NOTE_COL = 'w-[20mm]';
-const ROW = 'h-[8.5mm]';
+const NOTE_COL = 'w-[18mm]';
+/**
+ * Row height is worked out from the number of rows, so the grid fits one
+ * sheet whatever prints it. Budget: 200mm for the body rows — an A4 page
+ * less the heading, the column header, the รวม row and whatever margins and
+ * header/footer the browser adds (Safari puts its own URL and date there and
+ * ignores ours). Capped at 8.5mm so a small building is not stretched, and
+ * floored at 6mm: below that a hand cannot write in it, and a second sheet
+ * is the better answer.
+ */
+const BODY_BUDGET_MM = 200;
+const rowMm = Math.max(6, Math.min(8.5, Math.floor((BODY_BUDGET_MM / (sheet.rows.length + 1)) * 10) / 10));
+const rowStyle = `height: ${rowMm}mm`;
+/** "ร้านซักผ้า", "ห้องเช่าส่วนกลาง": set small so they take two lines, not four. */
+const roomLabelClass = (label: string) => (label.length > 4 ? 'font-console text-[9px]' : 'font-figure');
 ---
 
-<article class="text-sm">
+<article class="text-sm leading-tight">
   <header class="mb-2">
-    <p class="paper-title mb-0 font-semibold text-console-ink">{collectionHeading(sheet.cycle)}</p>
-    <p class="mb-0 text-console-ink-soft">{cycleLabel(sheet.cycle)}</p>
+    <p class="paper-title mb-0 text-[13px] font-semibold text-console-ink">{collectionHeading(sheet.cycle)}</p>
+    <p class="mb-0 text-xs text-console-ink-soft">{cycleLabel(sheet.cycle)}</p>
   </header>
 
   <div class="overflow-x-auto">
@@ -82,8 +100,8 @@ const ROW = 'h-[8.5mm]';
       </thead>
       <tbody>
         {sheet.rows.map((row) => (
-          <tr class={ROW}>
-            <td class={`${CELL} ${ROOM_COL} text-center font-figure text-console-ink`}>
+          <tr style={rowStyle}>
+            <td class={`${CELL} ${ROOM_COL} ${roomLabelClass(row.roomLabel)} text-center text-console-ink`}>
               {row.roomLabel}
             </td>
             {/* Blank, not a zero and not a dash: the paper leaves ค่าห้องฯ
@@ -102,7 +120,7 @@ const ROW = 'h-[8.5mm]';
             <td class={`${CELL} ${NOTE_COL} break-words text-xs leading-tight text-console-ink`}>{row.note ?? ''}</td>
           </tr>
         ))}
-        <tr class={ROW}>
+        <tr style={rowStyle}>
           <td class={`${CELL} ${ROOM_COL} text-center font-semibold text-console-ink`}>รวม</td>
           <td
             class={`${CELL} ${DUE_COL} text-right font-figure font-semibold tabular-nums text-console-ink`}
